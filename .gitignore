@@ -1,0 +1,15 @@
+﻿# Secrets
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Output / logs (contain user data and sensitive metrics)
+MultiAgent_Briefing/output/
+
+# OS
+.DS_Store
+Thumbs.db

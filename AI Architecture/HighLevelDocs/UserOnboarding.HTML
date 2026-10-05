@@ -1,0 +1,2582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Co-Pilot — User Profile Setup | TomTom Maps Operations</title>
+<style>
+  :root {
+    --tt-red: #df1b12;
+    --tt-dark: #1a1a2e;
+    --tt-mid: #16213e;
+    --green: #059669;
+    --blue: #2563eb;
+    --amber: #d97706;
+    --purple: #7c3aed;
+    --slate: #64748b;
+    --border: #e2e8f0;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #1e293b;
+    --sub: #475569;
+    --step-done: #059669;
+    --step-active: #df1b12;
+    --step-todo: #cbd5e1;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ── HEADER ── */
+  #header {
+    background: linear-gradient(135deg, var(--tt-dark) 0%, var(--tt-mid) 60%, #0f3460 100%);
+    padding: 28px 40px 22px;
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  #header-logo {
+    background: var(--tt-red);
+    color: #fff;
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: 1px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+  #header-text h1 { color: #fff; font-size: 20px; font-weight: 700; }
+  #header-text p { color: #94a3b8; font-size: 13px; margin-top: 4px; }
+
+  /* ── STEP INDICATOR ── */
+  #step-bar {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 0 40px;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    overflow-x: auto;
+  }
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px 14px;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: border-color 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .step-item.done { border-bottom-color: var(--step-done); }
+  .step-item.active { border-bottom-color: var(--step-active); }
+  .step-num {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--step-todo);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-item.done .step-num { background: var(--step-done); }
+  .step-item.active .step-num { background: var(--step-active); }
+  .step-label { font-size: 13px; font-weight: 600; color: var(--slate); }
+  .step-item.active .step-label { color: var(--tt-red); }
+  .step-item.done .step-label { color: var(--step-done); }
+  .step-sep { color: #cbd5e1; font-size: 18px; display: flex; align-items: center; }
+
+  /* ── MAIN LAYOUT ── */
+  #main { max-width: 860px; margin: 0 auto; padding: 36px 24px 60px; }
+
+  /* ── SECTION CARD ── */
+  .form-section { display: none; }
+  .form-section.active { display: block; }
+
+  .section-header {
+    margin-bottom: 28px;
+  }
+  .section-header h2 { font-size: 22px; font-weight: 700; color: var(--text); }
+  .section-header p { font-size: 14px; color: var(--sub); margin-top: 6px; line-height: 1.6; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--slate);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── FORM FIELDS ── */
+  .field-row { display: grid; gap: 16px; margin-bottom: 16px; }
+  .field-row.cols-2 { grid-template-columns: 1fr 1fr; }
+  .field-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .field-row.cols-1 { grid-template-columns: 1fr; }
+  @media (max-width: 640px) {
+    .field-row.cols-2, .field-row.cols-3 { grid-template-columns: 1fr; }
+  }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.3px;
+  }
+  .field label .req { color: var(--tt-red); margin-left: 2px; }
+  .field label .hint { font-weight: 400; color: var(--slate); font-size: 11px; margin-left: 4px; }
+
+  .field input, .field select, .field textarea {
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13.5px;
+    font-family: inherit;
+    color: var(--text);
+    background: #fff;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+  }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .field select { cursor: pointer; }
+
+  .field-desc {
+    font-size: 11px;
+    color: var(--slate);
+    line-height: 1.5;
+    margin-top: 2px;
+  }
+
+  /* ── DYNAMIC ROWS ── */
+  .dyn-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .dyn-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--slate);
+    padding: 0 8px 8px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .dyn-table td { padding: 4px 6px 4px 0; }
+  .dyn-table td:last-child { width: 36px; }
+  .dyn-table input, .dyn-table select {
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 9px;
+    font-size: 13px;
+    width: 100%;
+    color: var(--text);
+    background: #fff;
+  }
+  .dyn-table input:focus, .dyn-table select:focus { outline: none; border-color: var(--blue); }
+  .btn-row-add {
+    background: none; border: 1.5px dashed #cbd5e1; border-radius: 8px;
+    color: var(--slate); font-size: 12px; font-weight: 600; cursor: pointer;
+    padding: 8px 14px; margin-top: 10px; width: 100%;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-row-add:hover { border-color: var(--blue); color: var(--blue); }
+  .btn-del {
+    background: none; border: none; cursor: pointer; color: #f87171;
+    font-size: 16px; width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s;
+  }
+  .btn-del:hover { background: #fee2e2; }
+
+  /* ── SCOPE CHIP INPUT ── */
+  .scope-chip-wrap { display: flex; flex-wrap: wrap; gap: 6px; min-height: 36px;
+    border: 1.5px solid var(--border); border-radius: 8px; padding: 6px 8px;
+    background: #fff; cursor: text; margin-bottom: 6px; align-items: center; }
+  .scope-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px 3px 10px;
+    background: #e0f2fe; color: #0369a1; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .scope-chip button { background: none; border: none; cursor: pointer; color: #0369a1;
+    font-size: 14px; line-height: 1; padding: 0; margin-left: 2px; }
+  .scope-chip button:hover { color: #b91c1c; }
+  .scope-search-wrap { position: relative; }
+  .scope-search-wrap input { width: 100%; box-sizing: border-box; }
+  .scope-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #fff;
+    border: 1.5px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    z-index: 200; max-height: 200px; overflow-y: auto; display: none; }
+  .scope-opt { padding: 8px 14px; cursor: pointer; font-size: 13px; color: var(--text); }
+  .scope-opt:hover { background: #f0f9ff; color: #0369a1; }
+  .scope-hint { font-size: 11px; color: var(--slate); margin-top: 4px; }
+
+  /* ── DOMAIN TABS ── */
+  .domain-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .domain-tab {
+    padding: 7px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
+    cursor: pointer; border: 2px solid var(--border); background: #fff;
+    color: var(--slate); transition: all 0.15s; user-select: none;
+  }
+  .domain-tab:hover { border-color: #94a3b8; color: var(--text); }
+  .domain-tab.selected { color: #fff; border-color: transparent; }
+  .domain-tab[data-d="OL"].selected  { background: var(--blue); }
+  .domain-tab[data-d="PM"].selected  { background: var(--tt-red); }
+  .domain-tab[data-d="QL"].selected  { background: var(--green); }
+  .domain-tab[data-d="BA"].selected  { background: var(--purple); }
+  .domain-tab[data-d="PE"].selected  { background: var(--amber); }
+
+  .domain-section { display: none; }
+  .domain-section.visible { display: block; }
+
+  /* ── CONSENT TOGGLES ── */
+  .consent-item {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+  }
+  .consent-item:last-child { border-bottom: none; }
+  .consent-toggle { flex-shrink: 0; margin-top: 2px; }
+  .consent-toggle input[type="checkbox"] {
+    width: 18px; height: 18px; cursor: pointer; accent-color: var(--green);
+  }
+  .consent-info { flex: 1; }
+  .consent-info strong { font-size: 13.5px; display: block; margin-bottom: 3px; }
+  .consent-info span { font-size: 12px; color: var(--sub); line-height: 1.5; }
+  .consent-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px;
+    border-radius: 10px; margin-left: 6px; vertical-align: middle;
+  }
+  .badge-read { background: #dbeafe; color: #1d4ed8; }
+  .badge-write { background: #fee2e2; color: #b91c1c; }
+
+  /* ── METRIC TABLE ── */
+  .metric-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .metric-table th {
+    background: #f1f5f9;
+    text-align: left; padding: 8px 10px;
+    font-size: 11px; font-weight: 700; color: var(--slate);
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .metric-table th:first-child { border-radius: 6px 0 0 6px; }
+  .metric-table th:last-child { border-radius: 0 6px 6px 0; width: 40px; }
+  .metric-table td { padding: 5px 8px 5px 0; border-bottom: 1px solid #f1f5f9; }
+  .metric-table td:last-child { padding-right: 0; }
+  .metric-table input, .metric-table select {
+    border: 1.5px solid var(--border); border-radius: 6px;
+    padding: 6px 8px; font-size: 12.5px; width: 100%; background: #fff;
+  }
+  .metric-table input:focus, .metric-table select:focus { outline: none; border-color: var(--blue); }
+
+  /* ── AGENT PREFS ── */
+  .pref-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .pref-grid { grid-template-columns: 1fr; } }
+
+  /* ── PREVIEW ── */
+  #preview-box {
+    background: #0f172a; color: #e2e8f0; border-radius: 10px;
+    padding: 20px 24px; font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12.5px; line-height: 1.7; white-space: pre-wrap;
+    max-height: 500px; overflow-y: auto; margin-top: 8px;
+    border: 1px solid #334155;
+  }
+  #preview-box .md-h1 { color: #f8fafc; font-weight: 700; }
+  #preview-box .md-h2 { color: #7dd3fc; }
+  #preview-box .md-h3 { color: #86efac; }
+  #preview-box .md-bold { color: #fcd34d; }
+
+  /* ── BUTTONS ── */
+  .btn-row { display: flex; gap: 12px; justify-content: space-between; margin-top: 32px; align-items: center; }
+  .btn {
+    padding: 11px 24px; border-radius: 8px; font-size: 14px; font-weight: 700;
+    cursor: pointer; border: none; transition: all 0.15s; display: inline-flex;
+    align-items: center; gap: 8px; text-decoration: none;
+  }
+  .btn-primary { background: var(--tt-red); color: #fff; }
+  .btn-primary:hover { background: #c0150d; }
+  .btn-secondary { background: #f1f5f9; color: var(--text); border: 1.5px solid var(--border); }
+  .btn-secondary:hover { background: #e2e8f0; }
+  .btn-success { background: var(--green); color: #fff; }
+  .btn-success:hover { background: #047857; }
+  .btn-ghost { background: none; border: none; color: var(--slate); font-size: 14px; cursor: pointer; }
+  .btn-ghost:hover { color: var(--text); }
+  .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+  /* ── INFO CALLOUT ── */
+  .callout {
+    display: flex; gap: 12px; padding: 14px 16px; border-radius: 8px;
+    font-size: 13px; line-height: 1.6; margin-bottom: 16px;
+  }
+  .callout-blue { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+  .callout-amber { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+  .callout-green { background: #f0fdf4; border: 1px solid #bbf7d0; color: #14532d; }
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+  /* ── TIME INPUTS ── */
+  input[type="time"] { cursor: pointer; }
+
+  /* ── PHASE 2 ITEMS ── */
+  .phase2-wrap { position: relative; }
+  .phase2-overlay {
+    position: absolute; inset: 0; border-radius: 8px;
+    background: rgba(248,250,252,0.82); z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .phase2-tag {
+    background: #f1f5f9; color: var(--slate);
+    border: 1.5px solid #cbd5e1; border-radius: 20px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    padding: 4px 12px; pointer-events: none;
+  }
+  .consent-item.phase2 { opacity: 0.45; }
+  .badge-phase2 { background: #f1f5f9; color: #64748b; }
+
+  /* ── ROLE BADGE ── */
+  .role-pill {
+    display: inline-block; padding: 3px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+  }
+  .role-OL { background: #dbeafe; color: #1d4ed8; }
+  .role-PM { background: #fee2e2; color: #b91c1c; }
+  .role-QL { background: #d1fae5; color: #065f46; }
+  .role-BA { background: #ede9fe; color: #5b21b6; }
+  .role-PE { background: #fef3c7; color: #92400e; }
+
+  /* ── USE CASE OPT-IN CARDS ── */
+  .uc-opt-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .uc-opt-card {
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    position: relative;
+  }
+  .uc-opt-card:hover { border-color: #94a3b8; background: #fafafa; }
+  .uc-opt-card.selected { border-color: var(--blue); background: #eff6ff; }
+  .uc-opt-card.domain-dim { opacity: 0.45; }
+  .uc-opt-check {
+    width: 20px; height: 20px;
+    border: 2px solid #cbd5e1;
+    border-radius: 5px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+    background: #fff;
+  }
+  .uc-opt-card.selected .uc-opt-check {
+    background: var(--blue);
+    border-color: var(--blue);
+  }
+  .uc-opt-check::after {
+    content: '';
+    display: none;
+    width: 5px; height: 9px;
+    border: 2px solid #fff;
+    border-top: none; border-left: none;
+    transform: rotate(45deg) translateY(-1px);
+  }
+  .uc-opt-card.selected .uc-opt-check::after { display: block; }
+  .uc-opt-body { flex: 1; min-width: 0; }
+  .uc-opt-title {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    margin-bottom: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .uc-num-badge {
+    font-size: 10px; font-weight: 800; padding: 2px 7px;
+    border-radius: 10px; background: #1e293b; color: #fff;
+    letter-spacing: 0.5px; flex-shrink: 0;
+  }
+  .uc-opt-desc { font-size: 12.5px; color: var(--sub); line-height: 1.55; margin-bottom: 8px; }
+  .uc-opt-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+  .uc-meta-chip {
+    font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 10px; border: 1px solid var(--border);
+    color: var(--slate); background: #f8fafc;
+  }
+  .uc-meta-chip.trigger { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
+  .uc-meta-chip.domain  { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+  .uc-meta-chip.agent   { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+  .uc-domain-fit {
+    position: absolute; top: 10px; right: 12px;
+    font-size: 10px; font-weight: 700; color: var(--green);
+    background: #f0fdf4; border: 1px solid #bbf7d0;
+    padding: 2px 7px; border-radius: 8px;
+  }
+  .uc-select-all-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .uc-select-all-row p { font-size: 13px; color: var(--sub); }
+  .btn-select-all {
+    font-size: 12px; font-weight: 700; color: var(--blue);
+    background: none; border: 1.5px solid #bfdbfe; border-radius: 6px;
+    padding: 5px 12px; cursor: pointer; transition: background 0.1s;
+  }
+  .btn-select-all:hover { background: #eff6ff; }
+
+  /* ── VALIDATION ── */
+  .field-error input, .field-error select, .field-error textarea {
+    border-color: #ef4444 !important;
+    background: #fff5f5 !important;
+  }
+  .field-error input:focus, .field-error select:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.12) !important; }
+  .err-msg {
+    font-size: 11px;
+    color: #dc2626;
+    font-weight: 600;
+    margin-top: 4px;
+    display: none;
+  }
+  .field-error .err-msg { display: block; }
+  .validation-banner {
+    background: #fef2f2;
+    border: 1.5px solid #fca5a5;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #991b1b;
+    margin-bottom: 20px;
+    display: none;
+    line-height: 1.6;
+  }
+  .validation-banner ul { margin: 6px 0 0 18px; }
+
+  /* ── FOOTER ── */
+  #footer {
+    background: var(--tt-dark); color: #64748b; text-align: center;
+    font-size: 11px; padding: 14px; margin-top: 40px; letter-spacing: 0.3px;
+  }
+
+  /* ── SUCCESS SCREEN ── */
+  #success-screen {
+    display: none; text-align: center; padding: 60px 20px;
+  }
+  #success-screen .success-icon { font-size: 64px; margin-bottom: 20px; }
+  #success-screen h2 { font-size: 24px; font-weight: 700; margin-bottom: 10px; }
+  #success-screen p { color: var(--sub); font-size: 14px; line-height: 1.7; max-width: 500px; margin: 0 auto 24px; }
+  .path-box {
+    background: #f1f5f9; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 16px; font-family: 'Consolas', monospace; font-size: 13px;
+    color: var(--blue); margin: 12px 0; text-align: left; word-break: break-all;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div id="header-logo">TomTom</div>
+  <div id="header-text">
+    <h1>AI Co-Pilot — User Profile Setup</h1>
+    <p>Maps Operations · Native AI Initiative · Complete once, powers your personalised agent across all domains</p>
+  </div>
+</div>
+
+<!-- STEP BAR -->
+<div id="step-bar">
+  <div class="step-item active" onclick="goStep(1)" id="si-1">
+    <div class="step-num">1</div>
+    <div class="step-label">Identity</div>
+  </div>
+  <div class="step-sep">›</div>
+  <div class="step-item" onclick="goStep(2)" id="si-2">
+    <div class="step-num">2</div>
+    <div class="step-label">Team &amp; Projects</div>
+  </div>
+  <div class="step-sep">›</div>
+  <div class="step-item" onclick="goStep(3)" id="si-3">
+    <div class="step-num">3</div>
+    <div class="step-label">Tools &amp; Systems</div>
+  </div>
+  <div class="step-sep">›</div>
+  <div class="step-item" onclick="goStep(4)" id="si-4">
+    <div class="step-num">4</div>
+    <div class="step-label">Domain Config</div>
+  </div>
+  <div class="step-sep">›</div>
+  <div class="step-item" onclick="goStep(5)" id="si-5">
+    <div class="step-num">5</div>
+    <div class="step-label">Agents &amp; Consent</div>
+  </div>
+  <div class="step-sep">›</div>
+  <div class="step-item" onclick="goStep(6)" id="si-6">
+    <div class="step-num">6</div>
+    <div class="step-label">Review &amp; Download</div>
+  </div>
+  <div class="step-sep">›</div>
+  <div class="step-item" onclick="goStep(7)" id="si-7">
+    <div class="step-num">7</div>
+    <div class="step-label">You're Ready</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- ════════════════════════════════ STEP 1: IDENTITY ════════════════════════════════ -->
+  <div class="form-section active" id="step-1">
+    <div class="section-header">
+      <h2>Who are you?</h2>
+      <p>Your identity anchors every agent. This is used to personalise briefings, route alerts to you, and map your role context so agents know what matters to you.</p>
+    </div>
+
+    <div class="validation-banner" id="vb-1">
+      <strong>Please fill in all required fields before continuing:</strong>
+      <ul id="vb-1-list"></ul>
+    </div>
+
+    <div class="callout callout-blue">
+      <span class="callout-icon">🔐</span>
+      <span>SSO authentication will be used for final deployment. Today, enter your TomTom email manually — this will be verified against your Entra ID in production.</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--tt-red)"></div>Personal Details</div>
+      <div class="field-row cols-2">
+        <div class="field" id="fe-name">
+          <label>Full Name <span class="req">*</span></label>
+          <input type="text" id="f-name" placeholder="" />
+          <span class="err-msg">Full name is required.</span>
+        </div>
+        <div class="field" id="fe-email">
+          <label>TomTom Email <span class="req">*</span></label>
+          <input type="email" id="f-email" placeholder="firstname.lastname@tomtom.com" />
+          <span class="err-msg">A valid TomTom email is required.</span>
+        </div>
+      </div>
+      <div class="field-row cols-2">
+        <div class="field">
+          <label>Teams Display Name <span class="hint">(exactly as shown in Teams)</span></label>
+          <input type="text" id="f-teams" placeholder="" />
+        </div>
+        <div class="field" id="fe-jira-user">
+          <label>Jira Account ID / Username <span class="req">*</span></label>
+          <input type="text" id="f-jira-user" placeholder="" />
+          <span class="err-msg">Jira Account ID is required — this becomes your SKILL.md filename.</span>
+        </div>
+      </div>
+      <div class="field-row cols-3">
+        <div class="field" id="fe-location">
+          <label>Location / Site <span class="req">*</span></label>
+          <select id="f-location">
+            <option value="">Select...</option>
+            <option>OCC Hyderabad</option>
+            <option>Pune</option>
+            <option>Noida</option>
+            <option>RMSI</option>
+            <option>GlobalLogic</option>
+            <option>Amsterdam (HQ)</option>
+            <option>Other</option>
+          </select>
+          <span class="err-msg">Location is required.</span>
+        </div>
+        <div class="field">
+          <label>Work Start Time <span class="req">*</span></label>
+          <input type="time" id="f-start" value="09:00" />
+        </div>
+        <div class="field">
+          <label>Work End Time <span class="req">*</span></label>
+          <input type="time" id="f-end" value="18:00" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--blue)"></div>Role & Domain</div>
+      <div class="callout callout-amber" style="margin-bottom:18px;">
+        <span class="callout-icon">💡</span>
+        <span>Select your <strong>primary domain</strong> — this determines which domain folder your SKILL.md is saved to. You can also select secondary domains you work across — the agent will pull context from those profiles too.</span>
+      </div>
+      <div class="field-row cols-1" style="margin-bottom:12px;">
+        <div class="field" id="fe-primary-domain">
+          <label>Primary Domain / Role <span class="req">*</span></label>
+          <select id="f-primary-domain" onchange="onPrimaryDomainChange()">
+            <option value="">Select your primary role...</option>
+            <option value="OL">Operational Lead (OL)</option>
+            <option value="PM">Project Manager (PM)</option>
+            <option value="QL">Quality Lead (QL)</option>
+            <option value="BA">Business Analyst (BA)</option>
+            <option value="PE">Process Engineering (PE)</option>
+          </select>
+          <span class="err-msg">Primary domain is required.</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Secondary Domains <span class="hint">(if you work across multiple areas)</span></label>
+        <div class="domain-tabs" id="secondary-tabs">
+          <div class="domain-tab" data-d="OL" onclick="toggleSecondary(this)">Operational Lead</div>
+          <div class="domain-tab" data-d="PM" onclick="toggleSecondary(this)">Project Manager</div>
+          <div class="domain-tab" data-d="QL" onclick="toggleSecondary(this)">Quality Lead</div>
+          <div class="domain-tab" data-d="BA" onclick="toggleSecondary(this)">Business Analyst</div>
+          <div class="domain-tab" data-d="PE" onclick="toggleSecondary(this)">Process Engineering</div>
+        </div>
+      </div>
+      <div class="field-row cols-2" style="margin-top:16px;">
+        <div class="field">
+          <label>Manager Name</label>
+          <input type="text" id="f-manager-name" placeholder="" />
+        </div>
+        <div class="field">
+          <label>Manager Email</label>
+          <input type="email" id="f-manager-email" placeholder="manager@tomtom.com" />
+        </div>
+      </div>
+      <div class="field-row cols-2">
+        <div class="field">
+          <label>Job Level / Band <span class="hint">(optional)</span></label>
+          <select id="f-band">
+            <option value="">Select...</option>
+            <option>Associate / Specialist</option>
+            <option>Senior Specialist</option>
+            <option>Manager I</option>
+            <option>Manager II</option>
+            <option>Senior Manager</option>
+            <option>Director</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Years in this role <span class="hint">(helps calibrate agent recommendations)</span></label>
+          <select id="f-years">
+            <option value="">Select...</option>
+            <option>Less than 1 year</option>
+            <option>1–2 years</option>
+            <option>3–5 years</option>
+            <option>5+ years</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <span></span>
+      <button class="btn btn-primary" onclick="validateAndGoStep(1, 2)">Next: Team &amp; Projects →</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ STEP 2: TEAM & PROJECTS ════════════════════════════════ -->
+  <div class="form-section" id="step-2">
+    <div class="section-header">
+      <h2>Your Team &amp; Projects</h2>
+      <p>The Dependency Tracker and Morning Briefing agents use this to know who to follow up with, and which project threads to surface in your daily digest.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--blue)"></div>Active Projects</div>
+      <p class="field-desc" style="margin-bottom:14px;">List projects you're actively contributing to. The agent monitors Jira and Confluence for updates on these.</p>
+      <table class="dyn-table" id="projects-table">
+        <thead>
+          <tr>
+            <th>Project Name</th>
+            <th>Project Code / Key</th>
+            <th>Your Role on Project</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="projects-tbody">
+          <tr>
+            <td><input type="text" placeholder="e.g. RM Lanes AI Programme" /></td>
+            <td><input type="text" placeholder="e.g. RMPE" /></td>
+            <td><input type="text" placeholder="e.g. Lead PE" /></td>
+            <td>
+              <select>
+                <option>Active</option>
+                <option>On Hold</option>
+                <option>Completing</option>
+              </select>
+            </td>
+            <td><button class="btn-del" onclick="delRow(this)" title="Remove">×</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <button class="btn-row-add" onclick="addProjectRow()">+ Add Project</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--purple)"></div>Key Stakeholders</div>
+      <p class="field-desc" style="margin-bottom:14px;">People you regularly depend on or report to. The agent tracks communication patterns and flags when a stakeholder goes quiet on an open dependency.</p>
+      <table class="dyn-table" id="stakeholders-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Role / Team</th>
+            <th>Email / Teams Handle</th>
+            <th>Contact Frequency</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="stakeholders-tbody">
+          <tr>
+            <td><input type="text" placeholder="" /></td>
+            <td><input type="text" placeholder="e.g. OPS Lead" /></td>
+            <td><input type="text" placeholder="email or @handle" /></td>
+            <td>
+              <select>
+                <option>Daily</option>
+                <option>Few times/week</option>
+                <option>Weekly</option>
+                <option>As needed</option>
+              </select>
+            </td>
+            <td><button class="btn-del" onclick="delRow(this)" title="Remove">×</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <button class="btn-row-add" onclick="addStakeholderRow()">+ Add Stakeholder</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--green)"></div>Direct Reports <span class="hint" style="font-weight:400; font-size:11px; text-transform:none; letter-spacing:0;">(if people manager)</span></div>
+      <div class="field-row cols-2">
+        <div class="field">
+          <label>Team Size (number of direct reports)</label>
+          <input type="number" id="f-team-size" placeholder="0" min="0" max="100" />
+        </div>
+        <div class="field">
+          <label>Team Location(s)</label>
+          <input type="text" id="f-team-locations" placeholder="e.g. Pune, Hyderabad" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Direct Reports <span class="hint">(names, one per line — used for leave impact detection)</span></label>
+        <textarea id="f-reports" placeholder="One name per line"></textarea>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(1)">← Back</button>
+      <button class="btn btn-primary" onclick="goStep(3)">Next: Tools &amp; Systems →</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ STEP 3: TOOLS & SYSTEMS ════════════════════════════════ -->
+  <div class="form-section" id="step-3">
+    <div class="section-header">
+      <h2>Tools &amp; Systems</h2>
+      <p>Agents need to know <em>where</em> to look and <em>what format</em> you use. Fill in your Jira boards, Confluence spaces, Power BI reports, and — importantly — your <strong>report templates</strong>. The agent will fetch your actual template file and populate it with data, so stakeholders always receive the format they expect.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+        <span style="font-size:11.5px; background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:3px 10px; border-radius:6px; font-weight:600;">📋 Jira boards &amp; SLA thresholds</span>
+        <span style="font-size:11.5px; background:#f0fdf4; border:1px solid #bbf7d0; color:#065f46; padding:3px 10px; border-radius:6px; font-weight:600;">📁 Report templates (new)</span>
+        <span style="font-size:11.5px; background:#faf5ff; border:1px solid #ddd6fe; color:#5b21b6; padding:3px 10px; border-radius:6px; font-weight:600;">📄 Confluence spaces</span>
+        <span style="font-size:11.5px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:3px 10px; border-radius:6px; font-weight:600;">📊 Power BI &amp; metrics</span>
+        <span style="font-size:11.5px; background:#fff5f5; border:1px solid #fecaca; color:#b91c1c; padding:3px 10px; border-radius:6px; font-weight:600;">💬 Communication channels</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:#0052CC"></div>Jira</div>
+      <div class="field-row cols-2">
+        <div class="field">
+          <label>Jira Cloud URL</label>
+          <input type="text" id="f-jira-url" placeholder="e.g. tomtom.atlassian.net" />
+        </div>
+        <div class="field">
+          <label>Project Keys you work in <span class="req">*</span></label>
+          <input type="text" id="f-jira-keys" placeholder="e.g. RMPE, OPS, AIC, DSM" />
+          <div class="field-desc">Comma-separated. The Jira Status Agent monitors tickets in these projects for you.</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Sprint Board Names <span class="hint">(your active boards)</span></label>
+        <input type="text" id="f-jira-boards" placeholder="e.g. PE Hyderabad Sprint Board, AIC Backlog" />
+      </div>
+      <div class="field-row cols-2" style="margin-top:8px;">
+        <div class="field">
+          <label>Ticket SLA — Warning threshold <span class="hint">(hours without update)</span></label>
+          <input type="number" id="f-jira-sla-warn" placeholder="48" value="48" />
+        </div>
+        <div class="field">
+          <label>Ticket SLA — Escalate threshold <span class="hint">(hours without update)</span></label>
+          <input type="number" id="f-jira-sla-esc" placeholder="72" value="72" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:#172B4D"></div>Confluence</div>
+      <div class="field-row cols-2">
+        <div class="field">
+          <label>Spaces you follow</label>
+          <input type="text" id="f-conf-spaces" placeholder="e.g. MAPSOPS, PE, QTM" />
+          <div class="field-desc">Comma-separated space keys. Agent checks for page updates each morning.</div>
+        </div>
+        <div class="field">
+          <label>Pages you own / maintain</label>
+          <input type="text" id="f-conf-pages" placeholder="e.g. PE Status Dashboard, PA Tracker" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:#F2C811"></div>Power BI</div>
+      <div class="field-row cols-2">
+        <div class="field">
+          <label>Workspace Names</label>
+          <input type="text" id="f-pbi-workspaces" placeholder="e.g. OPS KPIs, RM Lanes Analytics" />
+        </div>
+        <div class="field">
+          <label>Reports you own / monitor</label>
+          <input type="text" id="f-pbi-reports" placeholder="e.g. Weekly Ops, RM Lanes Efficiency" />
+        </div>
+      </div>
+      <div class="field" style="margin-top:8px;">
+        <label>Key Metrics you watch <span class="hint">(name : target : alert threshold)</span></label>
+        <table class="metric-table" id="metrics-table">
+          <thead>
+            <tr>
+              <th>Metric Name</th>
+              <th>Target Value</th>
+              <th>Alert At</th>
+              <th>Direction</th>
+              <th>Source</th>
+              <th>Report Link (Power BI URL)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="metrics-tbody">
+            <tr>
+              <td><input type="text" placeholder="e.g. FTA" /></td>
+              <td><input type="text" placeholder="e.g. 95%" /></td>
+              <td><input type="text" placeholder="e.g. below 92%" /></td>
+              <td>
+                <select>
+                  <option>↓ Alert on drop</option>
+                  <option>↑ Alert on rise</option>
+                  <option>↕ Alert on deviation</option>
+                </select>
+              </td>
+              <td><input type="text" placeholder="Power BI / Jira / Manual" /></td>
+              <td><input type="url" placeholder="https://app.powerbi.com/..." /></td>
+              <td><button class="btn-del" onclick="delRow(this)" title="Remove">×</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button class="btn-row-add" onclick="addMetricRow()">+ Add Metric</button>
+      </div>
+
+      <div class="field" style="margin-top:16px;">
+        <label>Databricks Process Types <span class="hint">(select all that apply to your data)</span></label>
+        <div class="scope-chip-wrap" id="pt-chips-wrap" onclick="document.getElementById('pt-search').focus()"></div>
+        <div class="scope-search-wrap">
+          <input type="text" id="pt-search" placeholder="Search or type a process type, press Enter to add…"
+            oninput="filterPtOptions()" onkeydown="ptKeydown(event)" onfocus="filterPtOptions()" autocomplete="off" />
+          <div class="scope-dropdown" id="pt-dropdown"></div>
+        </div>
+        <p class="scope-hint" id="pt-status">Loading from Databricks…</p>
+      </div>
+
+      <div class="field" style="margin-top:12px;">
+        <label>Databricks Planning IDs <span class="hint">(planning IDs your data is tagged with)</span></label>
+        <div class="scope-chip-wrap" id="pid-chips-wrap" onclick="document.getElementById('pid-search').focus()"></div>
+        <div class="scope-search-wrap">
+          <input type="text" id="pid-search" placeholder="Search or type a planning ID, press Enter to add…"
+            oninput="filterPidOptions()" onkeydown="pidKeydown(event)" onfocus="filterPidOptions()" autocomplete="off" />
+          <div class="scope-dropdown" id="pid-dropdown"></div>
+        </div>
+        <p class="scope-hint" id="pid-status"></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--green)"></div>Report Templates</div>
+      <p style="font-size:13px; color:var(--sub); margin-bottom:14px; line-height:1.6;">Register the templates you use for regular reports. The Report Generator agent will fetch the actual file, populate it with AI-generated data (metrics, trends, ticket summaries), and surface a pre-filled draft for your review — preserving the exact format your stakeholders already expect.</p>
+      <table class="metric-table" id="templates-table">
+        <thead>
+          <tr>
+            <th>Template Name</th>
+            <th>Cadence</th>
+            <th>Maps to Use Case</th>
+            <th>File Location (URL)</th>
+            <th>Output Format</th>
+            <th>Fields AI Populates</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="templates-tbody">
+          <tr>
+            <td><input type="text" placeholder="e.g. Weekly RM Lanes Report" /></td>
+            <td>
+              <select>
+                <option>Weekly</option>
+                <option>Monthly</option>
+                <option>Quarterly</option>
+                <option>Ad-hoc</option>
+              </select>
+            </td>
+            <td>
+              <select>
+                <option>UC3 · Weekly Report</option>
+                <option>UC4 · Metric Alert</option>
+                <option>UC5 · CRD Risk</option>
+                <option>UC1 · Morning Briefing</option>
+                <option>Other</option>
+              </select>
+            </td>
+            <td><input type="url" placeholder="https://sharepoint.com/... or GitHub URL" /></td>
+            <td>
+              <select>
+                <option>PowerPoint (.pptx)</option>
+                <option>Word (.docx)</option>
+                <option>Excel (.xlsx)</option>
+                <option>Teams Card</option>
+                <option>PDF</option>
+                <option>Plain Text</option>
+              </select>
+            </td>
+            <td><input type="text" placeholder="e.g. Yield, FTA, CoQ, sprint summary" /></td>
+            <td><button class="btn-del" onclick="delRow(this)" title="Remove">×</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <button class="btn-row-add" onclick="addTemplateRow()">+ Add Template</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--tt-red)"></div>Communication Channels <span class="consent-badge badge-phase2" style="margin-left:8px;">PHASE 2</span></div>
+      <div class="callout callout-amber" style="margin-bottom:16px;">
+        <span class="callout-icon">⏳</span>
+        <span><strong>Coming in Phase 2.</strong> Email, Teams, and Slack access is not enabled yet. Phase 1 uses Jira, Confluence, and Databricks only. You can fill these fields now — they will be activated in a future release.</span>
+      </div>
+      <div class="phase2-wrap" style="position:relative;">
+        <div class="phase2-overlay"><span class="phase2-tag">Available in Phase 2</span></div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>Primary Email Folders to scan <span class="hint">(inbox is always included)</span></label>
+            <input type="text" id="f-email-folders" placeholder="e.g. Inbox, OPS Escalations, RM Lanes" disabled />
+          </div>
+          <div class="field">
+            <label>Teams Channels to monitor</label>
+            <input type="text" id="f-teams-channels" placeholder="e.g. PE Team General, OPS LT Updates" disabled />
+          </div>
+        </div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>Do you use Slack?</label>
+            <select id="f-slack" disabled>
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Slack Channel(s) <span class="hint">(if Slack used)</span></label>
+            <input type="text" id="f-slack-channels" placeholder="e.g. #ops-general, #pe-team" disabled />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(2)">← Back</button>
+      <button class="btn btn-primary" onclick="goStep(4)">Next: Domain Config →</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ STEP 4: DOMAIN CONFIG ════════════════════════════════ -->
+  <div class="form-section" id="step-4">
+    <div class="section-header">
+      <h2>Domain-Specific Configuration</h2>
+      <p>These questions are tailored to your selected domains. Answers configure domain-specific agents — the Quality Alert agent needs different inputs than the Report Generation agent.</p>
+    </div>
+
+    <!-- OL -->
+    <div class="domain-section" id="ds-OL">
+      <div class="card">
+        <div class="card-title"><div class="dot" style="background:var(--blue)"></div>Operational Lead Configuration</div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>Workflow types you manage</label>
+            <input type="text" id="ol-workflows" placeholder="e.g. LM, RM, Genesis, TMC" />
+          </div>
+          <div class="field">
+            <label>Team shift pattern</label>
+            <select id="ol-shift">
+              <option>Day shift only</option>
+              <option>Split shifts</option>
+              <option>24/7 coverage</option>
+              <option>Flexible</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>Daily production target (units/tasks)</label>
+            <input type="text" id="ol-prod-target" placeholder="e.g. 500 tasks/day per operator" />
+          </div>
+          <div class="field">
+            <label>Typical escalation path (who you call first)</label>
+            <input type="text" id="ol-escalation" placeholder="e.g. PM → Program Manager → OPS LT" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Key daily metrics to watch (from SKILL.md — add others you track)</label>
+          <input type="text" id="ol-metrics" placeholder="e.g. Manual Efficiency, QC After QC, FTA, IMs caused by Operations" />
+        </div>
+        <div class="field" style="margin-top:8px;">
+          <label>TMC / CMT report recipients <span class="hint">(for report generation agent)</span></label>
+          <input type="text" id="ol-report-recip" placeholder="e.g. OPS LT, Team Leads — comma separated emails" />
+        </div>
+      </div>
+    </div>
+
+    <!-- PM -->
+    <div class="domain-section" id="ds-PM">
+      <div class="card">
+        <div class="card-title"><div class="dot" style="background:var(--tt-red)"></div>Project Manager Configuration</div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>Delivery framework used</label>
+            <select id="pm-framework">
+              <option>Agile / Scrum</option>
+              <option>Kanban</option>
+              <option>Waterfall</option>
+              <option>SAFe</option>
+              <option>Custom / Hybrid</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Sprint / Cycle length (days)</label>
+            <input type="number" id="pm-sprint" placeholder="14" value="14" />
+          </div>
+        </div>
+        <div class="field">
+          <label>OKR / Goals this quarter (brief)</label>
+          <textarea id="pm-okr" placeholder="e.g. Deliver RM Lanes Phase 2 by Q3, Improve OM closure rate to 90%, Launch AI co-pilot POC"></textarea>
+        </div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>OM Deliverable SLA (days to close)</label>
+            <input type="number" id="pm-om-sla" placeholder="e.g. 14" />
+          </div>
+          <div class="field">
+            <label>CRD Miss alert threshold (days before deadline)</label>
+            <input type="number" id="pm-crd-alert" placeholder="e.g. 5" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Weekly status report recipients</label>
+          <input type="text" id="pm-report-recip" placeholder="e.g. OPS LT, Stakeholders — comma separated" />
+        </div>
+      </div>
+    </div>
+
+    <!-- QL -->
+    <div class="domain-section" id="ds-QL">
+      <div class="card">
+        <div class="card-title"><div class="dot" style="background:var(--green)"></div>Quality Lead Configuration</div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>Quality domains you own</label>
+            <input type="text" id="ql-domains" placeholder="e.g. LM QC, RM QC, Genesis Audit" />
+          </div>
+          <div class="field">
+            <label>Audit frequency</label>
+            <select id="ql-audit-freq">
+              <option>Daily</option>
+              <option>Weekly</option>
+              <option>Per release</option>
+              <option>Monthly</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row cols-3">
+          <div class="field">
+            <label>FTA target (%)</label>
+            <input type="number" id="ql-fta-target" placeholder="95" />
+          </div>
+          <div class="field">
+            <label>FTA alert below (%)</label>
+            <input type="number" id="ql-fta-alert" placeholder="92" />
+          </div>
+          <div class="field">
+            <label>CoQ target (%)</label>
+            <input type="number" id="ql-coq-target" placeholder="7" />
+          </div>
+        </div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>RCA methodology preferred</label>
+            <select id="ql-rca">
+              <option>5-Why</option>
+              <option>Fishbone / Ishikawa</option>
+              <option>FMEA</option>
+              <option>Custom template</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>QC TAT SLA (hours)</label>
+            <input type="number" id="ql-tat" placeholder="e.g. 24" />
+          </div>
+        </div>
+        <div class="field">
+          <label>CAPA tracker location (Jira board or Confluence page)</label>
+          <input type="text" id="ql-capa" placeholder="e.g. Jira: QC-CAPA board or Confluence: QC/CAPA-Tracker" />
+        </div>
+      </div>
+    </div>
+
+    <!-- BA -->
+    <div class="domain-section" id="ds-BA">
+      <div class="card">
+        <div class="card-title"><div class="dot" style="background:var(--purple)"></div>Business Analyst Configuration</div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>Databricks workspace / catalog</label>
+            <input type="text" id="ba-databricks" placeholder="e.g. maps-ops-prod" />
+          </div>
+          <div class="field">
+            <label>Primary data tables you query (comma-separated)</label>
+            <input type="text" id="ba-tables" placeholder="e.g. efficiency_metrics, quality_kpis" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Reports you generate (name : cadence : recipients)</label>
+          <table class="metric-table" id="ba-reports-table">
+            <thead>
+              <tr><th>Report Name</th><th>Cadence</th><th>Recipients</th><th></th></tr>
+            </thead>
+            <tbody id="ba-reports-tbody">
+              <tr>
+                <td><input type="text" placeholder="e.g. Weekly Ops" /></td>
+                <td>
+                  <select>
+                    <option>Daily</option>
+                    <option>Weekly</option>
+                    <option>Monthly</option>
+                    <option>Quarterly</option>
+                  </select>
+                </td>
+                <td><input type="text" placeholder="e.g. Ops Teams, Management" /></td>
+                <td><button class="btn-del" onclick="delRow(this)">×</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <button class="btn-row-add" onclick="addBAReportRow()">+ Add Report</button>
+        </div>
+        <div class="field-row cols-2" style="margin-top:8px;">
+          <div class="field">
+            <label>Data validation tolerance (%)</label>
+            <input type="number" id="ba-val-tol" placeholder="e.g. 1" value="1" />
+            <div class="field-desc">Reports are held if source vs. dashboard variance exceeds this.</div>
+          </div>
+          <div class="field">
+            <label>Waste trend alert threshold (% deviation)</label>
+            <input type="number" id="ba-waste-thr" placeholder="e.g. 15" value="15" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PE -->
+    <div class="domain-section" id="ds-PE">
+      <div class="card">
+        <div class="card-title"><div class="dot" style="background:var(--amber)"></div>Process Engineering Configuration</div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>AIC Programme / Continual Improvement project keys</label>
+            <input type="text" id="pe-aic" placeholder="e.g. AIC, CI-LANES" />
+          </div>
+          <div class="field">
+            <label>Product Audit (PA) scope</label>
+            <input type="text" id="pe-pa-scope" placeholder="e.g. RM Lanes, LM Phase 3" />
+          </div>
+        </div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label>AIC Ticket SLA (days to resolve)</label>
+            <input type="number" id="pe-aic-sla" placeholder="e.g. 10" />
+          </div>
+          <div class="field">
+            <label>PA SLA (days to complete per release)</label>
+            <input type="number" id="pe-pa-sla" placeholder="e.g. 5" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Process improvement methodology used</label>
+          <select id="pe-method">
+            <option>Lean</option>
+            <option>Six Sigma</option>
+            <option>PDCA</option>
+            <option>TomTom Custom</option>
+            <option>Mixed</option>
+          </select>
+        </div>
+        <div class="field" style="margin-top:8px;">
+          <label>QTM / Quality Management contact (PA status reports go here)</label>
+          <input type="text" id="pe-qtm" placeholder="e.g. qtm-team@tomtom.com or Teams handle" />
+        </div>
+        <div class="field">
+          <label>Map Issues (IMs) caused by Operations — current period count</label>
+          <input type="number" id="pe-ims" placeholder="Target: 0" value="0" />
+          <div class="field-desc">Agent alerts immediately on any deviation from 0.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-blue" id="no-domain-msg" style="display:none;">
+      <span class="callout-icon">ℹ️</span>
+      <span>Go back to Step 1 and select a Primary Domain to see domain-specific configuration here.</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(3)">← Back</button>
+      <button class="btn btn-primary" onclick="goStep(5)">Next: Agents &amp; Consent →</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ STEP 5: AGENTS & CONSENT ════════════════════════════════ -->
+  <div class="form-section" id="step-5">
+    <div class="section-header">
+      <h2>Agent Preferences &amp; Data Access Consent</h2>
+      <p>You control what the agent can see. Every access is read-only unless explicitly noted. This consent is logged with your name and timestamp in the generated profile.</p>
+    </div>
+
+    <div class="callout callout-amber">
+      <span class="callout-icon">⚠️</span>
+      <span><strong>Important:</strong> Agents will never send communications on your behalf without your review. All drafts are surfaced for human approval before any message reaches a stakeholder.</span>
+    </div>
+
+    <!-- UC OPT-IN -->
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--tt-red)"></div>Phase 1 Use Cases — Opt In</div>
+      <div class="uc-select-all-row">
+        <p>Select the agent use cases you want active. <span id="uc-domain-note" style="color:var(--blue); font-weight:600;"></span></p>
+        <button class="btn-select-all" onclick="toggleAllUCs()">Select All</button>
+      </div>
+      <div class="uc-opt-grid" id="uc-opt-grid">
+
+        <!-- UC1 -->
+        <div class="uc-opt-card selected" id="uc-card-1" onclick="toggleUC(1)" data-domains="OL,PM,QL,BA,PE">
+          <div class="uc-opt-check"></div>
+          <div class="uc-opt-body">
+            <div class="uc-opt-title">
+              <span class="uc-num-badge">UC1</span>
+              Daily Operational Briefing
+            </div>
+            <p class="uc-opt-desc">AI Orchestrator pulls attendance, metrics, Jira ticket status, and overnight messages each morning — synthesises into a single role-tailored exception-only briefing so you start the day with priorities, not noise.</p>
+            <div class="uc-opt-meta">
+              <span class="uc-meta-chip trigger">⏰ Calendar · 07:30 daily</span>
+              <span class="uc-meta-chip domain">All 5 domains</span>
+              <span class="uc-meta-chip agent">Orchestrator</span>
+              <span class="uc-meta-chip agent">Jira Agent</span>
+              <span class="uc-meta-chip agent">Analytics Agent</span>
+              <span class="uc-meta-chip agent">Notification Agent</span>
+            </div>
+          </div>
+          <span class="uc-domain-fit" id="uc-fit-1"></span>
+        </div>
+
+        <!-- UC2 -->
+        <div class="uc-opt-card selected" id="uc-card-2" onclick="toggleUC(2)" data-domains="OL,PM,QL,BA,PE">
+          <div class="uc-opt-check"></div>
+          <div class="uc-opt-body">
+            <div class="uc-opt-title">
+              <span class="uc-num-badge">UC2</span>
+              Jira SLA &amp; Status Follow-Up Automation
+            </div>
+            <p class="uc-opt-desc">Jira Agent polls your configured boards every 2 hours and on ticket state-change events — classifies tickets against SLA, drafts follow-up reminders or escalation messages for your review before sending.</p>
+            <div class="uc-opt-meta">
+              <span class="uc-meta-chip trigger">🎯 Jira event + 2-hour poll</span>
+              <span class="uc-meta-chip domain">All 5 domains</span>
+              <span class="uc-meta-chip agent">Jira Agent</span>
+              <span class="uc-meta-chip agent">Notification Agent</span>
+            </div>
+          </div>
+          <span class="uc-domain-fit" id="uc-fit-2"></span>
+        </div>
+
+        <!-- UC3 -->
+        <div class="uc-opt-card selected" id="uc-card-3" onclick="toggleUC(3)" data-domains="OL,PM,QL,BA,PE">
+          <div class="uc-opt-check"></div>
+          <div class="uc-opt-body">
+            <div class="uc-opt-title">
+              <span class="uc-num-badge">UC3</span>
+              Automated Weekly Report Generation
+            </div>
+            <p class="uc-opt-desc">Analytics Agent pulls week metrics, Jira Agent provides sprint summary, Report Generator assembles a pre-formatted draft with trend indicators every Friday — you review, approve, and it publishes to Confluence and distributes.</p>
+            <div class="uc-opt-meta">
+              <span class="uc-meta-chip trigger">⏰ Calendar · Friday 16:00</span>
+              <span class="uc-meta-chip domain">All 5 domains</span>
+              <span class="uc-meta-chip agent">Orchestrator</span>
+              <span class="uc-meta-chip agent">Analytics Agent</span>
+              <span class="uc-meta-chip agent">Report Generator</span>
+              <span class="uc-meta-chip agent">Confluence Agent</span>
+            </div>
+          </div>
+          <span class="uc-domain-fit" id="uc-fit-3"></span>
+        </div>
+
+        <!-- UC4 -->
+        <div class="uc-opt-card selected" id="uc-card-4" onclick="toggleUC(4)" data-domains="OL,PM,QL,BA,PE">
+          <div class="uc-opt-check"></div>
+          <div class="uc-opt-body">
+            <div class="uc-opt-title">
+              <span class="uc-num-badge">UC4</span>
+              Quality &amp; Metric Early Warning Alert
+            </div>
+            <p class="uc-opt-desc">Analytics Agent monitors Databricks / Power BI every 30 minutes for threshold breaches. Classifies severity: Amber on first breach, Red on 2+ consecutive. Triggers RCA Agent on critical severity with ranked root-cause hypotheses.</p>
+            <div class="uc-opt-meta">
+              <span class="uc-meta-chip trigger">📊 Metric · 30-min PBI poll</span>
+              <span class="uc-meta-chip domain">All 5 domains</span>
+              <span class="uc-meta-chip agent">Analytics Agent</span>
+              <span class="uc-meta-chip agent">Notification Agent</span>
+              <span class="uc-meta-chip agent">RCA Agent</span>
+            </div>
+          </div>
+          <span class="uc-domain-fit" id="uc-fit-4"></span>
+        </div>
+
+        <!-- UC5 -->
+        <div class="uc-opt-card selected" id="uc-card-5" onclick="toggleUC(5)" data-domains="OL,PM,QL,PE">
+          <div class="uc-opt-check"></div>
+          <div class="uc-opt-body">
+            <div class="uc-opt-title">
+              <span class="uc-num-badge">UC5</span>
+              Plan vs. Actual Auto-Update &amp; CRD Risk Alert
+            </div>
+            <p class="uc-opt-desc">Analytics Agent reads actual output from Databricks / Power BI daily at 17:00, compares against committed plan, and projects trend forward. Alerts on 1%+ deviation — Amber on day 1, Red on day 2+ — with CRD miss probability.</p>
+            <div class="uc-opt-meta">
+              <span class="uc-meta-chip trigger">⏰ Calendar · 17:00 daily</span>
+              <span class="uc-meta-chip domain">OL · PM · QL · PE</span>
+              <span class="uc-meta-chip agent">Analytics Agent</span>
+              <span class="uc-meta-chip agent">Orchestrator</span>
+              <span class="uc-meta-chip agent">Jira Agent</span>
+              <span class="uc-meta-chip agent">Notification Agent</span>
+            </div>
+          </div>
+          <span class="uc-domain-fit" id="uc-fit-5"></span>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--green)"></div>Data Access Consent</div>
+      <div class="consent-item phase2">
+        <div class="consent-toggle"><input type="checkbox" id="c-email" disabled /></div>
+        <div class="consent-info">
+          <strong>Email (Outlook / Exchange) <span class="consent-badge badge-read">READ ONLY</span> <span class="consent-badge badge-phase2">PHASE 2</span></strong>
+          <span>Agent reads your inbox and selected folders to identify escalations, scope changes, and stakeholder inputs. <em>Not available in Phase 1.</em></span>
+        </div>
+      </div>
+      <div class="consent-item phase2">
+        <div class="consent-toggle"><input type="checkbox" id="c-teams" disabled /></div>
+        <div class="consent-info">
+          <strong>Microsoft Teams Messages <span class="consent-badge badge-read">READ ONLY</span> <span class="consent-badge badge-phase2">PHASE 2</span></strong>
+          <span>Agent reads messages in your specified channels to surface action items and stakeholder updates. <em>Not available in Phase 1.</em></span>
+        </div>
+      </div>
+      <div class="consent-item">
+        <div class="consent-toggle"><input type="checkbox" id="c-jira" checked /></div>
+        <div class="consent-info">
+          <strong>Jira Tickets &amp; Boards <span class="consent-badge badge-read">READ ONLY</span></strong>
+          <span>Agent monitors your assigned tickets, project boards, and SLA status. Drafts follow-up reminders for your review. Used for: Jira Status Agent, AIC Tracker, PA Monitor.</span>
+        </div>
+      </div>
+      <div class="consent-item">
+        <div class="consent-toggle"><input type="checkbox" id="c-confluence" checked /></div>
+        <div class="consent-info">
+          <strong>Confluence Pages <span class="consent-badge badge-read">READ ONLY</span></strong>
+          <span>Agent reads pages in your followed spaces to detect status updates. Never edits content. Used for: Morning Briefing, Process Health Agent.</span>
+        </div>
+      </div>
+      <div class="consent-item phase2">
+        <div class="consent-toggle"><input type="checkbox" id="c-calendar" disabled /></div>
+        <div class="consent-info">
+          <strong>Calendar (Outlook / Teams) <span class="consent-badge badge-read">READ ONLY</span> <span class="consent-badge badge-phase2">PHASE 2</span></strong>
+          <span>Agent reads your calendar to prepare meeting context, identify schedule conflicts, and detect leave impact on team delivery. <em>Not available in Phase 1.</em></span>
+        </div>
+      </div>
+      <div class="consent-item">
+        <div class="consent-toggle"><input type="checkbox" id="c-pbi" checked /></div>
+        <div class="consent-info">
+          <strong>Power BI Dashboards <span class="consent-badge badge-read">READ ONLY</span></strong>
+          <span>Agent queries your specified workspaces to monitor KPI thresholds and generate report drafts. Used for: Metric Alert Agent, Report Generator.</span>
+        </div>
+      </div>
+      <div class="consent-item phase2">
+        <div class="consent-toggle"><input type="checkbox" id="c-workday" disabled /></div>
+        <div class="consent-info">
+          <strong>Workday (HR / Leave System) <span class="consent-badge badge-read">READ ONLY</span> <span class="consent-badge badge-phase2">PHASE 2</span></strong>
+          <span>Agent checks team leave calendar to flag capacity risks in daily briefing. <em>Not available in Phase 1. Requires separate IT approval.</em></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--blue)"></div>Agent Trigger Preferences</div>
+      <div class="pref-grid">
+        <div class="field">
+          <label>Morning Briefing Time <span class="req">*</span></label>
+          <input type="time" id="p-brief-time" value="08:30" />
+          <div class="field-desc">Agent assembles your priority list before this time.</div>
+        </div>
+        <div class="field">
+          <label>Alert Notification Channel</label>
+          <select id="p-alert-channel">
+            <option value="Teams">Microsoft Teams (preferred)</option>
+            <option value="Email">Email only</option>
+            <option value="Both">Both Teams + Email</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Alert Frequency</label>
+          <select id="p-alert-freq">
+            <option value="realtime">Real-time (immediate)</option>
+            <option value="hourly">Hourly digest</option>
+            <option value="daily">Daily digest only</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Quiet Hours (no alerts)</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="time" id="p-quiet-start" value="19:00" style="flex:1;" />
+            <span style="font-size:12px; color:var(--slate);">to</span>
+            <input type="time" id="p-quiet-end" value="08:00" style="flex:1;" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Auto-draft stakeholder messages for review?</label>
+          <select id="p-auto-draft">
+            <option value="yes">Yes — show me drafts to approve/edit</option>
+            <option value="no">No — alert only, I'll write messages myself</option>
+          </select>
+          <div class="field-desc">Drafts are NEVER sent automatically. Always human-approved.</div>
+        </div>
+        <div class="field">
+          <label>Escalation threshold (reminders before agent escalates to manager)</label>
+          <select id="p-esc-count">
+            <option value="2">After 2 reminders ignored</option>
+            <option value="3" selected>After 3 reminders ignored</option>
+            <option value="5">After 5 reminders ignored</option>
+            <option value="manual">Manual escalation only</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--tt-red)"></div>Personalisation Notes</div>
+      <div class="field">
+        <label>Anything specific the agent should know about how you work? <span class="hint">(optional but valuable)</span></label>
+        <textarea id="p-notes" rows="3" placeholder="e.g. I prefer concise bullet summaries over paragraphs. Flag only critical items before 10am — I have standing syncs until then. Always include the impacted project name in any alert."></textarea>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(4)">← Back</button>
+      <button class="btn btn-primary" onclick="goStep(6)">Generate My Profile →</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ STEP 6: REVIEW & DOWNLOAD ════════════════════════════════ -->
+  <div class="form-section" id="step-6">
+    <div class="section-header">
+      <h2>Review &amp; Download SKILL.md</h2>
+      <p>Your personalised SKILL.md is ready. Review the preview, then download and place it in your domain folder. The agent will read this file at runtime to personalise every interaction.</p>
+    </div>
+
+    <div class="callout callout-green" id="gen-callout">
+      <span class="callout-icon">✅</span>
+      <span id="gen-callout-text">Profile generated. Download and place the file in your domain folder below.</span>
+    </div>
+
+    <!-- Profile summary strip -->
+    <div id="profile-summary" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:4px;"></div>
+
+    <div class="card">
+      <div class="card-title"><div class="dot" style="background:var(--green)"></div>Submit to OPS Hub</div>
+      <p style="font-size:13px;color:var(--sub);margin-bottom:14px;">
+        Clicking <strong>Finish &amp; Submit</strong> will download your personal skill.md <em>and</em>
+        automatically send it to the OPS Hub backend, which merges it with your domain knowledge
+        and stores the combined profile in <code style="background:#f1f5f9;padding:1px 6px;border-radius:4px;">AI Architecture/skills/Personal Skills/</code>.
+      </p>
+      <!-- Upload status — hidden until submit is clicked -->
+      <div id="upload-status" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div class="card-title" style="margin-bottom:0;"><div class="dot" style="background:var(--blue)"></div>SKILL.md Preview</div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-secondary" onclick="copyToClipboard()" style="font-size:12px; padding:7px 14px;">Copy</button>
+          <button class="btn btn-success" onclick="downloadSkillMd()" id="dl-btn">⬇ Download skill.md</button>
+        </div>
+      </div>
+      <pre id="preview-box">Generating your profile...</pre>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(5)">← Back &amp; Edit</button>
+      <button class="btn btn-secondary" onclick="downloadSkillMd()" id="dl-btn-row">⬇ Download only</button>
+      <button class="btn btn-primary" onclick="finishAndSubmit()" id="submit-btn"
+        style="background:var(--green);border-color:var(--green);">
+        Finish &amp; Submit →
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ STEP 7: PHASE 1 SUMMARY ══════════════════════════ -->
+  <div class="form-section" id="step-7">
+    <div class="section-header">
+      <h2>You're Ready — Phase 1 Active</h2>
+      <p>Your AI Co-Pilot profile is set up. Below is a summary of what the agent can access now and what's coming next. Download your <strong>SKILL.md</strong> from Step 6 and hand it to your OPS Hub administrator to activate your profile.</p>
+    </div>
+
+    <!-- Phase 1 Active -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title"><div class="dot" style="background:var(--green)"></div>Phase 1 — Active Now</div>
+      <div class="callout callout-green" style="margin-bottom:16px;">
+        <span class="callout-icon">✅</span>
+        <span>These data sources are enabled in your profile. The agent reads them to power your morning briefing, Jira monitoring, and metric alerts.</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+        <div style="border:1.5px solid #bbf7d0;border-radius:10px;padding:16px;background:#f0fdf4;text-align:center;">
+          <div style="font-size:28px;margin-bottom:6px;">📋</div>
+          <div style="font-size:13px;font-weight:700;color:#065f46;margin-bottom:4px;">Jira</div>
+          <div style="font-size:11px;color:#14532d;">Tickets, boards, SLA status — read-only</div>
+        </div>
+        <div style="border:1.5px solid #bbf7d0;border-radius:10px;padding:16px;background:#f0fdf4;text-align:center;">
+          <div style="font-size:28px;margin-bottom:6px;">📄</div>
+          <div style="font-size:13px;font-weight:700;color:#065f46;margin-bottom:4px;">Confluence</div>
+          <div style="font-size:11px;color:#14532d;">Status pages, space updates — read-only</div>
+        </div>
+        <div style="border:1.5px solid #bbf7d0;border-radius:10px;padding:16px;background:#f0fdf4;text-align:center;">
+          <div style="font-size:28px;margin-bottom:6px;">📊</div>
+          <div style="font-size:13px;font-weight:700;color:#065f46;margin-bottom:4px;">Databricks / Power BI</div>
+          <div style="font-size:11px;color:#14532d;">KPI metrics, quality &amp; efficiency data</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 2 Coming -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title"><div class="dot" style="background:var(--slate)"></div>Phase 2 — Coming Soon</div>
+      <div class="callout callout-amber" style="margin-bottom:16px;">
+        <span class="callout-icon">⏳</span>
+        <span>These channels require individual OAuth consent and are being rolled out in Phase 2. Your profile fields are saved — activation is a single click when Phase 2 launches.</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+        <div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;background:#f8fafc;text-align:center;opacity:0.7;">
+          <div style="font-size:24px;margin-bottom:6px;">📧</div>
+          <div style="font-size:12px;font-weight:700;color:var(--slate);margin-bottom:3px;">Email</div>
+          <div style="font-size:10px;color:var(--sub);">Outlook / Exchange</div>
+        </div>
+        <div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;background:#f8fafc;text-align:center;opacity:0.7;">
+          <div style="font-size:24px;margin-bottom:6px;">💬</div>
+          <div style="font-size:12px;font-weight:700;color:var(--slate);margin-bottom:3px;">Teams</div>
+          <div style="font-size:10px;color:var(--sub);">Channel monitoring</div>
+        </div>
+        <div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;background:#f8fafc;text-align:center;opacity:0.7;">
+          <div style="font-size:24px;margin-bottom:6px;">📢</div>
+          <div style="font-size:12px;font-weight:700;color:var(--slate);margin-bottom:3px;">Slack</div>
+          <div style="font-size:10px;color:var(--sub);">Workspace channels</div>
+        </div>
+        <div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;background:#f8fafc;text-align:center;opacity:0.7;">
+          <div style="font-size:24px;margin-bottom:6px;">📅</div>
+          <div style="font-size:12px;font-weight:700;color:var(--slate);margin-bottom:3px;">Calendar</div>
+          <div style="font-size:10px;color:var(--sub);">Meeting context &amp; leave</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Next steps -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title"><div class="dot" style="background:var(--blue)"></div>Next Steps</div>
+      <ol style="padding-left:20px;font-size:13.5px;line-height:2;color:var(--text);">
+        <li>Go back to <strong>Step 6</strong> and download your <code style="background:#f1f5f9;padding:1px 6px;border-radius:4px;">SKILL.md</code> if you haven't yet.</li>
+        <li>Place the file in your domain folder on the shared drive or send it to your OPS Hub admin.</li>
+        <li>The agent will activate your profile within the next scheduled refresh.</li>
+        <li>Phase 2 access (Email, Teams, Slack, Calendar) will be available as a one-click consent when the next release launches — your settings are already saved.</li>
+      </ol>
+    </div>
+
+    <div class="callout callout-blue">
+      <span class="callout-icon">ℹ️</span>
+      <span><strong>No credentials are stored in this form.</strong> The SKILL.md file contains only your preferences and consented data sources — never passwords or tokens.</span>
+    </div>
+
+    <div class="btn-row" style="margin-top:20px;">
+      <button class="btn btn-secondary" onclick="goStep(6)">← Back to Download</button>
+      <button class="btn btn-success" onclick="alert('Setup complete! Hand your SKILL.md to your OPS Hub administrator to activate your Phase 1 profile.')">Finish Setup ✓</button>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<div id="footer">
+  TomTom Maps Operations — AI Co-Pilot Initiative &nbsp;|&nbsp; User Profile Onboarding &nbsp;|&nbsp; Confidential — Internal Use Only &nbsp;|&nbsp; Consent logged with name + timestamp
+</div>
+
+<script>
+  // ── ADMIN CONFIG — set this once before deploying ──────────────────────────
+  // Change to the deployed Onboarding Server URL (Azure App Service, etc.)
+  var OPS_HUB_URL = 'http://localhost:8010';
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ── STATE ──
+  var currentStep = 1;
+  var totalSteps = 6;
+  var secondaryDomains = [];
+
+  // ── DATABRICKS SCOPE STATE ──
+  var selectedProcessTypes = [];
+  var selectedPlanningIds  = [];
+  var allProcessTypes      = [];
+  var allPlanningIds       = [];
+
+  function fetchScopeOptions() {
+    fetch(OPS_HUB_URL + '/analytics/scope-options')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        allProcessTypes = data.process_types || [];
+        allPlanningIds  = data.planning_ids  || [];
+        document.getElementById('pt-status').textContent =
+          allProcessTypes.length + ' process types loaded — select all that apply to your work.';
+        document.getElementById('pid-status').textContent =
+          allPlanningIds.length + ' planning IDs loaded.';
+        renderPtDropdown('');
+        renderPidDropdown('');
+      })
+      .catch(function() {
+        document.getElementById('pt-status').textContent =
+          'Server not reachable — type values manually and press Enter.';
+      });
+  }
+
+  // ── PROCESS TYPE CHIPS ──
+  function addPt(val) {
+    val = val.trim();
+    if (!val || selectedProcessTypes.indexOf(val) !== -1) return;
+    selectedProcessTypes.push(val);
+    renderPtChips();
+    document.getElementById('pt-search').value = '';
+    document.getElementById('pt-dropdown').style.display = 'none';
+  }
+  function removePt(val) {
+    selectedProcessTypes = selectedProcessTypes.filter(function(v) { return v !== val; });
+    renderPtChips();
+  }
+  function renderPtChips() {
+    var wrap = document.getElementById('pt-chips-wrap');
+    wrap.innerHTML = selectedProcessTypes.map(function(v) {
+      return '<span class="scope-chip">' + v +
+        '<button type="button" onclick="removePt(\'' + v.replace(/'/g, "\\'") + '\')">×</button></span>';
+    }).join('');
+  }
+  function filterPtOptions() {
+    var q = document.getElementById('pt-search').value.toLowerCase();
+    renderPtDropdown(q);
+    document.getElementById('pt-dropdown').style.display = 'block';
+  }
+  function renderPtDropdown(q) {
+    var opts = allProcessTypes.filter(function(v) {
+      return v.toLowerCase().indexOf(q) !== -1 && selectedProcessTypes.indexOf(v) === -1;
+    });
+    var d = document.getElementById('pt-dropdown');
+    if (opts.length === 0) { d.style.display = 'none'; return; }
+    d.innerHTML = opts.map(function(v) {
+      return '<div class="scope-opt" onclick="addPt(\'' + v.replace(/'/g, "\\'") + '\')">' + v + '</div>';
+    }).join('');
+    d.style.display = 'block';
+  }
+  function ptKeydown(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addPt(document.getElementById('pt-search').value.replace(/,$/, ''));
+    }
+    if (e.key === 'Escape') document.getElementById('pt-dropdown').style.display = 'none';
+  }
+
+  // ── PLANNING ID CHIPS ──
+  function addPid(val) {
+    val = val.trim();
+    if (!val || selectedPlanningIds.indexOf(val) !== -1) return;
+    selectedPlanningIds.push(val);
+    renderPidChips();
+    document.getElementById('pid-search').value = '';
+    document.getElementById('pid-dropdown').style.display = 'none';
+  }
+  function removePid(val) {
+    selectedPlanningIds = selectedPlanningIds.filter(function(v) { return v !== val; });
+    renderPidChips();
+  }
+  function renderPidChips() {
+    var wrap = document.getElementById('pid-chips-wrap');
+    wrap.innerHTML = selectedPlanningIds.map(function(v) {
+      return '<span class="scope-chip">' + v +
+        '<button type="button" onclick="removePid(\'' + v.replace(/'/g, "\\'") + '\')">×</button></span>';
+    }).join('');
+  }
+  function filterPidOptions() {
+    var q = document.getElementById('pid-search').value.toLowerCase();
+    renderPidDropdown(q);
+    document.getElementById('pid-dropdown').style.display = 'block';
+  }
+  function renderPidDropdown(q) {
+    var opts = allPlanningIds.filter(function(v) {
+      return v.toLowerCase().indexOf(q) !== -1 && selectedPlanningIds.indexOf(v) === -1;
+    });
+    var d = document.getElementById('pid-dropdown');
+    if (opts.length === 0) { d.style.display = 'none'; return; }
+    d.innerHTML = opts.map(function(v) {
+      return '<div class="scope-opt" onclick="addPid(\'' + v.replace(/'/g, "\\'") + '\')">' + v + '</div>';
+    }).join('');
+    d.style.display = 'block';
+  }
+  function pidKeydown(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addPid(document.getElementById('pid-search').value.replace(/,$/, ''));
+    }
+    if (e.key === 'Escape') document.getElementById('pid-dropdown').style.display = 'none';
+  }
+
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.scope-search-wrap') && !e.target.closest('.scope-chip-wrap')) {
+      document.getElementById('pt-dropdown').style.display  = 'none';
+      document.getElementById('pid-dropdown').style.display = 'none';
+    }
+  });
+
+  // ── VALIDATION ──
+  var REQUIRED = [
+    { id: 'f-name',           wrap: 'fe-name',           label: 'Full Name' },
+    { id: 'f-email',          wrap: 'fe-email',          label: 'TomTom Email' },
+    { id: 'f-jira-user',      wrap: 'fe-jira-user',      label: 'Jira Account ID / Username' },
+    { id: 'f-location',       wrap: 'fe-location',       label: 'Location / Site' },
+    { id: 'f-primary-domain', wrap: 'fe-primary-domain', label: 'Primary Domain / Role' }
+  ];
+
+  function validateStep1() {
+    var errors = [];
+    REQUIRED.forEach(function(r) {
+      var el = document.getElementById(r.id);
+      var wrap = document.getElementById(r.wrap);
+      var v = el ? el.value.trim() : '';
+      if (!v) {
+        errors.push(r.label);
+        if (wrap) wrap.classList.add('field-error');
+      } else {
+        if (wrap) wrap.classList.remove('field-error');
+      }
+    });
+    // Email format check
+    var emailEl = document.getElementById('f-email');
+    if (emailEl && emailEl.value.trim() && !/@tomtom\.com$/i.test(emailEl.value.trim())) {
+      errors.push('TomTom Email must end with @tomtom.com');
+      document.getElementById('fe-email').classList.add('field-error');
+    }
+    var banner = document.getElementById('vb-1');
+    var list   = document.getElementById('vb-1-list');
+    if (errors.length > 0) {
+      list.innerHTML = errors.map(function(e) { return '<li>' + e + '</li>'; }).join('');
+      banner.style.display = 'block';
+      banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return false;
+    }
+    banner.style.display = 'none';
+    return true;
+  }
+
+  function validateAndGoStep(fromStep, toStep) {
+    if (fromStep === 1 && !validateStep1()) return;
+    goStep(toStep);
+  }
+
+  // ── USE CASE OPT-IN ──
+  var selectedUCs = [1, 2, 3, 4, 5]; // all on by default
+
+  var UC_DATA = {
+    1: { title: 'Daily Operational Briefing',               trigger: 'Calendar · 07:30 daily',      domains: ['OL','PM','QL','BA','PE'] },
+    2: { title: 'Jira SLA & Status Follow-Up Automation',   trigger: 'Jira event + 2-hour poll',    domains: ['OL','PM','QL','BA','PE'] },
+    3: { title: 'Automated Weekly Report Generation',        trigger: 'Calendar · Friday 16:00',     domains: ['OL','PM','QL','BA','PE'] },
+    4: { title: 'Quality & Metric Early Warning Alert',      trigger: 'Metric · 30-min PBI poll',    domains: ['OL','PM','QL','BA','PE'] },
+    5: { title: 'Plan vs. Actual Auto-Update & CRD Risk',   trigger: 'Calendar · 17:00 daily',      domains: ['OL','PM','QL','PE']      }
+  };
+
+  function toggleUC(n) {
+    var card = document.getElementById('uc-card-' + n);
+    var idx = selectedUCs.indexOf(n);
+    if (idx > -1) {
+      selectedUCs.splice(idx, 1);
+      card.classList.remove('selected');
+    } else {
+      selectedUCs.push(n);
+      card.classList.add('selected');
+    }
+  }
+
+  function toggleAllUCs() {
+    var allSelected = selectedUCs.length === 5;
+    selectedUCs = allSelected ? [] : [1,2,3,4,5];
+    for (var i = 1; i <= 5; i++) {
+      var card = document.getElementById('uc-card-' + i);
+      allSelected ? card.classList.remove('selected') : card.classList.add('selected');
+    }
+  }
+
+  function markDomainFit() {
+    var primary = document.getElementById('f-primary-domain').value;
+    var note = document.getElementById('uc-domain-note');
+    if (!primary) { note.textContent = ''; return; }
+    note.textContent = 'Highlighted = relevant to your ' + primary + ' role.';
+    for (var i = 1; i <= 5; i++) {
+      var card = document.getElementById('uc-card-' + i);
+      var fit  = document.getElementById('uc-fit-' + i);
+      var doms = UC_DATA[i].domains;
+      if (doms.indexOf(primary) > -1) {
+        card.classList.remove('domain-dim');
+        fit.textContent = '✓ ' + primary;
+      } else {
+        card.classList.add('domain-dim');
+        fit.textContent = '';
+      }
+    }
+  }
+
+  // ── STEP NAVIGATION ──
+  function goStep(n) {
+    if (n === 6) {
+      if (!validateStep1()) { goStep(1); return; }
+      generateProfile();
+    }
+    if (n === 3 && allProcessTypes.length === 0) fetchScopeOptions();
+    if (n === 4) showDomainSections();
+    if (n === 5) markDomainFit();
+
+    document.getElementById('step-' + currentStep).classList.remove('active');
+    document.getElementById('step-' + n).classList.add('active');
+
+    for (var i = 1; i <= totalSteps; i++) {
+      var el = document.getElementById('si-' + i);
+      el.classList.remove('active', 'done');
+      if (i < n) el.classList.add('done');
+      else if (i === n) el.classList.add('active');
+    }
+    currentStep = n;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── PRIMARY DOMAIN CHANGE ──
+  function onPrimaryDomainChange() {
+    var d = document.getElementById('f-primary-domain').value;
+    // Remove primary from secondary options
+    document.querySelectorAll('.domain-tab').forEach(function(tab) {
+      tab.style.opacity = (tab.dataset.d === d) ? '0.35' : '1';
+      tab.style.pointerEvents = (tab.dataset.d === d) ? 'none' : '';
+      if (tab.dataset.d === d && tab.classList.contains('selected')) {
+        tab.classList.remove('selected');
+        secondaryDomains = secondaryDomains.filter(function(x) { return x !== d; });
+      }
+    });
+  }
+
+  // ── SECONDARY DOMAIN TOGGLE ──
+  function toggleSecondary(tab) {
+    var d = tab.dataset.d;
+    if (tab.classList.contains('selected')) {
+      tab.classList.remove('selected');
+      secondaryDomains = secondaryDomains.filter(function(x) { return x !== d; });
+    } else {
+      tab.classList.add('selected');
+      if (secondaryDomains.indexOf(d) === -1) secondaryDomains.push(d);
+    }
+  }
+
+  // ── SHOW DOMAIN SECTIONS IN STEP 4 ──
+  function showDomainSections() {
+    var primary = document.getElementById('f-primary-domain').value;
+    var allDomains = primary ? [primary].concat(secondaryDomains.filter(function(d) { return d !== primary; })) : secondaryDomains;
+
+    document.querySelectorAll('.domain-section').forEach(function(el) { el.classList.remove('visible'); });
+    document.getElementById('no-domain-msg').style.display = allDomains.length === 0 ? 'flex' : 'none';
+    allDomains.forEach(function(d) {
+      var el = document.getElementById('ds-' + d);
+      if (el) el.classList.add('visible');
+    });
+  }
+
+  // ── DYNAMIC ROW HELPERS ──
+  function delRow(btn) { btn.closest('tr').remove(); }
+
+  function addProjectRow() {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><input type="text" placeholder="Project name" /></td>' +
+      '<td><input type="text" placeholder="Project code" /></td>' +
+      '<td><input type="text" placeholder="Your role" /></td>' +
+      '<td><select><option>Active</option><option>On Hold</option><option>Completing</option></select></td>' +
+      '<td><button class="btn-del" onclick="delRow(this)">×</button></td>';
+    document.getElementById('projects-tbody').appendChild(tr);
+  }
+
+  function addStakeholderRow() {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><input type="text" placeholder="Name" /></td>' +
+      '<td><input type="text" placeholder="Role / Team" /></td>' +
+      '<td><input type="text" placeholder="Email or @handle" /></td>' +
+      '<td><select><option>Daily</option><option>Few times/week</option><option>Weekly</option><option>As needed</option></select></td>' +
+      '<td><button class="btn-del" onclick="delRow(this)">×</button></td>';
+    document.getElementById('stakeholders-tbody').appendChild(tr);
+  }
+
+  function addMetricRow() {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><input type="text" placeholder="Metric" /></td>' +
+      '<td><input type="text" placeholder="Target" /></td>' +
+      '<td><input type="text" placeholder="Alert at" /></td>' +
+      '<td><select><option>↓ Alert on drop</option><option>↑ Alert on rise</option><option>↕ Alert on deviation</option></select></td>' +
+      '<td><input type="text" placeholder="Source" /></td>' +
+      '<td><input type="url" placeholder="https://app.powerbi.com/..." /></td>' +
+      '<td><button class="btn-del" onclick="delRow(this)">×</button></td>';
+    document.getElementById('metrics-tbody').appendChild(tr);
+  }
+
+  function addTemplateRow() {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><input type="text" placeholder="e.g. Weekly RM Lanes Report" /></td>' +
+      '<td><select><option>Weekly</option><option>Monthly</option><option>Quarterly</option><option>Ad-hoc</option></select></td>' +
+      '<td><select><option>UC3 · Weekly Report</option><option>UC4 · Metric Alert</option><option>UC5 · CRD Risk</option><option>UC1 · Morning Briefing</option><option>Other</option></select></td>' +
+      '<td><input type="url" placeholder="https://sharepoint.com/..." /></td>' +
+      '<td><select><option>PowerPoint (.pptx)</option><option>Word (.docx)</option><option>Excel (.xlsx)</option><option>Teams Card</option><option>PDF</option><option>Plain Text</option></select></td>' +
+      '<td><input type="text" placeholder="e.g. Yield, FTA, sprint summary" /></td>' +
+      '<td><button class="btn-del" onclick="delRow(this)">×</button></td>';
+    document.getElementById('templates-tbody').appendChild(tr);
+  }
+
+  function addBAReportRow() {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><input type="text" placeholder="Report name" /></td>' +
+      '<td><select><option>Daily</option><option>Weekly</option><option>Monthly</option><option>Quarterly</option></select></td>' +
+      '<td><input type="text" placeholder="Recipients" /></td>' +
+      '<td><button class="btn-del" onclick="delRow(this)">×</button></td>';
+    document.getElementById('ba-reports-tbody').appendChild(tr);
+  }
+
+  // ── TABLE DATA COLLECTOR ──
+  function getTableRows(tbodyId, cols) {
+    var rows = [];
+    document.getElementById(tbodyId).querySelectorAll('tr').forEach(function(tr) {
+    var cells = tr.querySelectorAll('input, select, textarea');
+      var row = {};
+      cols.forEach(function(c, i) { row[c] = cells[i] ? (cells[i].value || '').trim() : ''; });
+      var hasContent = cols.some(function(c) { return row[c] !== ''; });
+      if (hasContent) rows.push(row);
+    });
+    return rows;
+  }
+
+  function getConsent(id) { return document.getElementById(id).checked ? 'GRANTED' : 'NOT GRANTED'; }
+  function val(id) { var el = document.getElementById(id); return el ? (el.value || '').trim() : ''; }
+
+  // ── MARKDOWN TABLE GENERATOR ──
+  function mdTable(headers, rows, emptyMsg) {
+    if (rows.length === 0) return emptyMsg ? '> ' + emptyMsg + '\n' : '';
+    var sep = headers.map(function() { return '---'; });
+    var lines = ['| ' + headers.join(' | ') + ' |', '| ' + sep.join(' | ') + ' |'];
+    rows.forEach(function(r) {
+      lines.push('| ' + Object.values(r).map(function(v) { return v || '—'; }).join(' | ') + ' |');
+    });
+    return lines.join('\n') + '\n';
+  }
+
+  // ── PROFILE GENERATOR ──
+  function generateProfile() {
+    var name       = val('f-name') || 'Unknown User';
+    var email      = val('f-email') || 'unknown@tomtom.com';
+    var teams      = val('f-teams') || name;
+    var jiraUser   = val('f-jira-user');
+    var location   = val('f-location') || 'Not specified';
+    var startTime  = val('f-start') || '09:00';
+    var endTime    = val('f-end') || '18:00';
+    var primary    = val('f-primary-domain') || 'Not specified';
+    var manager    = val('f-manager-name');
+    var mgEmail    = val('f-manager-email');
+    var band       = val('f-band');
+    var years      = val('f-years');
+    var secondary  = secondaryDomains.filter(function(d) { return d !== primary; });
+    var now        = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
+    var firstName  = name.split(' ')[0];
+    var slug       = jiraUser || name.replace(/\s+/g, '_');
+
+    var domainLabels = { OL:'Operational Lead', PM:'Project Manager', QL:'Quality Lead', BA:'Business Analyst', PE:'Process Engineering' };
+    var domainFolders = { OL:'operational-lead', PM:'project-manager', QL:'quality-lead', BA:'business-analyst', PE:'process-engineering' };
+    var folder   = domainFolders[primary] || primary.toLowerCase();
+    var filename = slug.toLowerCase() + '_skill.md';
+    var githubPath = 'GitHub → [org]/ops-native-ai / skills / ' + folder + ' / ' + filename;
+    var savePathEl = document.getElementById('save-path-box');
+    if (savePathEl) savePathEl.textContent = githubPath;
+
+    // Collect table data
+    var projects     = getTableRows('projects-tbody',     ['name', 'code', 'role', 'status']);
+    var stakeholders = getTableRows('stakeholders-tbody', ['name', 'role', 'contact', 'frequency']);
+    var metrics      = getTableRows('metrics-tbody',      ['metric', 'target', 'alert', 'direction', 'source', 'report_link']);
+    var templates    = getTableRows('templates-tbody',    ['name', 'cadence', 'uc', 'location', 'format', 'fields']);
+
+    var consent = {
+      email:      getConsent('c-email'),
+      teams:      getConsent('c-teams'),
+      jira:       getConsent('c-jira'),
+      confluence: getConsent('c-confluence'),
+      calendar:   getConsent('c-calendar'),
+      pbi:        getConsent('c-pbi'),
+      workday:    getConsent('c-workday')
+    };
+
+    var briefTime  = val('p-brief-time') || '08:30';
+    var alertCh    = val('p-alert-channel') || 'Teams';
+    var alertFreq  = val('p-alert-freq') || 'realtime';
+    var quietStart = val('p-quiet-start') || '19:00';
+    var quietEnd   = val('p-quiet-end') || '08:00';
+    var autoDraft  = val('p-auto-draft') || 'yes';
+    var escCount   = val('p-esc-count') || '3';
+    var notes      = val('p-notes');
+
+    var domainBlock = buildDomainSection(primary, secondary);
+
+    // ── Build narrative context sentence ─────────────────────────────────────
+    var contextParts = [];
+    contextParts.push(name + ' is a ' + (domainLabels[primary] || primary) + ' in TomTom Maps Operations');
+    if (location && location !== 'Not specified') contextParts.push('based at ' + location);
+    if (band) contextParts.push('at ' + band + ' level');
+    if (years) contextParts.push('with ' + years.toLowerCase() + ' in this role');
+    if (secondary.length > 0) contextParts.push('also covering ' + secondary.map(function(d){ return domainLabels[d]||d; }).join(' and '));
+    var contextSentence = contextParts.join(', ') + '.';
+
+    var activeProjectNames = projects.filter(function(p){ return p.status === 'Active'; }).map(function(p){ return p.name || p.code; }).filter(Boolean);
+    var activeUCNames = selectedUCs.sort().map(function(n) { return 'UC' + n + ' (' + UC_DATA[n].title + ')'; });
+
+    var md = [];
+
+    // ── FILE HEADER ──────────────────────────────────────────────────────────
+    md.push('# ' + name + ' — Personal SKILL Profile');
+    md.push('**Domain:** ' + (domainLabels[primary] || primary) + '  ');
+    md.push('**Organisation:** TomTom Maps Operations — AI Native Initiative  ');
+    md.push('**Jira ID:** ' + (jiraUser || '—') + '  ');
+    md.push('**File:** `' + filename + '`  ');
+    md.push('**Generated:** ' + now);
+    md.push('');
+    md.push('---');
+    md.push('');
+
+    // ── QUICK AGENT SUMMARY ──────────────────────────────────────────────────
+    md.push('## Quick Agent Summary');
+    md.push('');
+    md.push('> **Read this section first.** Everything the agent needs to personalise interactions is summarised here. Full detail in the sections below.');
+    md.push('');
+    md.push(contextSentence);
+    md.push('');
+    md.push('| Field | Value |');
+    md.push('|---|---|');
+    md.push('| Name | ' + name + ' |');
+    md.push('| Email | ' + email + ' |');
+    md.push('| Teams ID | ' + teams + ' |');
+    md.push('| Jira Username | ' + (jiraUser || '—') + ' |');
+    md.push('| Primary Domain | ' + (domainLabels[primary] || primary) + ' |');
+    if (secondary.length > 0) md.push('| Secondary Domains | ' + secondary.map(function(d){ return domainLabels[d]||d; }).join(', ') + ' |');
+    md.push('| Location | ' + location + ' |');
+    md.push('| Working Hours | ' + startTime + ' – ' + endTime + ' |');
+    if (manager) md.push('| Manager | ' + manager + (mgEmail ? ' · ' + mgEmail : '') + ' |');
+    if (band)    md.push('| Job Band | ' + band + ' |');
+    if (years)   md.push('| Experience in Role | ' + years + ' |');
+    md.push('| Morning Briefing | ' + briefTime + ' |');
+    md.push('| Alert Channel | ' + alertCh + ' |');
+    md.push('| Quiet Hours | ' + quietStart + ' – ' + quietEnd + ' |');
+    md.push('| Active Projects | ' + (activeProjectNames.length > 0 ? activeProjectNames.join(', ') : '—') + ' |');
+    md.push('| Active Use Cases | ' + (activeUCNames.length > 0 ? activeUCNames.join(' · ') : 'None') + ' |');
+    md.push('');
+    md.push('---');
+    md.push('');
+
+    // ── SECTION 1: ACTIVE PROJECTS ───────────────────────────────────────────
+    md.push('## 1. Active Projects');
+    md.push('');
+    md.push('The Jira Agent and Morning Briefing agent track updates on these projects daily.');
+    md.push('');
+    if (projects.length > 0) {
+      md.push(mdTable(['Project', 'Code', 'Role on Project', 'Status'], projects));
+    } else {
+      md.push('> No projects listed — add projects in Step 2 to enable Jira monitoring.\n');
+    }
+
+    // ── SECTION 2: KEY STAKEHOLDERS ──────────────────────────────────────────
+    md.push('## 2. Key Stakeholders');
+    md.push('');
+    md.push('The Dependency Tracker monitors communication patterns with these people and flags silence on open dependencies.');
+    md.push('');
+    if (stakeholders.length > 0) {
+      md.push(mdTable(['Name', 'Role / Team', 'Contact', 'Frequency'], stakeholders));
+    } else {
+      md.push('> No stakeholders listed.\n');
+    }
+
+    // ── SECTION 3: TEAM ──────────────────────────────────────────────────────
+    if (val('f-team-size') || val('f-reports')) {
+      md.push('## 3. Team & Direct Reports');
+      md.push('');
+      if (val('f-team-size')) md.push('**Team size:** ' + val('f-team-size') + ' direct reports  ');
+      if (val('f-team-locations')) md.push('**Team location(s):** ' + val('f-team-locations') + '  ');
+      if (val('f-reports')) {
+        md.push('');
+        md.push('**Direct Reports** *(used for leave-impact detection and capacity alerts):*');
+        val('f-reports').split('\n').forEach(function(r) { if (r.trim()) md.push('- ' + r.trim()); });
+      }
+      md.push('');
+    }
+
+    // ── SECTION 4: TOOL CONFIGURATION ────────────────────────────────────────
+    md.push('## 4. Tool Configuration');
+    md.push('');
+
+    md.push('### 4.1 Jira');
+    md.push('');
+    if (val('f-jira-url'))    md.push('- **Instance:** `' + val('f-jira-url') + '`');
+    if (val('f-jira-keys'))   md.push('- **Project Keys monitored:** ' + val('f-jira-keys'));
+    if (val('f-jira-boards')) md.push('- **Sprint Boards:** ' + val('f-jira-boards'));
+    if (jiraUser)             md.push('- **Account ID:** `' + jiraUser + '`');
+    md.push('- **SLA — Warning threshold:** ' + (val('f-jira-sla-warn') || '48') + ' hours without update');
+    md.push('- **SLA — Escalation threshold:** ' + (val('f-jira-sla-esc') || '72') + ' hours without update');
+    md.push('');
+
+    md.push('### 4.2 Confluence');
+    md.push('');
+    if (val('f-conf-spaces')) md.push('- **Spaces followed:** ' + val('f-conf-spaces'));
+    else md.push('- **Spaces followed:** *(none configured)*');
+    if (val('f-conf-pages'))  md.push('- **Pages owned / maintained:** ' + val('f-conf-pages'));
+    md.push('');
+
+    md.push('### 4.3 Power BI');
+    md.push('');
+    if (val('f-pbi-workspaces')) md.push('- **Workspaces:** ' + val('f-pbi-workspaces'));
+    if (val('f-pbi-reports'))    md.push('- **Reports owned / monitored:** ' + val('f-pbi-reports'));
+    if (selectedProcessTypes.length > 0)
+      md.push('- **Databricks Process Types:** ' + selectedProcessTypes.join(', '));
+    if (selectedPlanningIds.length > 0)
+      md.push('- **Databricks Planning IDs:** ' + selectedPlanningIds.join(', '));
+    if (!val('f-pbi-workspaces') && !val('f-pbi-reports') && selectedProcessTypes.length === 0 && selectedPlanningIds.length === 0)
+      md.push('- *(not configured)*');
+    md.push('');
+
+    md.push('### 4.4 Communication Channels (Phase 2)');
+    md.push('');
+    md.push('> **Phase 2 — not yet active.** Email, Teams, and Slack access will be enabled in a future release via individual OAuth consent.');
+    md.push('');
+    if (val('f-email-folders'))    md.push('- **Email folders (configured, pending activation):** ' + val('f-email-folders'));
+    if (val('f-teams-channels'))   md.push('- **Teams channels (configured, pending activation):** ' + val('f-teams-channels'));
+    if (val('f-slack') === 'yes' && val('f-slack-channels')) md.push('- **Slack channels (configured, pending activation):** ' + val('f-slack-channels'));
+    md.push('');
+
+    md.push('### 4.5 Report Templates');
+    md.push('');
+    md.push('The Report Generator agent fetches these templates and pre-populates them with AI-generated data for ' + firstName + '\'s review.');
+    md.push('');
+    if (templates.length > 0) {
+      md.push(mdTable(['Template Name', 'Cadence', 'Use Case', 'File Location', 'Format', 'AI-Populated Fields'], templates));
+    } else {
+      md.push('> No templates registered — agent will produce plain-text report drafts until templates are added.\n');
+    }
+
+    // ── SECTION 5: METRICS PROFILE ───────────────────────────────────────────
+    md.push('## 5. Metrics Profile');
+    md.push('');
+    md.push('The Analytics Agent monitors these thresholds every 30 minutes via Power BI / Databricks and alerts ' + firstName + ' on breach.');
+    md.push('');
+    if (metrics.length > 0) {
+      md.push(mdTable(['Metric', 'Target', 'Alert At', 'Direction', 'Source', 'Report Link'], metrics));
+    } else {
+      md.push('> No custom metrics defined — domain default thresholds apply (see domain SKILL.md).\n');
+    }
+
+    // ── SECTION 6: DOMAIN-SPECIFIC CONFIGURATION ─────────────────────────────
+    md.push('## 6. Domain-Specific Configuration');
+    md.push('');
+    md.push('> These settings configure domain agents for ' + firstName + '\'s specific workflows. Read alongside the domain SKILL.md for full context.');
+    md.push('');
+    md.push(domainBlock);
+
+    // ── SECTION 7: ACTIVE USE CASES ──────────────────────────────────────────
+    md.push('## 7. Active Use Cases — Phase 1 POC');
+    md.push('');
+    md.push('| # | Use Case | Trigger | Status |');
+    md.push('|---|---|---|---|');
+    [1,2,3,4,5].forEach(function(n) {
+      var uc = UC_DATA[n];
+      var active = selectedUCs.indexOf(n) > -1 ? '✅ Active' : '⬜ Opted out';
+      md.push('| UC' + n + ' | ' + uc.title + ' | ' + uc.trigger + ' | ' + active + ' |');
+    });
+    md.push('');
+    if (activeUCNames.length > 0) {
+      md.push('**Agents running for ' + firstName + ':** ' + activeUCNames.join('  ·  '));
+    } else {
+      md.push('**No use cases selected.** Return to Step 5 to opt in.');
+    }
+    md.push('');
+
+    // ── SECTION 8: DATA ACCESS CONSENT ───────────────────────────────────────
+    md.push('## 8. Data Access Consent');
+    md.push('');
+    md.push('All agent access is **read-only** unless explicitly marked. Drafts are never sent without ' + firstName + '\'s approval.');
+    md.push('');
+    md.push('| Data Source | Phase | Consent | Scope |');
+    md.push('|---|---|---|---|');
+    md.push('| Jira Tickets & Boards | Phase 1 ✅ | ' + consent.jira + ' | Read-only — ticket & SLA monitoring |');
+    md.push('| Confluence Pages | Phase 1 ✅ | ' + consent.confluence + ' | Read-only — status page tracking |');
+    md.push('| Power BI / Databricks | Phase 1 ✅ | ' + consent.pbi + ' | Read-only — metric threshold monitoring |');
+    md.push('| Email (Outlook / Exchange) | Phase 2 ⏳ | Not enabled | Read-only — escalation & priority detection |');
+    md.push('| Microsoft Teams | Phase 2 ⏳ | Not enabled | Read-only — channel monitoring |');
+    md.push('| Calendar (Outlook / Teams) | Phase 2 ⏳ | Not enabled | Read-only — meeting prep & leave detection |');
+    md.push('| Workday (HR / Leave) | Phase 2 ⏳ | Not enabled | Read-only — team leave calendar |');
+    md.push('');
+    md.push('**Consent granted by:** ' + name + ' · ' + email + '  ');
+    md.push('**Date:** ' + now);
+    md.push('');
+
+    // ── SECTION 9: AGENT PREFERENCES ─────────────────────────────────────────
+    md.push('## 9. Agent Preferences');
+    md.push('');
+    md.push('| Preference | Setting |');
+    md.push('|---|---|');
+    md.push('| Morning Briefing Time | ' + briefTime + ' |');
+    md.push('| Alert Channel | ' + alertCh + ' |');
+    md.push('| Alert Frequency | ' + alertFreq + ' |');
+    md.push('| Quiet Hours (no alerts) | ' + quietStart + ' – ' + quietEnd + ' |');
+    md.push('| Auto-draft stakeholder messages | ' + (autoDraft === 'yes' ? 'Yes — show drafts for approval' : 'No — alert only') + ' |');
+    md.push('| Escalation threshold | After ' + escCount + ' unacknowledged reminders |');
+    md.push('');
+
+    // ── SECTION 10: WORKING STYLE ─────────────────────────────────────────────
+    if (notes) {
+      md.push('## 10. Working Style & Personalisation');
+      md.push('');
+      md.push('> ' + notes.replace(/\n/g, '\n> '));
+      md.push('');
+    }
+
+    // ── SECTION 11: AI GUARDRAILS ─────────────────────────────────────────────
+    md.push('## ' + (notes ? '11' : '10') + '. AI Guardrails — ' + firstName + '-Specific');
+    md.push('');
+    md.push('The following rules are **hard constraints** for every agent interaction with ' + firstName + '. They override any domain default behaviour.');
+    md.push('');
+    md.push('- Agent **MUST** surface all draft communications to ' + firstName + ' before any message reaches a stakeholder');
+    md.push('- Agent **MUST NOT** approve, close, or transition Jira tickets without ' + firstName + '\'s explicit sign-off');
+    md.push('- Agent **MUST NOT** create, edit, or delete Confluence pages');
+    md.push('- Agent **MUST** respect quiet hours (' + quietStart + '–' + quietEnd + ') — only P0 critical alerts may breach this window');
+    md.push('- Agent **MUST** include the impacted project name and data source in every alert');
+    md.push('- All recommendations and report drafts are suggestions only — final decisions remain with ' + firstName);
+    md.push('');
+    md.push('---');
+    md.push('');
+    md.push('*Personal SKILL Profile — generated ' + now + ' via AI Co-Pilot Onboarding · TomTom Maps Operations*  ');
+    md.push('*Domain: `' + folder + '` · File: `' + filename + '` · Jira ID: `' + (jiraUser||'—') + '`*  ');
+    md.push('*Read alongside the domain SKILL.md at `skills/' + folder + '/SKILL.md` for full operational context.*');
+
+    window._skillMd = md.join('\n');
+    window._skillFilename = filename;
+
+    document.getElementById('preview-box').textContent = window._skillMd;
+    document.getElementById('dl-btn').removeAttribute('disabled');
+
+    // Reset submit button in case it was previously used
+    var sb = document.getElementById('submit-btn');
+    if (sb) { sb.disabled = false; sb.textContent = 'Finish & Submit →'; }
+    var us = document.getElementById('upload-status');
+    if (us) { us.style.display = 'none'; us.innerHTML = ''; }
+
+    document.getElementById('gen-callout-text').textContent =
+      'Personal SKILL.md generated for ' + name + ' (' + (domainLabels[primary]||primary) + '). File: ' + filename + ' — download and commit to GitHub.';
+
+    var ucCount = selectedUCs ? selectedUCs.length : 0;
+    var summaryItems = [
+      { icon: '👤', label: 'Domain',     val: domainLabels[primary] || primary },
+      { icon: '📋', label: 'Projects',   val: projects.length },
+      { icon: '👥', label: 'Stakeholders', val: stakeholders.length },
+      { icon: '📊', label: 'Metrics',    val: metrics.length },
+      { icon: '📁', label: 'Templates',  val: templates.length, highlight: templates.length === 0 },
+      { icon: '⚡', label: 'Use Cases',  val: ucCount + ' of 5' }
+    ];
+    var strip = document.getElementById('profile-summary');
+    strip.innerHTML = summaryItems.map(function(item) {
+      var bg = item.highlight ? '#fff5f5' : '#f8fafc';
+      var border = item.highlight ? '#fecaca' : '#e2e8f0';
+      var color = item.highlight ? '#b91c1c' : '#475569';
+      var extra = item.highlight ? ' · <a href="#" onclick="goStep(3);return false;" style="color:#b91c1c;font-weight:700;text-decoration:underline;">Add in Step 3</a>' : '';
+      return '<div style="display:flex;align-items:center;gap:6px;background:' + bg + ';border:1px solid ' + border + ';border-radius:7px;padding:5px 12px;font-size:12px;color:' + color + ';font-weight:600;">' +
+        item.icon + ' ' + item.label + ': <strong style="margin-left:3px;">' + item.val + '</strong>' + extra + '</div>';
+    }).join('');
+  }
+
+  function buildDomainSection(primary, secondary) {
+    var all = primary ? [primary].concat(secondary) : secondary;
+    var lines = [];
+    all.forEach(function(d) {
+      if (d === 'OL') {
+        lines.push('### Operational Lead');
+        if (val('ol-workflows'))    lines.push('- **Workflow Types:** ' + val('ol-workflows'));
+        if (val('ol-shift'))        lines.push('- **Shift Pattern:** ' + val('ol-shift'));
+        if (val('ol-prod-target'))  lines.push('- **Daily Production Target:** ' + val('ol-prod-target'));
+        if (val('ol-escalation'))   lines.push('- **Escalation Path:** ' + val('ol-escalation'));
+        if (val('ol-metrics'))      lines.push('- **Daily Metrics:** ' + val('ol-metrics'));
+        if (val('ol-report-recip')) lines.push('- **Report Recipients:** ' + val('ol-report-recip'));
+      }
+      if (d === 'PM') {
+        lines.push('### Project Manager');
+        if (val('pm-framework'))    lines.push('- **Framework:** ' + val('pm-framework'));
+        if (val('pm-sprint'))       lines.push('- **Sprint Length:** ' + val('pm-sprint') + ' days');
+        if (val('pm-om-sla'))       lines.push('- **OM Deliverable SLA:** ' + val('pm-om-sla') + ' days');
+        if (val('pm-crd-alert'))    lines.push('- **CRD Miss Alert:** ' + val('pm-crd-alert') + ' days before deadline');
+        if (val('pm-report-recip')) lines.push('- **Report Recipients:** ' + val('pm-report-recip'));
+        if (val('pm-okr')) {
+          lines.push('- **OKR / Goals:**');
+          val('pm-okr').split('\n').forEach(function(l) { if (l.trim()) lines.push('  - ' + l.trim()); });
+        }
+      }
+      if (d === 'QL') {
+        lines.push('### Quality Lead');
+        if (val('ql-domains'))      lines.push('- **Quality Domains:** ' + val('ql-domains'));
+        if (val('ql-audit-freq'))   lines.push('- **Audit Frequency:** ' + val('ql-audit-freq'));
+        if (val('ql-fta-target'))   lines.push('- **FTA Target:** ' + val('ql-fta-target') + '% (alert below ' + (val('ql-fta-alert') || '?') + '%)');
+        if (val('ql-coq-target'))   lines.push('- **CoQ Target:** ' + val('ql-coq-target') + '%');
+        if (val('ql-rca'))          lines.push('- **RCA Methodology:** ' + val('ql-rca'));
+        if (val('ql-tat'))          lines.push('- **QC TAT SLA:** ' + val('ql-tat') + ' hours');
+        if (val('ql-capa'))         lines.push('- **CAPA Tracker:** ' + val('ql-capa'));
+      }
+      if (d === 'BA') {
+        lines.push('### Business Analyst');
+        if (val('ba-databricks'))   lines.push('- **Databricks Workspace:** ' + val('ba-databricks'));
+        if (val('ba-tables'))       lines.push('- **Key Data Tables:** ' + val('ba-tables'));
+        if (val('ba-val-tol'))      lines.push('- **Validation Tolerance:** ' + val('ba-val-tol') + '%');
+        if (val('ba-waste-thr'))    lines.push('- **Waste Trend Alert:** ±' + val('ba-waste-thr') + '% deviation');
+        var baReports = getTableRows('ba-reports-tbody', ['name', 'cadence', 'recipients']);
+        if (baReports.length > 0) {
+          lines.push('- **Reports Generated:**');
+          baReports.forEach(function(r) { lines.push('  - ' + r.name + ' (' + r.cadence + ') → ' + r.recipients); });
+        }
+      }
+      if (d === 'PE') {
+        lines.push('### Process Engineering');
+        if (val('pe-aic'))          lines.push('- **AIC Project Keys:** ' + val('pe-aic'));
+        if (val('pe-pa-scope'))     lines.push('- **PA Scope:** ' + val('pe-pa-scope'));
+        if (val('pe-aic-sla'))      lines.push('- **AIC Ticket SLA:** ' + val('pe-aic-sla') + ' days');
+        if (val('pe-pa-sla'))       lines.push('- **PA SLA:** ' + val('pe-pa-sla') + ' days per release');
+        if (val('pe-method'))       lines.push('- **Methodology:** ' + val('pe-method'));
+        if (val('pe-qtm'))          lines.push('- **QTM Contact:** ' + val('pe-qtm'));
+        lines.push('- **IMs Caused by Ops:** Target = 0 (current: ' + (val('pe-ims') || '0') + ') — alert on any occurrence');
+      }
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  // ── DOWNLOAD ──
+  function downloadSkillMd() {
+    if (!window._skillMd) { generateProfile(); }
+    var blob = new Blob([window._skillMd], { type: 'text/markdown;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = window._skillFilename || 'user_skill.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ── FINISH & SUBMIT — download locally + POST to Onboarding Server ──
+  async function finishAndSubmit() {
+    if (!window._skillMd) { generateProfile(); }
+
+    var filename   = window._skillFilename || 'user_skill.md';
+    var content    = window._skillMd;
+    var backendUrl = OPS_HUB_URL.replace(/\/$/, '');
+    var statusEl   = document.getElementById('upload-status');
+    var submitBtn  = document.getElementById('submit-btn');
+
+    // Step 1 — download the file locally (same as Download Only)
+    downloadSkillMd();
+
+    // Step 2 — show uploading state
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting…';
+    statusEl.style.display = 'block';
+    statusEl.innerHTML = _statusHtml('info', '⏳ Uploading to OPS Hub and triggering LLM merge… (~30 s)');
+
+    // Step 3 — POST to /skills/upload
+    try {
+      var file     = new File([content], filename, { type: 'text/markdown' });
+      var formData = new FormData();
+      formData.append('file', file);
+
+      var resp = await fetch(backendUrl + '/skills/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (resp.ok) {
+        var data = await resp.json();
+        statusEl.innerHTML = _statusHtml(
+          'success',
+          '✅ <strong>Submitted successfully.</strong> ' + (data.message || '') +
+          '<br><small>Combined profile will appear in <code>AI Architecture/skills/Personal Skills/' + filename + '</code></small>'
+        );
+        submitBtn.textContent = 'Submitted ✓';
+        // advance to summary after short pause
+        setTimeout(function() { goStep(7); }, 2000);
+      } else {
+        var err = {};
+        try { err = await resp.json(); } catch(_) {}
+        statusEl.innerHTML = _statusHtml(
+          'error',
+          '❌ <strong>Upload failed</strong> (HTTP ' + resp.status + '). ' + (err.detail || '') +
+          '<br><small>Your skill.md was downloaded locally. Fix the server issue and try again.</small>'
+        );
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Finish & Submit →';
+      }
+    } catch (e) {
+      statusEl.innerHTML = _statusHtml(
+        'error',
+        '❌ <strong>Cannot reach OPS Hub</strong> at <code>' + backendUrl + '</code>.' +
+        '<br>Your skill.md was downloaded locally. Start the Onboarding Server and try again, or use <em>Download Only</em>.'
+      );
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Finish & Submit →';
+    }
+  }
+
+  function _statusHtml(type, msg) {
+    var styles = {
+      info:    'background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;',
+      success: 'background:#f0fdf4;border:1px solid #bbf7d0;color:#14532d;',
+      error:   'background:#fef2f2;border:1px solid #fecaca;color:#991b1b;',
+    };
+    return '<div style="' + (styles[type] || styles.info) + 'border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.6;">' + msg + '</div>';
+  }
+
+  // ── COPY TO CLIPBOARD ──
+  function copyToClipboard() {
+    if (!window._skillMd) return;
+    navigator.clipboard.writeText(window._skillMd).then(function() {
+      var btn = event.target;
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+    });
+  }
+
+  // Disable dl button initially
+  document.getElementById('dl-btn').setAttribute('disabled', true);
+
+  // ── STEP 7: CONNECT ACCOUNTS ─────────────────────────────────────────────
+
+  function updateConnectLinks() { /* backend URL is read dynamically */ }
+
+  function _backendUrl() {
+    return OPS_HUB_URL.replace(/\/$/, '');
+  }
+
+  function _userEmail() {
+    return (document.getElementById('f-email') || {}).value || '';
+  }
+
+  function connectAccount(provider) {
+    var email = _userEmail();
+    if (!email) { alert('Please complete Step 1 (email address) before connecting accounts.'); return; }
+    var base = _backendUrl();
+    var url = base + '/auth/' + provider + '?email=' + encodeURIComponent(email);
+    var popup = window.open(url, 'oauth_' + provider, 'width=520,height=640,scrollbars=yes,resizable=yes');
+    if (!popup) { alert('Pop-up blocked. Please allow pop-ups for this page and try again.'); return; }
+  }
+
+  // Listen for auth_complete message from popup window
+  window.addEventListener('message', function(evt) {
+    if (!evt.data || evt.data.type !== 'auth_complete') return;
+    var provider = evt.data.provider;
+    var success  = evt.data.success;
+    if (success) {
+      refreshAuthStatus();
+    } else {
+      _setProviderStatus(provider, false, null);
+    }
+  });
+
+  function refreshAuthStatus() {
+    var email = _userEmail();
+    if (!email) return;
+    var base = _backendUrl();
+    fetch(base + '/auth/status?email=' + encodeURIComponent(email))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var ms = data.microsoft || {};
+        var sl = data.slack || {};
+        _setProviderStatus('microsoft', ms.connected, ms.connected ? 'Connected — Mail · Teams · Calendar' : null);
+        _setProviderStatus('slack',     sl.connected, sl.connected ? ('Connected — ' + (sl.team || 'Slack')) : null);
+      })
+      .catch(function() { /* backend not running — silent fail */ });
+  }
+
+  function _setProviderStatus(provider, connected, label) {
+    var statusEl     = document.getElementById(provider === 'microsoft' ? 'ms-status'     : 'slack-status');
+    var btnEl        = document.getElementById(provider === 'microsoft' ? 'ms-btn'         : 'slack-btn');
+    var disconnectEl = document.getElementById(provider === 'microsoft' ? 'ms-disconnect'  : 'slack-disconnect');
+    if (!statusEl) return;
+    if (connected) {
+      statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ ' + (label || 'Connected') + '</span>';
+      btnEl.textContent = 'Re-connect';
+      btnEl.style.opacity = '0.6';
+      disconnectEl.style.display = 'block';
+    } else {
+      statusEl.textContent = 'Not connected';
+      btnEl.textContent = provider === 'microsoft' ? 'Connect Microsoft' : 'Connect Slack';
+      btnEl.style.opacity = '1';
+      disconnectEl.style.display = 'none';
+    }
+  }
+
+  function disconnectAccount(provider) {
+    var email = _userEmail();
+    if (!email) return;
+    if (!confirm('Disconnect ' + provider + ' for ' + email + '?')) return;
+    var base = _backendUrl();
+    fetch(base + '/auth/disconnect?email=' + encodeURIComponent(email) + '&provider=' + provider, { method: 'DELETE' })
+      .then(function() { _setProviderStatus(provider, false, null); })
+      .catch(function() { alert('Could not reach the backend. Is OPS Hub running?'); });
+  }
+
+  // Auto-refresh status when entering Step 7
+  var _origGoStep = goStep;
+  goStep = function(n) {
+    _origGoStep(n);
+    if (n === 7) { setTimeout(refreshAuthStatus, 200); }
+  };
+</script>
+
+</body>
+</html>
