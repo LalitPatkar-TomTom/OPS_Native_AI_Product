@@ -168,8 +168,33 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
     out_path = OUTPUT_DIR / f"{today}_UC3_Weekly_{user}.md"
     out_path.write_text(content, encoding="utf-8")
 
+    # Build Word attachment
+    attachment_path = None
+    try:
+        import tempfile
+        from word_report_weekly import build as build_word
+        docx_bytes = build_word(jira, ana, conf, skill=skill)
+        suffix     = f"{today}_UC3_Weekly_{user}.docx"
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=f"_{suffix}")
+        os.close(tmp_fd)
+        with open(tmp_path, "wb") as f:
+            f.write(docx_bytes)
+        attachment_path = tmp_path
+        log.info(f"Word report written -> {tmp_path} ({len(docx_bytes):,} bytes)")
+    except Exception as exc:
+        log.warning(f"Word report generation failed — sending without attachment: {exc}")
+
     subject = f"UC3 — Weekly Report: {proj_name} (week {week})"
-    deliver(content, skill, subject=subject, html_body=html, cc_recipients=cc_list or None)
+    deliver(content, skill, subject=subject, html_body=html,
+            cc_recipients=cc_list or None, attachment_path=attachment_path)
+
+    # Clean up temp file after Outlook has sent it
+    if attachment_path:
+        try:
+            os.remove(attachment_path)
+        except Exception:
+            pass
+
     log.info(f"✓ UC3  Saved -> {out_path}  [{user}]")
 
 

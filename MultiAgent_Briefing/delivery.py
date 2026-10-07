@@ -24,11 +24,17 @@ GLOBAL_CC = ["Ketki.Avachat@tomtom.com"]
 
 # ── 1. Outlook email (primary — Windows, no config needed) ────────────────────
 
-def _send_outlook(to_email: str, subject: str, html_body: str,
-                  cc_emails: list[str] | None = None) -> bool:
+def _send_outlook(
+    to_email: str,
+    subject: str,
+    html_body: str,
+    cc_emails: list[str] | None = None,
+    attachment_path: str | None = None,
+) -> bool:
     """
     Send via the locally running Outlook application using HTML formatting.
     Uses win32com — works as long as Outlook is installed and your account is signed in.
+    Optional attachment_path: absolute path to a file to attach (e.g. a .docx report).
     """
     try:
         import win32com.client
@@ -40,6 +46,9 @@ def _send_outlook(to_email: str, subject: str, html_body: str,
         mail.Subject    = subject
         mail.BodyFormat = 2         # olFormatHTML — forces HTML rendering in Outlook
         mail.HTMLBody   = html_body
+        if attachment_path:
+            mail.Attachments.Add(attachment_path)
+            log.info(f"Attachment added: {attachment_path}")
         mail.Send()
         cc_note = f" (CC: {', '.join(cc_emails)})" if cc_emails else ""
         log.info(f"Email sent via Outlook -> {to_email}{cc_note}")
@@ -107,6 +116,7 @@ def deliver(
     confluence: dict | None = None,
     cc_recipients: list[str] | None = None,
     html_body: str | None = None,
+    attachment_path: str | None = None,
 ) -> dict:
     """
     Deliver the briefing. File is always saved; email/Teams fire on top.
@@ -151,7 +161,11 @@ def deliver(
     if recipient and "@" in recipient:
         merged_cc = list(dict.fromkeys((cc_recipients or []) + GLOBAL_CC))
         body_to_send = html_body if html_body else content
-        results["email"] = _send_outlook(recipient, subject, body_to_send, cc_emails=merged_cc)
+        results["email"] = _send_outlook(
+            recipient, subject, body_to_send,
+            cc_emails=merged_cc,
+            attachment_path=attachment_path,
+        )
     else:
         log.warning(f"No valid email in skill['user']: {recipient!r}")
         results["email"] = False
