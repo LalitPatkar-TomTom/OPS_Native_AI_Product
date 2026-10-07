@@ -445,6 +445,30 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MultiAgent Briefing — Trigger Engine")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print schedule without running")
+    parser.add_argument("--test-uc3", action="store_true",
+                        help="Run UC3 weekly report immediately for all users and exit")
+    parser.add_argument("--user", default=None,
+                        help="Limit --test-uc3 to a specific user email")
     args = parser.parse_args()
 
-    start(dry_run=args.dry_run)
+    if args.test_uc3:
+        skill_files = [f for f in sorted(SKILLS_DIR.glob("*_skill.md")) if "@" in f.name]
+        if not skill_files:
+            log.error(f"No skill files found in {SKILLS_DIR}")
+        else:
+            for skill_file in skill_files:
+                try:
+                    skill = load_skill(skill_file)
+                except Exception as exc:
+                    log.error(f"Failed to load {skill_file.name}: {exc}")
+                    continue
+                user = skill.get("user", "")
+                if args.user and args.user.lower() not in user.lower():
+                    continue
+                log.info(f"=== TEST UC3 — firing now for {user} ===")
+                try:
+                    _run_uc3(skill, skill_file, user)
+                except Exception as exc:
+                    log.error(f"UC3 test failed for {user}: {exc}", exc_info=True)
+    else:
+        start(dry_run=args.dry_run)
