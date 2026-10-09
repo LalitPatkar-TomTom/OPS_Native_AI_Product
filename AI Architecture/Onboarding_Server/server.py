@@ -164,6 +164,12 @@ def _result_page(success: bool, provider: str, message: str) -> HTMLResponse:
 # ════════════════════════════════ HEALTH ═════════════════════════════════════
 
 @app.get("/")
+def serve_form():
+    html_path = Path(__file__).parent.parent / "HighLevelDocs" / "UserOnboarding.HTML"
+    return FileResponse(str(html_path), media_type="text/html")
+
+
+@app.get("/health")
 def health():
     return {"service": "OPS Native AI — Onboarding Server", "status": "running"}
 
@@ -351,14 +357,18 @@ async def upload_skill(
 
     Expected filename format: {firstname.lastname}_skill.md
     """
-    if not file.filename or not file.filename.endswith(".md"):
+    filename = Path(file.filename or "").name   # strip any client-supplied directories
+    if not filename.endswith(".md"):
         raise HTTPException(400, "Only .md files accepted")
+    # Trigger engine only schedules email-named profiles and mails the filename's email
+    if not filename.lower().endswith("@tomtom.com_skill.md"):
+        raise HTTPException(400, "Filename must be {email}_skill.md, e.g. firstname.lastname@tomtom.com_skill.md")
 
-    dest = _uploads_dir / file.filename
+    dest = _uploads_dir / filename
     _uploads_dir.mkdir(parents=True, exist_ok=True)
     content = await file.read()
     dest.write_bytes(content)
-    logger.info("Skill upload saved: %s (%d bytes)", file.filename, len(content))
+    logger.info("Skill upload saved: %s (%d bytes)", filename, len(content))
 
     background_tasks.add_task(
         _run_merge,
@@ -366,14 +376,14 @@ async def upload_skill(
     )
     return {
         "status": "accepted",
-        "filename": file.filename,
+        "filename": filename,
         "message": "Skill profile received. LLM merge started — combined file ready in ~30 s.",
     }
 
 
 def _run_merge(upload_path: Path) -> None:
     try:
-        merge_skills.merge(
+        merge_skills.merge_if_stale(
             user_skill_path=upload_path,
             domains_dir=_domains_dir,
             combined_dir=_combined_dir,

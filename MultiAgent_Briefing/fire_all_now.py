@@ -82,83 +82,13 @@ def fire_for_user(skill_file: Path, ucs: list[str], dry_run: bool):
 
 
 def _dispatch(uc_id: str, skill: dict, skill_file: Path, user: str):
-    if uc_id == "UC1":
-        from orchestrator import run_uc1
-        out = run_uc1(skill_file=skill_file)
-        log.info(f"    OK  UC1 -> {out}")
-
-    elif uc_id == "UC2":
-        from agents import jira_agent
-        from delivery import deliver
-        from email_html import build_alert
-        jira = jira_agent.run(skill)
-        breaches = jira.get("sla_breaches", [])
-        warnings = jira.get("sla_warnings", [])
-        if not breaches and not warnings:
-            log.info(f"    OK  UC2 — no SLA issues")
-            return
-        lines = [f"# UC2 Jira SLA Alert\n**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"]
-        for t in breaches:
-            lines.append(f"- BREACH [{t['key']}] {t['summary']} | {t['assignee']} | {t['hours_stale']}h")
-        for t in warnings:
-            lines.append(f"- WARNING [{t['key']}] {t['summary']} | {t['assignee']} | {t['hours_stale']}h")
-        content = "\n".join(lines)
-        out_path = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC2_{user}_SLA.md"
-        out_path.write_text(content, encoding="utf-8")
-        deliver(content, skill, subject=f"UC2 — Jira SLA Alert ({skill.get('project_name','')})"),
-        log.info(f"    OK  UC2 — alert sent -> {out_path}")
-
-    elif uc_id == "UC3":
-        import concurrent.futures
-        from agents import jira_agent, analytics_agent
-        from agents.confluence_agent import run as run_confluence
-        from email_html_weekly import build as build_weekly
-        from delivery import deliver
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
-            f_j = pool.submit(jira_agent.run, skill)
-            f_a = pool.submit(analytics_agent.run, skill)
-            f_c = pool.submit(run_confluence, skill)
-            jira, ana, conf = f_j.result(), f_a.result(), f_c.result()
-        html = build_weekly(jira, ana, conf, skill=skill)
-        week = ana.get("week_label", datetime.now().strftime("%Y-%m-%d"))
-        content = f"UC3 Weekly Report: {skill.get('project_name','')} | Week {week}"
-        out_path = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d')}_UC3_Weekly_{user}.md"
-        out_path.write_text(content, encoding="utf-8")
-        deliver(content, skill, subject=f"UC3 — Weekly Report (week {week})", html_body=html)
-        log.info(f"    OK  UC3 -> {out_path}")
-
-    elif uc_id == "UC4":
-        from agents import analytics_agent
-        from agents.uc4_state import already_alerted_today, mark_alerted
-        from email_html import build_alert
-        from delivery import deliver
-        analytics = analytics_agent.run(skill)
-        fta   = analytics.get("fta_current", 0.0)
-        coq   = analytics.get("coq_current", 0.0)
-        week  = analytics.get("week_label", "")
-        trend = analytics.get("fta_trend", "stable")
-        bd    = analytics.get("process_breakdown", [])
-        fta_thr = skill.get("fta_thresholds", {"target": 95.0, "alert": 92.0})
-        coq_thr = skill.get("coq_thresholds", {"target": 7.0,  "alert": 10.0})
-
-        if fta < fta_thr["alert"] and not already_alerted_today(user, "fta"):
-            html = build_alert(metric="fta", rag="RED", current_value=fta,
-                               threshold=fta_thr["alert"], direction=trend,
-                               week_label=week, process_breakdown=bd, skill=skill)
-            content = f"UC4 FTA Alert RED: {fta:.2f}%"
-            deliver(content, skill, subject=f"UC4 FTA Alert: {fta:.2f}% — {skill.get('project_name','')}", html_body=html)
-            mark_alerted(user, "fta")
-            log.warning(f"    ALERT  UC4 FTA {fta:.2f}% RED — sent")
-        elif coq >= coq_thr["alert"] and not already_alerted_today(user, "coq"):
-            html = build_alert(metric="coq", rag="RED", current_value=coq,
-                               threshold=coq_thr["alert"], direction="declining",
-                               week_label=week, process_breakdown=bd, skill=skill)
-            content = f"UC4 CoQ Alert RED: {coq:.2f}%"
-            deliver(content, skill, subject=f"UC4 CoQ Alert: {coq:.2f}% — {skill.get('project_name','')}", html_body=html)
-            mark_alerted(user, "coq")
-            log.warning(f"    ALERT  UC4 CoQ {coq:.2f}% RED — sent")
-        else:
-            log.info(f"    OK  UC4 — FTA {fta:.2f}%  CoQ {coq:.2f}%  (healthy or already alerted)")
+    """
+    Run one UC via the trigger engine's job — the single implementation of
+    each UC (per-metric UC4 thresholds + directions, CC lists, UC3 Word
+    attachment, audit log) and of the quiet-hours guard (UC4 may break it).
+    """
+    import trigger_engine
+    trigger_engine._make_job(uc_id, skill, skill_file)()
 
 
 def main():

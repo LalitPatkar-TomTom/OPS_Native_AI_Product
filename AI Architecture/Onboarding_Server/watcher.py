@@ -38,7 +38,7 @@ class _UploadHandler(FileSystemEventHandler):
             return
         with self._lock:
             try:
-                merge_skills.merge(
+                merge_skills.merge_if_stale(
                     user_skill_path=p,
                     domains_dir=self._domains_dir,
                     combined_dir=self._combined_dir,
@@ -97,7 +97,7 @@ class SkillWatcher:
             if not combined.exists() or upload.stat().st_mtime > combined.stat().st_mtime:
                 logger.info("Backfill merge: %s", upload.name)
                 try:
-                    merge_skills.merge(
+                    merge_skills.merge_if_stale(
                         user_skill_path=upload,
                         domains_dir=self._domains_dir,
                         combined_dir=self._combined_dir,

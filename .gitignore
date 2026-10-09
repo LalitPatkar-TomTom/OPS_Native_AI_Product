@@ -13,3 +13,9 @@ MultiAgent_Briefing/output/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local data — personal profiles in transit, backups, OAuth tokens
+AI Architecture/skills/uploads/
+AI Architecture/skills/tokens/
+AI Architecture/skills/Personal Skills.backup_*/
+MultiAgent_Briefing/*.v1_backup_*.py

@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from skill_registry import load_all_skills, load_skill
 from config import SKILLS_DIR, OUTPUT_DIR
+import audit_log
 
 
 # ── Logging setup ──────────────────────────────────────────────────────────────
@@ -70,8 +71,15 @@ def _in_quiet_hours(quiet: tuple[int, int] | None, timezone: str) -> bool:
 def _run_uc1(skill_file: Path, user: str):
     from orchestrator import run_uc1
     log.info(f"▶ UC1  Daily Briefing starting … [{user}]")
-    out = run_uc1(skill_file=skill_file)
-    log.info(f"✓ UC1  Done -> {out}  [{user}]")
+    skill = {}
+    try:
+        skill = load_skill(skill_file)
+        result = run_uc1(skill_file=skill_file)
+        audit_log.log_uc1(user, skill, result["analytics"], result["jira"], status="sent")
+        log.info(f"✓ UC1  Done -> {result['path']}  [{user}]")
+    except Exception as exc:
+        audit_log.log_error("UC1", user, skill, str(exc))
+        raise
 
 
 def _run_uc2(skill: dict, user: str):
@@ -119,7 +127,9 @@ def _run_uc2(skill: dict, user: str):
     date_stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
     out_path   = OUTPUT_DIR / f"{date_stamp}_UC2_{user}_SLA_Alert.md"
     out_path.write_text(content, encoding="utf-8")
+    from email_html import build_sla_alert
     deliver(content, skill, subject=f"UC2 — Jira SLA Alert ({proj_name})",
+            html_body=build_sla_alert(jira, skill=skill),
             cc_recipients=cc_list or None)
     log.info(f"✓ UC2  SLA alert saved -> {out_path}  [{user}]")
 
@@ -138,71 +148,89 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
 
     log.info(f"▶ UC3  Weekly Report starting … [{user}]")
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
-        f_jira = pool.submit(jira_agent.run,      skill)
-        f_ana  = pool.submit(analytics_agent.run, skill)
-        f_conf = pool.submit(run_confluence,       skill)
-        jira   = f_jira.result()
-        ana    = f_ana.result()
-        conf   = f_conf.result()
+    # The weekly report always shows Yield, even when it isn't one of the
+    # user's alert metrics (UC4 keeps using the profile's own selection).
+    pm = list(skill.get("primary_metrics") or [])
+    if "yield" not in pm:
+        skill = {**skill, "primary_metrics": pm + ["yield"]}
 
-    from email_html_weekly import build as build_weekly
-    _preview_note = None
-    if os.getenv("PREVIEW_MODE"):
-        _preview_note = (
-            "This is a preview of your weekly operational report. Once live, "
-            "you will receive this every Friday at 16:00. If you have feedback, "
-            "please reply to Lalit Patkar."
-        )
-    html = build_weekly(jira, ana, conf, skill=skill, preview_note=_preview_note)
-
-    week = ana.get("week_label", datetime.now().strftime("%Y-%m-%d"))
-    content = (
-        f"UC3 — Weekly Report: {proj_name}\n"
-        f"Week: {week}  |  FTA: {ana.get('fta_current', 0):.2f}%"
-        f"  |  CoQ: {ana.get('coq_current', 0):.2f}%\n"
-        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-    )
-
-    today    = datetime.now().strftime("%Y-%m-%d")
-    out_path = OUTPUT_DIR / f"{today}_UC3_Weekly_{user}.md"
-    out_path.write_text(content, encoding="utf-8")
-
-    # Build Word attachment
-    attachment_path = None
     try:
-        import tempfile
-        from word_report_weekly import build as build_word
-        docx_bytes = build_word(jira, ana, conf, skill=skill)
-        suffix     = f"{today}_UC3_Weekly_{user}.docx"
-        tmp_fd, tmp_path = tempfile.mkstemp(suffix=f"_{suffix}")
-        os.close(tmp_fd)
-        with open(tmp_path, "wb") as f:
-            f.write(docx_bytes)
-        attachment_path = tmp_path
-        log.info(f"Word report written -> {tmp_path} ({len(docx_bytes):,} bytes)")
-    except Exception as exc:
-        log.warning(f"Word report generation failed — sending without attachment: {exc}")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            f_jira = pool.submit(jira_agent.run,                         skill)
+            f_ana  = pool.submit(analytics_agent.run, skill, "weekly")
+            f_conf = pool.submit(run_confluence,                         skill)
+            jira   = f_jira.result()
+            ana    = f_ana.result()
+            conf   = f_conf.result()
 
-    subject = f"UC3 — Weekly Report: {proj_name} (week {week})"
-    deliver(content, skill, subject=subject, html_body=html,
-            cc_recipients=cc_list or None, attachment_path=attachment_path)
+        from email_html_weekly import build as build_weekly
+        _preview_note = None
+        if os.getenv("PREVIEW_MODE"):
+            _preview_note = (
+                "This is a preview of your weekly operational report. Once live, "
+                "you will receive this every Friday at 16:00. If you have feedback, "
+                "please reply to Lalit Patkar."
+            )
+        html = build_weekly(jira, ana, conf, skill=skill, preview_note=_preview_note)
 
-    # Clean up temp file after Outlook has sent it
-    if attachment_path:
+        week = ana.get("week_label", datetime.now().strftime("%Y-%m-%d"))
+        content = (
+            f"UC3 — Weekly Report: {proj_name}\n"
+            f"Week: {week}  |  FTA: {ana.get('fta_current', 0):.2f}%"
+            f"  |  CoQ: {ana.get('coq_current', 0):.2f}%\n"
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        )
+
+        today    = datetime.now().strftime("%Y-%m-%d")
+        out_path = OUTPUT_DIR / f"{today}_UC3_Weekly_{user}.md"
+        out_path.write_text(content, encoding="utf-8")
+
+        # Build Word attachment
+        attachment_path = None
         try:
-            os.remove(attachment_path)
-        except Exception:
-            pass
+            import tempfile
+            from word_report_weekly import build as build_word
+            docx_bytes = build_word(jira, ana, conf, skill=skill)
+            suffix     = f"{today}_UC3_Weekly_{user}.docx"
+            tmp_fd, tmp_path = tempfile.mkstemp(suffix=f"_{suffix}")
+            os.close(tmp_fd)
+            with open(tmp_path, "wb") as f:
+                f.write(docx_bytes)
+            attachment_path = tmp_path
+            log.info(f"Word report written -> {tmp_path} ({len(docx_bytes):,} bytes)")
+        except Exception as exc:
+            log.warning(f"Word report generation failed — sending without attachment: {exc}")
 
-    log.info(f"✓ UC3  Saved -> {out_path}  [{user}]")
+        subject = f"UC3 — Weekly Report: {proj_name} (week {week})"
+        deliver(content, skill, subject=subject, html_body=html,
+                cc_recipients=cc_list or None, attachment_path=attachment_path)
+
+        audit_log.log_uc3(user, skill, ana, jira, status="sent")
+
+        # Clean up temp file after Outlook has sent it
+        if attachment_path:
+            try:
+                os.remove(attachment_path)
+            except Exception:
+                pass
+
+        log.info(f"✓ UC3  Saved -> {out_path}  [{user}]")
+
+    except Exception as exc:
+        audit_log.log_error("UC3", user, skill, str(exc))
+        raise
 
 
 def _run_uc4(skill: dict, user: str):
     """
-    Quality Early Warning — checks FTA and CoQ, fires per-metric HTML alerts.
+    Quality Early Warning — direction-aware per-metric alerts driven entirely
+    by the user's onboarding thresholds (metric_thresholds from skill profile).
+
+    Alert logic per metric:
+      direction='drop'  → alert when current < alert_value  (FTA, Efficiency)
+      direction='rise'  → alert when current > alert_value  (CoQ, CopQ)
+
     One alert per metric per user per day (suppressed on repeat polls).
-    Respects primary_metrics: skips metrics the user hasn't opted into.
     Set FORCE_UC4_ALERT=1 to bypass suppression and thresholds (testing only).
     """
     import os
@@ -211,87 +239,126 @@ def _run_uc4(skill: dict, user: str):
     from delivery import deliver
     from email_html import build_alert
 
-    force = bool(os.getenv("FORCE_UC4_ALERT"))
-    pm    = set(skill.get("primary_metrics") or ["fta", "efficiency", "coq"])
-
+    force        = bool(os.getenv("FORCE_UC4_ALERT"))
+    pm           = set(skill.get("primary_metrics") or ["fta", "efficiency", "coq"])
+    met_thr      = skill.get("metric_thresholds") or {}
     proj_name    = skill.get("project_name") or "Project"
     jira_project = skill.get("jira_project") or ""
     cc_list      = skill.get("cc_recipients") or []
 
-    fta_thr = skill.get("fta_thresholds", {"target": 95.0, "alert": 92.0})
-    coq_thr = skill.get("coq_thresholds", {"target": 7.0,  "alert": 10.0})
+    log.info(f"UC4  Quality poll [{user}]  metrics={sorted(pm)}")
 
-    log.info(f"▶ UC4  Quality poll … [{user}]")
-    analytics = analytics_agent.run(skill)
+    try:
+        analytics = analytics_agent.run(skill, report_type="daily")
+    except Exception as exc:
+        audit_log.log_error("UC4", user, skill, str(exc))
+        raise
 
-    fta   = analytics.get("fta_current",   0.0)
-    coq   = analytics.get("coq_current",   0.0)
-    trend = analytics.get("fta_trend",     "stable")
-    week  = analytics.get("week_label",    "")
+    week  = analytics.get("week_label", "")
     bd    = analytics.get("process_breakdown", [])
+    trend = analytics.get("fta_trend", "stable")
+
+    # Map canonical metric key → (current_value, email_metric_id, email headline)
+    _METRIC_VALUES = {
+        "fta":        (analytics.get("fta_current",    0.0), "fta", "FTA — First Time Accuracy"),
+        "efficiency": (analytics.get("efficiency_vs_bl"),    "fta", "Efficiency vs Baseline"),
+        "coq":        (analytics.get("coq_current",    0.0), "coq", "CoQ — Cost of Quality"),
+        "copq":       (analytics.get("copq_pct"),            "coq", "CoPQ — Cost of Poor Quality"),
+        "yield":      (analytics.get("yield_current"),       "fta", "Yield"),
+    }
 
     alerts_sent = 0
 
-    # ── FTA check ──────────────────────────────────────────────────────────────
-    if "fta" in pm:
-        fta_alert_thr = fta_thr["alert"]
-        fta_target    = fta_thr["target"]
-        if force or fta < fta_alert_thr:
-            rag = "RED" if (force or fta < fta_alert_thr) else "AMBER"
-            if force or not already_alerted_today(user, "fta"):
-                html = build_alert(
-                    metric="fta", rag=rag,
-                    current_value=fta,
-                    threshold=fta_alert_thr,
-                    direction=trend, week_label=week,
-                    process_breakdown=bd, skill=skill,
-                )
-                subj = f"UC4 ⚠️ FTA Alert {rag}: {fta:.2f}% — {proj_name}"
-                content = f"UC4 FTA Alert {rag}: {fta:.2f}% (threshold {fta_alert_thr}%)"
-                out  = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_FTA_Alert.md"
-                out.write_text(content, encoding="utf-8")
-                deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None)
-                if not force:
-                    mark_alerted(user, "fta")
-                alerts_sent += 1
-                log.warning(f"✗ UC4  FTA {fta:.2f}% {rag} — alert sent  [{user}]")
-            else:
-                log.info(f"  UC4  FTA {fta:.2f}% RED — suppressed (already alerted today)  [{user}]")
-        elif fta < fta_target:
-            log.info(f"  UC4  FTA {fta:.2f}% — AMBER watch item (in UC1 morning briefing)  [{user}]")
-        else:
-            log.info(f"  UC4  FTA {fta:.2f}% — healthy  [{user}]")
+    for metric_key in sorted(pm):          # deterministic order
+        if metric_key not in _METRIC_VALUES:
+            continue
 
-    # ── CoQ check ──────────────────────────────────────────────────────────────
-    if "coq" in pm or "copq" in pm:
-        coq_alert_thr = coq_thr["alert"]
-        if force or coq >= coq_alert_thr:
-            rag = "RED" if (force or coq >= coq_alert_thr) else "AMBER"
-            if force or not already_alerted_today(user, "coq"):
+        current, email_type, label = _METRIC_VALUES[metric_key]
+        if current is None:
+            log.info(f"  UC4  {metric_key} — no data, skipping")
+            continue
+
+        thr       = met_thr.get(metric_key, {})
+        alert_val = thr.get("alert")
+        target    = thr.get("target")
+        direction = thr.get("direction", "drop")
+
+        if alert_val is None:
+            log.info(f"  UC4  {metric_key} — no alert threshold configured, skipping")
+            continue
+
+        # Evaluate breach: direction-aware from onboarding
+        if direction == "rise":
+            breached = current > alert_val
+            watch    = target is not None and current > target
+            log.info(f"  UC4  {metric_key} {current:.2f} (alert>'{alert_val}', direction=rise)"
+                     f"  breached={breached}")
+        else:                              # "drop"
+            breached = current < alert_val
+            watch    = target is not None and current < target
+            log.info(f"  UC4  {metric_key} {current:.2f} (alert<'{alert_val}', direction=drop)"
+                     f"  breached={breached}")
+
+        if force or breached:
+            rag = "RED"
+            if force or not already_alerted_today(user, metric_key):
                 html = build_alert(
-                    metric="coq", rag=rag,
-                    current_value=coq,
-                    threshold=coq_alert_thr,
-                    direction="declining",   # CoQ going up = quality declining
+                    metric=email_type, rag=rag,
+                    current_value=current,
+                    threshold=alert_val,
+                    direction=trend if metric_key == "fta" else (
+                        "declining" if direction == "rise" else "stable"
+                    ),
                     week_label=week,
-                    process_breakdown=bd, skill=skill,
+                    process_breakdown=bd,
+                    skill=skill,
+                    label=label,
+                    alert_on=direction,
+                    operator_breakdown=(analytics.get("operator_breakdown")
+                                        if skill.get("include_operator_breakdown") else None),
                 )
-                subj = f"UC4 ⚠️ CoQ Alert {rag}: {coq:.2f}% — {proj_name}"
-                content = f"UC4 CoQ Alert {rag}: {coq:.2f}% (threshold {coq_alert_thr}%)"
-                out  = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_CoQ_Alert.md"
+                subj    = f"UC4 Alert {rag} — {metric_key.upper()} {current:.2f}% vs threshold {alert_val}% — {proj_name}"
+                content = f"UC4 {metric_key.upper()} Alert {rag}: {current:.2f}% (threshold {alert_val}%)"
+                out     = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_Alert.md"
                 out.write_text(content, encoding="utf-8")
                 deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None)
                 if not force:
-                    mark_alerted(user, "coq")
+                    mark_alerted(user, metric_key)
+                audit_log.log_uc4(
+                    user, skill, analytics,
+                    metric_key=metric_key, alert_value=current,
+                    threshold_value=alert_val, direction=direction,
+                    status="sent",
+                )
                 alerts_sent += 1
-                log.warning(f"✗ UC4  CoQ {coq:.2f}% {rag} — alert sent  [{user}]")
+                log.warning(f"UC4  {metric_key.upper()} {current:.2f}% {rag} — alert sent  [{user}]")
             else:
-                log.info(f"  UC4  CoQ {coq:.2f}% RED — suppressed (already alerted today)  [{user}]")
+                audit_log.log_uc4(
+                    user, skill, analytics,
+                    metric_key=metric_key, alert_value=current,
+                    threshold_value=alert_val, direction=direction,
+                    status="suppressed",
+                )
+                log.info(f"  UC4  {metric_key.upper()} {current:.2f}% — suppressed (already alerted today)")
+        elif watch:
+            audit_log.log_uc4(
+                user, skill, analytics,
+                metric_key=metric_key, alert_value=current,
+                threshold_value=alert_val, direction=direction,
+                status="healthy",
+            )
+            log.info(f"  UC4  {metric_key.upper()} {current:.2f}% — AMBER watch (in UC1 briefing)")
         else:
-            log.info(f"  UC4  CoQ {coq:.2f}% — healthy  [{user}]")
+            audit_log.log_uc4(
+                user, skill, analytics,
+                metric_key=metric_key, alert_value=current,
+                threshold_value=alert_val, direction=direction,
+                status="healthy",
+            )
+            log.info(f"  UC4  {metric_key.upper()} {current:.2f}% — healthy")
 
     if alerts_sent == 0 and not force:
-        log.info(f"✓ UC4  All metrics healthy — no alerts  [{user}]")
+        log.info(f"UC4  All metrics healthy — no alerts  [{user}]")
 
 
 def _run_uc5(user: str):

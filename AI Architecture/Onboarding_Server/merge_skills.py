@@ -9,7 +9,9 @@ Fallback: if Databricks is not configured, appends domain content after a
 separator — so the file is always produced.
 """
 import logging
+import os
 import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -240,6 +242,30 @@ def _concat_fallback(user_md: str, domain_md: str) -> str:
         + "_Note: LLM merge unavailable — domain context appended as-is._\n\n"
         + domain_md
     )
+
+
+_merge_lock = threading.Lock()
+
+
+def merge_if_stale(user_skill_path: Path, combined_dir: Path, **kwargs: Any) -> Path | None:
+    """
+    Serialised merge entry point shared by the upload endpoint, the file
+    watcher (created + modified events) and the startup backfill.
+
+    One upload fires all three; without this each runs its own LLM call.
+    Skips when the combined file is already newer than the upload.
+    """
+    with _merge_lock:
+        out_path = combined_dir / user_skill_path.name
+        src_mtime = user_skill_path.stat().st_mtime
+        if out_path.exists() and out_path.stat().st_mtime >= src_mtime:
+            logger.info("Combined profile already up to date — skip merge: %s", user_skill_path.name)
+            return None
+        out_path = merge(user_skill_path=user_skill_path, combined_dir=combined_dir, **kwargs)
+        # Stamp with the source mtime read before merging, so a re-upload that
+        # lands mid-merge is still seen as stale and merged again.
+        os.utime(out_path, (src_mtime, src_mtime))
+        return out_path
 
 
 def merge(

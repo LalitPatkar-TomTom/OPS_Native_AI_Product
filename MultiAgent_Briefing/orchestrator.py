@@ -107,9 +107,9 @@ def run_uc1(skill_file: Path | None = None) -> Path:
 
     with ThreadPoolExecutor(max_workers=3) as pool:
         futures = {
-            pool.submit(jira_agent.run,        skill): "jira",
-            pool.submit(analytics_agent.run,   skill): "analytics",
-            pool.submit(confluence_agent.run,  skill): "confluence",
+            pool.submit(jira_agent.run,                          skill): "jira",
+            pool.submit(analytics_agent.run, skill, "daily"):           "analytics",
+            pool.submit(confluence_agent.run,                    skill): "confluence",
         }
         for future in as_completed(futures):
             name = futures[future]
@@ -186,7 +186,11 @@ def run_uc1(skill_file: Path | None = None) -> Path:
     log.info(f"UC1 complete in {elapsed:.1f}s")
     log.info("=" * 60)
 
-    return output_path
+    return {
+        "path":      output_path,
+        "analytics": analytics_result,
+        "jira":      jira_result,
+    }
 
 
 # ── UC2 — Jira SLA Alert ───────────────────────────────────────────────────────
@@ -354,7 +358,8 @@ if __name__ == "__main__":
     skill_file = Path(args.skill) if args.skill else None
 
     if args.uc == "UC1":
-        out = run_uc1(skill_file)
+        result = run_uc1(skill_file)
+        out = result["path"]
         print(f"\nBriefing saved to: {out}")
         print("\n" + "=" * 60)
         content = out.read_text(encoding="utf-8")

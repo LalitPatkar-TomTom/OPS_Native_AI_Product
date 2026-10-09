@@ -576,7 +576,7 @@
         <div class="field" id="fe-jira-user">
           <label>Jira Account ID / Username <span class="req">*</span></label>
           <input type="text" id="f-jira-user" placeholder="" />
-          <span class="err-msg">Jira Account ID is required — this becomes your SKILL.md filename.</span>
+          <span class="err-msg">Jira Account ID is required — used by the Jira agent to find your tickets.</span>
         </div>
       </div>
       <div class="field-row cols-3">
@@ -844,22 +844,38 @@
         </div>
       </div>
       <div class="field" style="margin-top:8px;">
-        <label>Key Metrics you watch <span class="hint">(name : target : alert threshold)</span></label>
+        <label>Key Metrics you watch <span class="hint">(metric · level · target · alert)</span></label>
         <table class="metric-table" id="metrics-table">
           <thead>
             <tr>
               <th>Metric Name</th>
+              <th>Level</th>
               <th>Target Value</th>
               <th>Alert At</th>
               <th>Direction</th>
               <th>Source</th>
-              <th>Report Link (Power BI URL)</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="metrics-tbody">
             <tr>
-              <td><input type="text" placeholder="e.g. FTA" /></td>
+              <td>
+                <select>
+                  <option value="">— select metric —</option>
+                  <option value="FTA — First Time Accuracy">FTA — First Time Accuracy</option>
+                  <option value="Efficiency vs Baseline">Efficiency vs Baseline</option>
+                  <option value="CoQ — Cost of Quality">CoQ — Cost of Quality</option>
+                  <option value="Yield">Yield</option>
+                  <option value="CoPQ — Cost of Poor Quality">CoPQ — Cost of Poor Quality</option>
+                </select>
+              </td>
+              <td>
+                <select>
+                  <option value="Process Type">Process Type</option>
+                  <option value="Overall">Overall</option>
+                  <option value="Operator">Operator View</option>
+                </select>
+              </td>
               <td><input type="text" placeholder="e.g. 95%" /></td>
               <td><input type="text" placeholder="e.g. below 92%" /></td>
               <td>
@@ -869,8 +885,7 @@
                   <option>↕ Alert on deviation</option>
                 </select>
               </td>
-              <td><input type="text" placeholder="Power BI / Jira / Manual" /></td>
-              <td><input type="url" placeholder="https://app.powerbi.com/..." /></td>
+              <td><input type="text" placeholder="Databricks / Power BI / Jira" /></td>
               <td><button class="btn-del" onclick="delRow(this)" title="Remove">×</button></td>
             </tr>
           </tbody>
@@ -899,6 +914,7 @@
         </div>
         <p class="scope-hint" id="pid-status"></p>
       </div>
+
     </div>
 
     <div class="card">
@@ -1949,12 +1965,12 @@
   function addMetricRow() {
     var tr = document.createElement('tr');
     tr.innerHTML =
-      '<td><input type="text" placeholder="Metric" /></td>' +
+      '<td><select><option value="">— select metric —</option><option value="FTA — First Time Accuracy">FTA — First Time Accuracy</option><option value="Efficiency vs Baseline">Efficiency vs Baseline</option><option value="CoQ — Cost of Quality">CoQ — Cost of Quality</option><option value="Yield">Yield</option><option value="CoPQ — Cost of Poor Quality">CoPQ — Cost of Poor Quality</option></select></td>' +
+      '<td><select><option value="Process Type">Process Type</option><option value="Overall">Overall</option><option value="Operator">Operator View</option></select></td>' +
       '<td><input type="text" placeholder="Target" /></td>' +
       '<td><input type="text" placeholder="Alert at" /></td>' +
       '<td><select><option>↓ Alert on drop</option><option>↑ Alert on rise</option><option>↕ Alert on deviation</option></select></td>' +
       '<td><input type="text" placeholder="Source" /></td>' +
-      '<td><input type="url" placeholder="https://app.powerbi.com/..." /></td>' +
       '<td><button class="btn-del" onclick="delRow(this)">×</button></td>';
     document.getElementById('metrics-tbody').appendChild(tr);
   }
@@ -2026,7 +2042,9 @@
     var secondary  = secondaryDomains.filter(function(d) { return d !== primary; });
     var now        = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
     var firstName  = name.split(' ')[0];
-    var slug       = jiraUser || name.replace(/\s+/g, '_');
+    // Filename must be the email: the trigger engine only schedules *@tomtom.com_skill.md
+    // and sends every briefing/alert to the address in the filename.
+    var slug       = email;
 
     var domainLabels = { OL:'Operational Lead', PM:'Project Manager', QL:'Quality Lead', BA:'Business Analyst', PE:'Process Engineering' };
     var domainFolders = { OL:'operational-lead', PM:'project-manager', QL:'quality-lead', BA:'business-analyst', PE:'process-engineering' };
@@ -2039,7 +2057,7 @@
     // Collect table data
     var projects     = getTableRows('projects-tbody',     ['name', 'code', 'role', 'status']);
     var stakeholders = getTableRows('stakeholders-tbody', ['name', 'role', 'contact', 'frequency']);
-    var metrics      = getTableRows('metrics-tbody',      ['metric', 'target', 'alert', 'direction', 'source', 'report_link']);
+    var metrics      = getTableRows('metrics-tbody',      ['metric', 'level', 'target', 'alert', 'direction', 'source']);
     var templates    = getTableRows('templates-tbody',    ['name', 'cadence', 'uc', 'location', 'format', 'fields']);
 
     var consent = {
@@ -2211,7 +2229,7 @@
     md.push('The Analytics Agent monitors these thresholds every 30 minutes via Power BI / Databricks and alerts ' + firstName + ' on breach.');
     md.push('');
     if (metrics.length > 0) {
-      md.push(mdTable(['Metric', 'Target', 'Alert At', 'Direction', 'Source', 'Report Link'], metrics));
+      md.push(mdTable(['Metric', 'Level', 'Target', 'Alert At', 'Direction', 'Source'], metrics));
     } else {
       md.push('> No custom metrics defined — domain default thresholds apply (see domain SKILL.md).\n');
     }

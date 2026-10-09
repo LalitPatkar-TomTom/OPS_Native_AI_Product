@@ -39,8 +39,9 @@ for i, skill_file in enumerate(profiles, 1):
     print("-" * 55)
     try:
         out = run_uc1(skill_file)
-        results.append({"profile": name, "status": "OK", "output": str(out)})
-        print(f"  -> OK  {out.name}")
+        out_label = out.get("briefing_file", str(out)) if isinstance(out, dict) else str(out)
+        results.append({"profile": name, "status": "OK", "output": out_label})
+        print(f"  -> OK  {out_label}")
     except Exception as exc:
         results.append({"profile": name, "status": f"FAILED: {exc}", "output": ""})
         print(f"  -> FAILED: {exc}")

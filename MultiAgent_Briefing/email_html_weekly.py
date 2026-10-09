@@ -9,6 +9,7 @@ from typing import Any
 from email_html import (
     _rag, _badge, _dot, _arrow, _kv_table, _data_table, _section,
     _alert_row, _build_sprint, _build_confluence, _preview_banner,
+    _build_exec_summary, _build_breakdown, _build_actions, _build_operator_breakdown,
     _eff_str, _GREEN, _GREEN_BG, _GREEN_BD,
     _AMBER, _AMBER_BG, _AMBER_BD,
     _RED, _RED_BG, _RED_BD,
@@ -75,6 +76,29 @@ def _build_kpi_summary(analytics: dict, jira: dict, pm: set) -> str:
             "", bg, bd
         ))
 
+    if "yield" in pm:
+        yv   = analytics.get("yield_current")
+        rag  = analytics.get("yield_rag", "GREEN")
+        c, bg, bd = _rag(rag)
+        m4w  = analytics.get("metrics_4w", [])
+        prev_yv = m4w[1].get("yield") if len(m4w) > 1 else yv
+        yv_str  = f"{yv:.2f}%" if yv is not None else "N/A"
+        if yv is not None and prev_yv is not None:
+            d    = yv - prev_yv
+            sign = "+" if d >= 0 else ""
+            col  = _GREEN if d >= 0 else _RED
+            delta = f'<span style="color:{col};font-size:11px;font-weight:bold">{sign}{d:.2f}% vs prior week</span>'
+            sub  = f'vs {prev_yv:.2f}% prior week'
+        else:
+            delta = ""
+            sub  = ""
+        cells.append((
+            "Yield — First Pass",
+            f'<span style="{_F};font-size:26px;font-weight:bold;color:{c}">{yv_str}</span>',
+            delta,
+            sub, bg, bd
+        ))
+
     if not cells:
         return ""
 
@@ -115,6 +139,9 @@ def _build_trend_table(analytics: dict, pm: set) -> str:
         headers.append("CoQ")
     if "efficiency" in pm:
         headers.append("Efficiency vs BL")
+    if "yield" in pm:
+        headers.append("Yield")
+    headers.append("Sampling")
 
     rows = []
     for i, w in enumerate(m4w):
@@ -132,7 +159,6 @@ def _build_trend_table(analytics: dict, pm: set) -> str:
             fta = w.get("fta", 0.0)
             fta_rag = "GREEN" if fta >= 95 else "AMBER" if fta >= 92 else "RED"
             c, bg, bd = _rag(fta_rag)
-            # Arrow vs prior week
             if i > 0:
                 prev_fta = m4w[i - 1].get("fta", fta)
                 d = fta - prev_fta
@@ -154,7 +180,6 @@ def _build_trend_table(analytics: dict, pm: set) -> str:
             if i > 0:
                 prev_coq = m4w[i - 1].get("coq", coq)
                 d = coq - prev_coq
-                # For CoQ, lower is better — up arrow is bad
                 arr = ("&#8593;" if d > 0.2 else "&#8595;" if d < -0.2 else "&#8594;")
                 col = _RED if d > 0 else _GREEN if d < 0 else _MUTED
                 arrow_html = f'<span style="color:{col}"> {arr}</span>'
@@ -175,6 +200,34 @@ def _build_trend_table(analytics: dict, pm: set) -> str:
                 c, _, _ = _rag(eff_rag)
                 row.append(f'<span style="{_F};font-size:12px;color:{c};font-weight:bold">{ev:.1f}%</span>')
 
+        if "yield" in pm:
+            yv = w.get("yield")
+            if yv is None:
+                row.append(f'<span style="{_F};font-size:12px;color:{_MUTED}">N/A</span>')
+            else:
+                yield_rag = "GREEN" if yv >= 95 else "AMBER" if yv >= 94 else "RED"
+                c, bg, bd = _rag(yield_rag)
+                if i > 0:
+                    prev_yv = m4w[i - 1].get("yield", yv)
+                    d = yv - prev_yv
+                    arr = ("&#8593;" if d > 0.2 else "&#8595;" if d < -0.2 else "&#8594;")
+                    col = _GREEN if d > 0 else _RED if d < 0 else _MUTED
+                    arrow_html = f'<span style="color:{col}"> {arr}</span>'
+                else:
+                    arrow_html = ""
+                row.append(
+                    f'<span style="background:{bg};color:{c};border:1px solid {bd};'
+                    f'padding:2px 6px;border-radius:3px;font-weight:bold;font-size:12px;{_F}">'
+                    f'{yv:.2f}%</span>{arrow_html}'
+                )
+
+        sp = w.get("sampling_pct")
+        row.append(
+            f'<span style="{_F};font-size:12px;color:{_MUTED}">{sp:.1f}%</span>'
+            if sp is not None else
+            f'<span style="{_F};font-size:12px;color:{_MUTED}">—</span>'
+        )
+
         rows.append(row)
 
     src = analytics.get("source", "Databricks")
@@ -182,96 +235,6 @@ def _build_trend_table(analytics: dict, pm: set) -> str:
         _data_table(headers, rows)
         + f'<p style="{_F};font-size:11px;color:{_MUTED};margin:8px 0 0">Source: {src}</p>'
     )
-
-
-def _build_process_highlights(analytics: dict) -> str:
-    """Top performers + process types needing attention."""
-    bd  = analytics.get("process_breakdown", [])
-    wk  = analytics.get("week_label", "")
-    if not bd:
-        return f'<p style="{_F};font-size:13px;color:{_MUTED}">No process data available.</p>'
-
-    needs_attention = [p for p in bd if p.get("fta_rag") in ("AMBER", "RED")]
-    top = [p for p in bd if p.get("fta_rag") == "GREEN" and (p.get("eff_vs_bl") or 0) >= 100][:5]
-
-    html = ""
-
-    if needs_attention:
-        rows = []
-        for p in needs_attention:
-            c, bg, bd_col = _rag(p["fta_rag"])
-            rows.append([
-                f'<span style="{_F};font-size:12px;font-family:Consolas,monospace">{p["process_type"]}</span>',
-                f'<span style="background:{bg};color:{c};border:1px solid {bd_col};'
-                f'padding:2px 6px;border-radius:3px;font-weight:bold;font-size:12px;{_F}">{p["fta_pct"]:.2f}%</span>',
-                f'<span style="{_F};font-size:12px">{p["coq_pct"]:.1f}%</span>',
-                f'<span style="{_F};font-size:12px">{p["total_hrs"]:.0f}h</span>',
-            ])
-        html += (
-            f'<div style="{_F};font-size:12px;font-weight:bold;color:{_RED};margin-bottom:6px">'
-            f'&#9888; Needs Attention</div>'
-            + _data_table(["Process Type", "FTA", "CoQ", "Hrs"], rows)
-            + '<div style="margin-top:12px"></div>'
-        )
-
-    if top:
-        rows = []
-        for p in top:
-            rows.append([
-                f'<span style="{_F};font-size:12px;font-family:Consolas,monospace">{p["process_type"]}</span>',
-                f'<span style="{_F};font-size:12px;color:{_GREEN};font-weight:bold">{p["fta_pct"]:.2f}%</span>',
-                f'<span style="{_F};font-size:12px">{_eff_str(p.get("eff_vs_bl"))}</span>',
-                f'<span style="{_F};font-size:12px">{p["total_hrs"]:.0f}h</span>',
-            ])
-        html += (
-            f'<div style="{_F};font-size:12px;font-weight:bold;color:{_GREEN};margin-bottom:6px">'
-            f'&#10003; Top Performers</div>'
-            + _data_table(["Process Type", "FTA", "Eff vs BL", "Hrs"], rows)
-        )
-
-    if not needs_attention and not top:
-        html = f'<p style="{_F};font-size:13px;color:{_MUTED}">All process types within normal range.</p>'
-
-    return html + f'<p style="{_F};font-size:11px;color:{_MUTED};margin:8px 0 0">Week: {wk}</p>'
-
-
-def _build_focus_next_week(analytics: dict, jira: dict, pm: set) -> str:
-    """Auto-generate next-week focus items from alert conditions."""
-    items = []
-    fta  = analytics.get("fta_current", 0.0)
-    coq  = analytics.get("coq_current", 0.0)
-    erg  = analytics.get("efficiency_rag", "GREEN")
-    bd   = analytics.get("process_breakdown", [])
-    br   = jira.get("sla_breaches", [])
-    wa   = jira.get("sla_warnings", [])
-
-    if "fta" in pm and fta < 95:
-        rag = "RED" if fta < 92 else "AMBER"
-        items.append((rag, f"FTA at {fta:.2f}% — monitor process types below target and review rejection patterns early in the week."))
-
-    if ("coq" in pm or "copq" in pm) and coq >= 7:
-        rag = "RED" if coq >= 10 else "AMBER"
-        items.append((rag, f"CoQ at {coq:.2f}% — identify top rework drivers. Target <7% for next week."))
-
-    if "efficiency" in pm and erg == "RED":
-        items.append(("RED", "Efficiency below 90% of baseline — review capacity and task distribution."))
-
-    for p in bd:
-        if p.get("fta_rag") in ("AMBER", "RED"):
-            items.append((p["fta_rag"],
-                f'<b>{p["process_type"]}</b> — FTA {p["fta_pct"]:.2f}%: review rejection root cause.'))
-
-    for t in br:
-        items.append(("RED", f'Resolve SLA breach on <b>{t["key"]}</b> — stale {t["hours_stale"]}h.'))
-
-    for t in wa:
-        items.append(("AMBER", f'Follow up on <b>{t["key"]}</b> approaching 48h SLA.'))
-
-    if not items:
-        return _alert_row("GREEN", "ON TRACK",
-                          "All metrics healthy — maintain current execution standards.", "")
-
-    return "\n".join(_alert_row(rag, rag.replace("_", " "), text) for rag, text in items)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -292,10 +255,11 @@ def build(
     pm           = set(_s.get("primary_metrics") or ["fta", "efficiency", "coq"])
     show_eff     = bool(pm & {"efficiency", "coq", "copq"})
 
-    now      = datetime.now(timezone.utc)
-    date_str = now.strftime("%A, %d %B %Y")
-    time_str = now.strftime("%H:%M UTC")
-    week     = analytics.get("week_label", "")
+    now        = datetime.now(timezone.utc)
+    date_str   = now.strftime("%A, %d %B %Y")
+    time_str   = now.strftime("%H:%M UTC")
+    week       = analytics.get("week_label", "")
+    data_label = analytics.get("data_label", f"week of {week}")
 
     overall = "GREEN"
     if jira.get("sla_breaches") or analytics.get("fta_rag") == "RED":
@@ -303,6 +267,10 @@ def build(
     elif jira.get("sla_warnings") or analytics.get("fta_rag") == "AMBER" or analytics.get("coq_rag") in ("AMBER_P2", "RED_P1"):
         overall = "AMBER"
     oc, _, _ = _rag(overall)
+
+    # scope_mode: "defined" when the skill has explicit process types, else "all"
+    pts = _s.get("databricks_process_types") or []
+    scope_mode = _s.get("scope_mode") or ("defined" if pts else "all")
 
     # Auto-number sections
     n = [0]
@@ -326,7 +294,7 @@ def build(
     <td style="background:{_HDR};padding:20px 22px 14px">
       <span style="{_F};font-size:18px;font-weight:bold;color:#fff">Weekly Operational Report</span><br>
       <span style="{_F};font-size:12px;color:#8FA3C0;display:block;margin-top:3px">
-        {proj_label} &nbsp;·&nbsp; Week of {week} &nbsp;·&nbsp; {date_str} &nbsp;·&nbsp; {time_str}
+        {proj_label} &nbsp;·&nbsp; Data: {data_label} &nbsp;·&nbsp; {date_str} &nbsp;·&nbsp; {time_str}
       </span>
     </td>
     <td style="background:{_HDR};padding:20px 22px;text-align:right;white-space:nowrap;vertical-align:middle">
@@ -342,13 +310,18 @@ def build(
 
     {"<div>" + _preview_banner(preview_note) + "</div>" if preview_note else ""}
 
+    {_build_exec_summary(jira, analytics, pm, _s)}
+
     {_build_kpi_summary(analytics, jira, pm)}
+
+    {sec(f"Process-type Breakdown — Week {week}",
+         _build_breakdown(analytics, scope_mode))}
+
+    {sec(f"Operator Breakdown — Week {week}",
+         _build_operator_breakdown(analytics)) if analytics.get("operator_breakdown") else ""}
 
     {sec(f"4-Week Trend — {project_name}",
          _build_trend_table(analytics, pm))}
-
-    {sec("Process Type Highlights",
-         _build_process_highlights(analytics))}
 
     {sec(f"{jira_project} Sprint Health" if jira_project else "Sprint Health",
          _build_sprint(jira, jira_project))}
@@ -356,8 +329,8 @@ def build(
     {sec("Confluence — Weekly Progress",
          _build_confluence(confluence))}
 
-    {sec(f"Focus for Next Week — {user_name}'s Review",
-         _build_focus_next_week(analytics, jira, pm))}
+    {sec("Recommended Actions &amp; Conclusion",
+         _build_actions(jira, analytics, jira_project, project_name, list(pm)))}
 
   </td></tr>
   </table>

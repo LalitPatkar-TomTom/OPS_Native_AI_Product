@@ -26,10 +26,11 @@ def _overall_rag(jira: dict, analytics: dict) -> str:
     has_warning = len(jira.get("sla_warnings", [])) > 0
     fta_rag     = analytics.get("fta_rag", "GREEN")
     eff_rag     = analytics.get("efficiency_rag", "GREEN")
+    yield_rag   = analytics.get("yield_rag", "GREEN")
 
-    if has_breach or fta_rag == "RED" or eff_rag == "RED":
+    if has_breach or fta_rag == "RED" or eff_rag == "RED" or yield_rag == "RED":
         return "RED"
-    if has_warning or fta_rag == "AMBER" or eff_rag == "AMBER":
+    if has_warning or fta_rag == "AMBER" or eff_rag == "AMBER" or yield_rag == "AMBER":
         return "AMBER"
     return "GREEN"
 
@@ -97,6 +98,11 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
     copq_pct   = analytics.get("copq_pct",       None)
     prod_hrs   = analytics.get("prod_hrs",       None)
     qc_hrs     = analytics.get("qc_hrs",         None)
+    sampling      = analytics.get("sampling_pct",   None)
+    prod_tasks    = analytics.get("prod_tasks",     None)
+    total_qc      = analytics.get("total_qc",       None)
+    yield_current = analytics.get("yield_current",  None)
+    yield_rag_val = analytics.get("yield_rag",      "GREEN")
 
     breakdown  = analytics.get("process_breakdown", [])
     wk_label   = analytics.get("week_label",     "latest week")
@@ -120,7 +126,7 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
     process_amber = [p for p in breakdown if p.get("fta_rag") in ("AMBER", "RED")]
     eff_red_procs = [p for p in breakdown if p.get("eff_vs_bl") is not None and p["eff_vs_bl"] < 90]
 
-    if not breaches and not warnings and fta_rag == "GREEN" and not process_amber and eff_rag == "GREEN":
+    if not breaches and not warnings and fta_rag == "GREEN" and not process_amber and eff_rag == "GREEN" and yield_rag_val == "GREEN":
         lines += ["- No critical items. All metrics on track.", ""]
     else:
         if breaches:
@@ -169,6 +175,7 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
                     f"- `{p['process_type']}` — FTA {_rag_emoji(p['fta_rag'])} **{p['fta_pct']:.2f}%** "
                     f"| Eff vs BL: {_eff_label(p.get('eff_vs_bl'))} "
                     f"| CoQ: {p['coq_pct']:.1f}%"
+                    + (f" | Sampling: {p['sampling_pct']:.1f}%" if p.get('sampling_pct') is not None else "")
                 )
             lines.append("")
 
@@ -176,6 +183,12 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
             lines += [
                 f"**{_rag_emoji('RED')} EFFICIENCY ALERT — {_eff_label(eff_vs_bl)} for week {wk_label}**",
                 f"  Raw efficiency: {eff_raw:.4f} tasks/hr" if eff_raw else "",
+                "",
+            ]
+
+        if yield_rag_val in ("AMBER", "RED") and yield_current is not None:
+            lines += [
+                f"**{_rag_emoji(yield_rag_val)} YIELD {yield_rag_val} — {yield_current:.2f}% (Target: ≥95%) for week {wk_label}**",
                 "",
             ]
 
@@ -238,6 +251,12 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
         + (f"  ·  Raw: {eff_raw:.4f} tasks/hr" if eff_raw else ""),
         f"- **CoQ:** {coq_emoji} **{coq:.2f}%** ({coq_label})",
     ]
+    if yield_current is not None:
+        yield_emoji = _rag_emoji(yield_rag_val)
+        lines.append(f"- **Yield (First Pass):** {yield_emoji} **{yield_current:.2f}%** (Target: ≥95%)")
+    if sampling is not None:
+        sp_detail = f" ({total_qc:,} QC'd / {prod_tasks:,} produced)" if prod_tasks and total_qc else ""
+        lines.append(f"- **Sampling Rate:** **{sampling:.1f}%**{sp_detail}")
     if copq_hrs is not None:
         lines.append(
             f"- **CopQ (rework cost):** {copq_hrs:.1f}h wasted on rejected tasks"
@@ -263,8 +282,8 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
             bd_header = f"Process-type Breakdown — Week {wk_label}"
         lines += [f"## 5. {bd_header}", ""]
         lines += [
-            "| Process Type | FTA | Eff vs BL | CoQ | Tasks | Hrs |",
-            "|---|---|---|---|---|---|",
+            "| Process Type | FTA | Eff vs BL | CoQ | Yield | Sampling | Tasks | Hrs |",
+            "|---|---|---|---|---|---|---|---|",
         ]
         for p in breakdown:
             fta_cell = f"{_rag_emoji(p['fta_rag'])} {p['fta_pct']:.2f}%"
@@ -274,21 +293,54 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
                 "AMBER" if evbl is not None and evbl >= 90 else
                 "RED"   if evbl is not None else "⚪"
             )
-            eff_cell = f"{_rag_emoji(evbl_rag)} {evbl:.1f}%" if evbl is not None else "N/A"
-            coq_cell = f"{p['coq_pct']:.1f}%"
+            eff_cell  = f"{_rag_emoji(evbl_rag)} {evbl:.1f}%" if evbl is not None else ("—" if not p.get("has_prod", True) else "N/A")
+            coq_cell  = f"{p['coq_pct']:.1f}%"
+            yp        = p.get("yield_pct")
+            yp_rag    = "GREEN" if yp is not None and yp >= 95 else "AMBER" if yp is not None and yp >= 94 else "RED" if yp is not None else "⚪"
+            yp_cell   = f"{_rag_emoji(yp_rag)} {yp:.1f}%" if yp is not None else "—"
+            sp        = p.get("sampling_pct")
+            sp_cell   = f"{sp:.1f}%" if sp is not None else "—"
             lines.append(
                 f"| {p['process_type']} "
                 f"| {fta_cell} "
                 f"| {eff_cell} "
                 f"| {coq_cell} "
+                f"| {yp_cell} "
+                f"| {sp_cell} "
                 f"| {p['prod_tasks']:,} "
                 f"| {p['total_hrs']:.0f}h |"
             )
         lines.append("")
 
+    # ── Section 5b: Operator Breakdown ────────────────────────────────────────
+    op_bd = analytics.get("operator_breakdown", [])
+    if op_bd:
+        from collections import OrderedDict
+        by_pt: OrderedDict = OrderedDict()
+        for o in op_bd:
+            by_pt.setdefault(o["process_type"], []).append(o)
+        lines += [f"## {(6 if breakdown else 5)}. Operator Breakdown — Week {wk_label}", ""]
+        for pt, ops in by_pt.items():
+            lines += [f"**{pt}**", ""]
+            lines += ["| Operator | FTA | Eff vs BL | CoQ | Sampling | Tasks |",
+                      "|---|---|---|---|---|---|"]
+            for o in ops:
+                evbl = o.get("eff_vs_bl")
+                evbl_str = f"{evbl:.1f}%" if evbl is not None else ("—" if not o.get("has_prod", True) else "N/A")
+                sp = o.get("sampling_pct")
+                lines.append(
+                    f"| {o['operator']} "
+                    f"| {_rag_emoji(o['fta_rag'])} {o['fta_pct']:.2f}% "
+                    f"| {evbl_str} "
+                    f"| {o['coq_pct']:.1f}% "
+                    f"| {f'{sp:.1f}%' if sp is not None else '—'} "
+                    f"| {o['prod_tasks']:,} |"
+                )
+            lines.append("")
+
     # ── Section 6: All open tickets ────────────────────────────────────────────
     if open_all:
-        sec = 6 if breakdown else 5
+        sec = (7 if op_bd else 6) if breakdown else (6 if op_bd else 5)
         lines += [f"## {sec}. All Open {jira_project} Tickets", ""]
         lines += [
             "| Key | Summary | Status | Owner | Stale | SLA |",
@@ -394,6 +446,12 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
         lines.append(
             f"{action_num}. Efficiency at {eff_vs_bl:.1f}% vs baseline — identify bottlenecks "
             f"in low-performing process types."
+        )
+        action_num += 1
+    if yield_rag_val in ("AMBER", "RED") and yield_current is not None:
+        lines.append(
+            f"{action_num}. Yield at {yield_current:.2f}% (target ≥95%) — review first-pass "
+            f"completion and rework patterns for week {wk_label}."
         )
         action_num += 1
     if action_num == 1:

@@ -134,62 +134,175 @@ def _extract_alert_channel(text: str) -> str:
     return m.group(1).strip() if m else "file"
 
 
-def _extract_fta_thresholds(text: str) -> dict[str, float]:
-    """Extract FTA target and alert threshold from metrics profile."""
-    target = 95.0
-    alert  = 92.0
-    m = re.search(r"FTA\s*\|\s*([\d.]+)%\s*\|\s*below\s+([\d.]+)%", text)
-    if m:
-        target = float(m.group(1))
-        alert  = float(m.group(2))
-    return {"target": target, "alert": alert}
+def _normalize_metric_key(name: str) -> str | None:
+    """Map a metric label from the onboarding table to a canonical key."""
+    n = name.lower()
+    if "fta" in n or "first time" in n:          return "fta"
+    if "efficiency" in n:                          return "efficiency"
+    if "copq" in n or "cost of poor" in n:        return "copq"
+    if "coq" in n or "cost of quality" in n:      return "coq"
+    if "yield" in n:                               return "yield"
+    return None
 
 
-def _extract_coq_thresholds(text: str) -> dict[str, float]:
+def _parse_pct(s: str) -> float | None:
+    """Extract first numeric value from a string like '95%', 'below 92%', '<90%'."""
+    m = re.search(r"(\d[\d.]*)", s.replace(",", "."))
+    return float(m.group(1)) if m else None
+
+
+def _parse_direction(alert_str: str, dir_str: str) -> str:
     """
-    Extract CoQ target and alert threshold from metrics profile.
+    Return 'drop' (alert when value falls below threshold)
+        or 'rise' (alert when value rises above threshold).
 
-    Handles formats:
-      | CoQ | 5% | 7% | ...               (lalit-style: target | alert)
-      | CoQ | <7% | above 10% | ...       (quality-lead style)
+    Reads both the Alert At cell ('below 92%', 'above 10%')
+    and the Direction cell ('↓ Alert on drop', '↑ Alert on rise').
     """
-    target = 7.0
-    alert  = 10.0
-    m = re.search(
-        r"\|\s*CoQ\b[^|]*\|\s*<?(\d+(?:\.\d+)?)%\s*\|\s*(?:above\s+|>?\s*)(\d+(?:\.\d+)?)%",
-        text, re.I,
-    )
-    if m:
-        target = float(m.group(1))
-        alert  = float(m.group(2))
-    return {"target": target, "alert": alert}
+    combined = (alert_str + " " + dir_str).lower()
+    if "above" in combined or "rise" in combined or "increase" in combined:
+        return "rise"
+    return "drop"   # default: alert on drop (FTA, Efficiency)
 
 
-def _extract_primary_metrics(text: str) -> list[str]:
+def _iter_metric_rows(text: str):
+    """
+    Yield each data row of every Metrics table as {header_lower: cell}.
+
+    A Metrics table is any markdown table whose header row has both a
+    "Metric" and an "Alert" column. Columns are mapped by header name, so the
+    5-col legacy, 6-col (Level, no Scope) and 7-col (Level + Scope) onboarding
+    formats all parse correctly.
+    """
+    headers: list[str] | None = None
+    for line in text.splitlines():
+        s = line.strip()
+        if not s.startswith("|"):
+            headers = None
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if headers is None:
+            low = [c.lower() for c in cells]
+            if any(c.startswith("metric") for c in low) and any("alert" in c for c in low):
+                headers = low
+            continue
+        if all(set(c) <= set("-: ") for c in cells):   # |---|---| separator
+            continue
+        yield {h: (cells[i] if i < len(cells) else "") for i, h in enumerate(headers)}
+
+
+def _col(row: dict[str, str], *names: str) -> str:
+    """Return the first cell whose header starts with any of names."""
+    for h, v in row.items():
+        if any(h.startswith(n) for n in names):
+            return v
+    return ""
+
+
+def _extract_metric_thresholds(text: str) -> dict[str, dict]:
+    """
+    Parse all rows from the Metrics Profile table.
+
+    Table format (new onboarding):
+      | Metric | Level | Target | Alert At | Direction | Source |
+      | FTA — First Time Accuracy | Process Type | 95% | below 92% | ↓ Alert on drop | Databricks |
+
+    Returns dict keyed by canonical metric key:
+      {
+        "fta":        {"target": 95.0, "alert": 92.0, "direction": "drop"},
+        "efficiency": {"target": 100.0, "alert": 90.0, "direction": "drop"},
+        "coq":        {"target": 7.0,  "alert": 10.0, "direction": "rise"},
+      }
+    Falls back to sensible defaults for any metric not found.
+    """
+    defaults = {
+        "fta":        {"target": 95.0,  "alert": 92.0,  "direction": "drop"},
+        "efficiency": {"target": 100.0, "alert": 90.0,  "direction": "drop"},
+        "coq":        {"target": 7.0,   "alert": 10.0,  "direction": "rise"},
+        "copq":       {"target": 5.0,   "alert": 8.0,   "direction": "rise"},
+        "yield":      {"target": 95.0,  "alert": 94.0,  "direction": "drop"},
+    }
+    result: dict[str, dict] = {}
+
+    for row in _iter_metric_rows(text):
+        key = _normalize_metric_key(_col(row, "metric"))
+        if key is None or key in result:   # first declaration wins
+            continue
+        alert_str  = _col(row, "alert")
+        target_val = _parse_pct(_col(row, "target"))
+        alert_val  = _parse_pct(alert_str)
+        direction  = _parse_direction(alert_str, _col(row, "direction"))
+
+        if target_val is not None or alert_val is not None:
+            d = dict(defaults.get(key, {}))
+            if target_val is not None: d["target"]    = target_val
+            if alert_val  is not None: d["alert"]     = alert_val
+            d["direction"] = direction
+            result[key] = d
+
+    # Fill in any missing metrics with defaults
+    for k, v in defaults.items():
+        if k not in result:
+            result[k] = dict(v)
+
+    return result
+
+
+def _extract_primary_metrics(text: str) -> tuple[list[str], bool]:
     """
     Detect which metrics the user cares about from their Metrics Profile table.
-
-    Looks for the table under '## 5. Metrics Profile' (or similar) and returns
-    a list of metric keys present: 'fta', 'efficiency', 'coq', 'copq', 'waste'.
-
-    Defaults to ['fta', 'efficiency', 'coq'] if no metrics table is found.
+    Returns (metric_keys, include_operator_breakdown).
+    Defaults to (['fta', 'efficiency', 'coq'], False) if no metrics table found.
     """
-    # Find the Metrics Profile section
     section_m = re.search(r"##\s*\d*\.?\s*Metrics Profile(.*?)(?=^##|\Z)", text, re.S | re.M)
     section = section_m.group(1) if section_m else text
 
     metrics: list[str] = []
-
     if re.search(r"\|\s*FTA\b|\bFirst Time Accuracy\b", section, re.I):
         metrics.append("fta")
     if re.search(r"\|\s*(User\s+)?Efficiency|\bManual Efficiency\b|\bEfficiency vs\b", section, re.I):
         metrics.append("efficiency")
-    if re.search(r"\|\s*CoQ\b|\bCost of Quality\b", section, re.I):
-        metrics.append("coq")
     if re.search(r"\|\s*CopQ\b|\bCost of Poor Quality\b|\bOperational Waste\b", section, re.I):
         metrics.append("copq")
+    elif re.search(r"\|\s*CoQ\b|\bCost of Quality\b", section, re.I):
+        metrics.append("coq")
+    if re.search(r"\|\s*Yield\b", section, re.I):
+        metrics.append("yield")
 
-    return metrics if metrics else ["fta", "efficiency", "coq"]
+    # Any metric row with Level="Operator" (or metric named "Operator View") enables operator breakdown
+    include_ops = bool(
+        re.search(r"\|\s*Operator View\b|\boperator[_\s]view\b", section, re.I)
+        or re.search(r"\|\s*[A-Za-z][^|]+\|\s*Operator\s*\|", section, re.I)
+    )
+
+    return (metrics if metrics else ["fta", "efficiency", "coq"]), include_ops
+
+
+def _extract_explicit_scope(text: str, skip_words: re.Pattern) -> dict[str, list[str]]:
+    """
+    Explicit named types / planningids (bold markdown format, as written by
+    the onboarding form):
+      **Databricks Process Types:** orbis-dir-turnrestriction, ...
+      **Databricks Planning IDs:** ADAS-RMLanes, ...
+    Bold markdown is required to avoid matching prose.
+    """
+    result: dict[str, list[str]] = {}
+    for key, pattern, none_vals in (
+        ("databricks_process_types", r"\*\*Databricks [Pp]rocess [Tt]ypes?:?\*\*:?\s+([^\n|]+)",
+         ("(none — filter by feature)", "(none)", "-", "—")),
+        ("databricks_planning_ids", r"\*\*Databricks [Pp]lanning [Ii][Dd]s?:?\*\*:?\s+([^\n|]+)",
+         ("(none)", "-", "—")),
+    ):
+        m = re.search(pattern, text, re.I)
+        if not m:
+            continue
+        raw = m.group(1).strip()
+        if raw and raw not in none_vals and not skip_words.search(raw):
+            vals = [p.strip() for p in re.split(r"[,;]", raw)
+                    if p.strip() and not skip_words.search(p)]
+            if vals:
+                result[key] = vals
+    return result
 
 
 def _extract_databricks_scope(text: str) -> dict[str, Any]:
@@ -208,10 +321,15 @@ def _extract_databricks_scope(text: str) -> dict[str, Any]:
       "Databricks Planning IDs: ADAS-RMLanes, ..."
     """
     result: dict[str, Any] = {}
-
-    # Step 1 — detect keyword / all scope modes from plain-English descriptions
     _SKIP_WORDS = re.compile(r'\ball\b|\bvolume\b|\bsorted\b|\bhighest\b|\bfamily\b|\bkeyword\b', re.I)
 
+    # Step 1 — an explicit list from the onboarding form always wins; LLM-merged
+    # prose ("the two RM Lanes process types") must not widen it to keyword scope.
+    explicit = _extract_explicit_scope(text, _SKIP_WORDS)
+    if explicit:
+        return {"scope_mode": "defined", **explicit}
+
+    # Step 2 — detect keyword / all scope modes from plain-English descriptions
     has_gen  = bool(re.search(r'\bGEN\b.{0,25}process types|\bGEN-family\b', text))
     has_lane = bool(re.search(r'\bLanes?\b.{0,25}process types|\bLane.{0,8}family\b', text))
     has_all  = bool(re.search(
@@ -234,30 +352,7 @@ def _extract_databricks_scope(text: str) -> dict[str, Any]:
         result["scope_mode"] = "all"
         return result
 
-    # Step 2 — explicit named types / planningids (Lalit-style)
     result["scope_mode"] = "defined"
-
-    # Process types (primary filter) — require bold markdown to avoid matching prose
-    # Handles both "**Types:**" (colon inside bold) and "**Types**:" (colon outside)
-    m = re.search(r"\*\*Databricks [Pp]rocess [Tt]ypes?:?\*\*:?\s+([^\n|]+)", text, re.I)
-    if m:
-        raw = m.group(1).strip()
-        if raw and raw not in ("(none — filter by feature)", "(none)", "-", "—") \
-                and not _SKIP_WORDS.search(raw):
-            pts = [p.strip() for p in re.split(r"[,;]", raw)
-                   if p.strip() and not _SKIP_WORDS.search(p)]
-            if pts:
-                result["databricks_process_types"] = pts
-
-    # Planning IDs
-    m = re.search(r"\*\*Databricks [Pp]lanning [Ii][Dd]s?:?\*\*:?\s+([^\n|]+)", text, re.I)
-    if m:
-        raw = m.group(1).strip()
-        if raw and raw not in ("(none)", "-", "—") and not _SKIP_WORDS.search(raw):
-            pids = [p.strip() for p in re.split(r"[,;]", raw)
-                    if p.strip() and not _SKIP_WORDS.search(p)]
-            if pids:
-                result["databricks_planning_ids"] = pids
 
     # Legacy single feature (planningid fallback)
     if "databricks_planning_ids" not in result:
@@ -267,6 +362,35 @@ def _extract_databricks_scope(text: str) -> dict[str, Any]:
             if feature and feature not in ("(none)", "-", "—") \
                     and not _SKIP_WORDS.search(feature):
                 result["databricks_planning_ids"] = [feature]
+
+    # Step 3 — parse from Metrics Profile table (Metric | Level | Scope | ...)
+    # Rows where Level = "Process Type" → scope values are process type names
+    # Rows where Level = "Planning ID"  → scope values are planning IDs
+    # Only tables with a real "Scope" column qualify (the 6-col form has none).
+    if "databricks_process_types" not in result and "databricks_planning_ids" not in result:
+        pts_from_table: list[str] = []
+        pids_from_table: list[str] = []
+        _SKIP_SCOPE = {"—", "-", "(all)", ""}
+        for row in _iter_metric_rows(text):
+            if "scope" not in row:
+                continue
+            level = _col(row, "level").lower()
+            scope = row["scope"]
+            if scope in _SKIP_SCOPE or not level:
+                continue
+            items = [p.strip() for p in scope.split(",") if p.strip() and p.strip() not in _SKIP_SCOPE]
+            if "process type" in level or "operator" in level:
+                pts_from_table.extend(items)
+            elif "planning id" in level or "deliverable" in level:
+                pids_from_table.extend(items)
+        seen: set[str] = set()
+        pts_unique = [p for p in pts_from_table if p not in seen and not seen.add(p)]  # type: ignore[func-returns-value]
+        if pts_unique:
+            result["databricks_process_types"] = pts_unique
+        seen = set()
+        pids_unique = [p for p in pids_from_table if p not in seen and not seen.add(p)]  # type: ignore[func-returns-value]
+        if pids_unique:
+            result["databricks_planning_ids"] = pids_unique
 
     return result
 
@@ -431,7 +555,8 @@ def load_skill(skill_file: Path) -> dict[str, Any]:
     db_scope    = _extract_databricks_scope(text)
     conf_scope  = _extract_confluence_config(text)
     proj        = _extract_project_config(text)
-    pri_metrics = _extract_primary_metrics(text)
+    pri_metrics, include_ops = _extract_primary_metrics(text)
+    met_thr     = _extract_metric_thresholds(text)
 
     # Derive first name from email: lalit.patkar@tomtom.com → "Lalit"
     first_part      = user_email.split("@")[0]           # lalit.patkar
@@ -446,12 +571,15 @@ def load_skill(skill_file: Path) -> dict[str, Any]:
         "quiet_hours":               _extract_quiet_hours(text),
         "briefing_time":             _extract_briefing_time(text),
         "alert_channel":             _extract_alert_channel(text),
-        "fta_thresholds":            _extract_fta_thresholds(text),
-        "coq_thresholds":            _extract_coq_thresholds(text),
+        "metric_thresholds":         met_thr,
+        # backward-compat keys (UC4 reads these directly)
+        "fta_thresholds":            met_thr.get("fta",        {"target": 95.0, "alert": 92.0}),
+        "coq_thresholds":            met_thr.get("coq",        {"target": 7.0,  "alert": 10.0}),
         "sla_thresholds":            _extract_sla_thresholds(text),
         "use_cases":                 _extract_use_cases(text),
-        "primary_metrics":           pri_metrics,
-        "scope_mode":                db_scope.get("scope_mode", "defined"),
+        "primary_metrics":             pri_metrics,
+        "include_operator_breakdown":  include_ops,
+        "scope_mode":                  db_scope.get("scope_mode", "defined"),
         "databricks_process_types":  db_scope.get("databricks_process_types"),
         "databricks_planning_ids":   db_scope.get("databricks_planning_ids"),
         "databricks_feature":        db_scope.get("databricks_feature"),

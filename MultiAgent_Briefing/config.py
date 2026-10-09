@@ -46,6 +46,9 @@ COQ_MONITOR    = 7.0    # 5-7% P3
 COQ_INVESTIGATE = 10.0  # 7-10% P2
 # > 10% P1 Escalate
 
+YIELD_TARGET = 95.0   # percent (first-pass yield, higher is better)
+YIELD_ALERT  = 94.0   # amber below this
+
 EFF_ALERT_DROP = 20.0   # percent drop from previous sprint → flag
 
 # ── Use-case triggers ──────────────────────────────────────────────────────────
