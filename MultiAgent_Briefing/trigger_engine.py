@@ -75,7 +75,9 @@ def _run_uc1(skill_file: Path, user: str):
     try:
         skill = load_skill(skill_file)
         result = run_uc1(skill_file=skill_file)
-        audit_log.log_uc1(user, skill, result["analytics"], result["jira"], status="sent")
+        sent = (result.get("delivery") or {}).get("email", True)
+        audit_log.log_uc1(user, skill, result["analytics"], result["jira"],
+                          status="sent" if sent else "send_failed")
         log.info(f"✓ UC1  Done -> {result['path']}  [{user}]")
     except Exception as exc:
         audit_log.log_error("UC1", user, skill, str(exc))
@@ -93,12 +95,17 @@ def _run_uc2(skill: dict, user: str):
     cc_list      = skill.get("cc_recipients") or []
 
     log.info(f"▶ UC2  Jira SLA poll starting … [{user}]")
-    jira = jira_agent.run(skill)
+    try:
+        jira = jira_agent.run(skill)
+    except Exception as exc:
+        audit_log.log_error("UC2", user, skill, str(exc))
+        raise
 
     breaches = jira.get("sla_breaches", [])
     warnings = jira.get("sla_warnings", [])
 
     if not breaches and not warnings:
+        audit_log.log_uc2(user, skill, jira, status="healthy")
         log.info(f"✓ UC2  No SLA issues detected  [{user}]")
         return
 
@@ -128,9 +135,10 @@ def _run_uc2(skill: dict, user: str):
     out_path   = OUTPUT_DIR / f"{date_stamp}_UC2_{user}_SLA_Alert.md"
     out_path.write_text(content, encoding="utf-8")
     from email_html import build_sla_alert
-    deliver(content, skill, subject=f"UC2 — Jira SLA Alert ({proj_name})",
-            html_body=build_sla_alert(jira, skill=skill),
-            cc_recipients=cc_list or None)
+    res = deliver(content, skill, subject=f"UC2 — Jira SLA Alert ({proj_name})",
+                  html_body=build_sla_alert(jira, skill=skill),
+                  cc_recipients=cc_list or None)
+    audit_log.log_uc2(user, skill, jira, status="sent" if res.get("email") else "send_failed")
     log.info(f"✓ UC2  SLA alert saved -> {out_path}  [{user}]")
 
 
@@ -202,10 +210,11 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
             log.warning(f"Word report generation failed — sending without attachment: {exc}")
 
         subject = f"UC3 — Weekly Report: {proj_name} (week {week})"
-        deliver(content, skill, subject=subject, html_body=html,
-                cc_recipients=cc_list or None, attachment_path=attachment_path)
+        res = deliver(content, skill, subject=subject, html_body=html,
+                      cc_recipients=cc_list or None, attachment_path=attachment_path)
 
-        audit_log.log_uc3(user, skill, ana, jira, status="sent")
+        audit_log.log_uc3(user, skill, ana, jira,
+                          status="sent" if res.get("email") else "send_failed")
 
         # Clean up temp file after Outlook has sent it
         if attachment_path:
@@ -321,14 +330,14 @@ def _run_uc4(skill: dict, user: str):
                 content = f"UC4 {metric_key.upper()} Alert {rag}: {current:.2f}% (threshold {alert_val}%)"
                 out     = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_Alert.md"
                 out.write_text(content, encoding="utf-8")
-                deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None)
+                res = deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None)
                 if not force:
                     mark_alerted(user, metric_key)
                 audit_log.log_uc4(
                     user, skill, analytics,
                     metric_key=metric_key, alert_value=current,
                     threshold_value=alert_val, direction=direction,
-                    status="sent",
+                    status="sent" if res.get("email") else "send_failed",
                 )
                 alerts_sent += 1
                 log.warning(f"UC4  {metric_key.upper()} {current:.2f}% {rag} — alert sent  [{user}]")
@@ -374,8 +383,10 @@ def _make_job(uc_id: str, skill: dict, skill_file: Path):
     user  = skill.get("user", "unknown")
 
     def job():
+        audit_log.set_uc(uc_id)
         is_p0 = uc_id == "UC4"   # FTA P1 can break quiet hours
         if not is_p0 and _in_quiet_hours(quiet, tz):
+            audit_log.log_skipped(uc_id, user, skill, reason=f"quiet hours {quiet}")
             log.info(f"  {uc_id} [{user}] suppressed — quiet hours {quiet}")
             return
         try:

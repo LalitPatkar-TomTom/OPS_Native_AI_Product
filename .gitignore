@@ -9,6 +9,7 @@ __pycache__/
 
 # Output / logs (contain user data and sensitive metrics)
 MultiAgent_Briefing/output/
+analytics_backups/
 
 # OS
 .DS_Store

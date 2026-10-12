@@ -9,7 +9,9 @@ Query helpers: recent_events(), user_history(), alert_history()
 """
 import json
 import logging
+import os
 import sqlite3
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,7 +55,63 @@ CREATE TABLE IF NOT EXISTS trigger_events (
 CREATE INDEX IF NOT EXISTS idx_te_user ON trigger_events(user_email);
 CREATE INDEX IF NOT EXISTS idx_te_uc   ON trigger_events(uc_id);
 CREATE INDEX IF NOT EXISTS idx_te_ts   ON trigger_events(ts);
+
+-- One row per fire_all_now run, so missed / late slots are visible
+CREATE TABLE IF NOT EXISTS trigger_runs (
+    run_id          TEXT PRIMARY KEY,
+    started_at      TEXT NOT NULL,             -- ISO-8601 UTC
+    finished_at     TEXT,
+    slot_date_ist   TEXT,                      -- YYYY-MM-DD of the slot served
+    slot_ist        TEXT,                      -- 09:00 / 13:00 / 17:00 / 21:00
+    delay_min       INTEGER,                   -- minutes after the slot time
+    ucs_selected    TEXT,                      -- JSON list
+    users           INTEGER,
+    trigger_source  TEXT,                      -- scheduled / manual
+    is_test         INTEGER DEFAULT 0,
+    errors          INTEGER DEFAULT 0
+);
+
+-- One row per email handed to Outlook: who received what
+CREATE TABLE IF NOT EXISTS email_deliveries (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts              TEXT NOT NULL,             -- ISO-8601 UTC
+    run_id          TEXT,
+    uc_id           TEXT,
+    profile_owner   TEXT,                      -- whose profile triggered it
+    to_email        TEXT,
+    cc_emails       TEXT,                      -- JSON list
+    recipient_count INTEGER,
+    subject         TEXT,
+    has_attachment  INTEGER DEFAULT 0,
+    sent_ok         INTEGER,                   -- 1 = accepted by Outlook
+    is_test         INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_ed_ts  ON email_deliveries(ts);
+CREATE INDEX IF NOT EXISTS idx_ed_uc  ON email_deliveries(uc_id);
 """
+
+# Columns added after the first release — created on existing databases at import
+_MIGRATIONS = {
+    "trigger_events": [
+        ("run_id", "TEXT"),
+        ("is_test", "INTEGER DEFAULT 0"),
+        ("trigger_source", "TEXT"),
+    ],
+}
+
+# Backups of the audit DB (consistent snapshots) — inside OneDrive, outside output/
+BACKUP_DIR = Path(__file__).resolve().parent.parent / "analytics_backups"
+_BACKUP_KEEP = 30
+
+# Current run / use case, set by fire_all_now and trigger_engine so that
+# deliver() and the log_* helpers can tag rows without extra parameters
+_CTX: dict = {"run_id": None, "uc_id": None, "trigger_source": None, "is_test": False}
+
+
+def _env_is_test() -> bool:
+    """Runs with test switches must not count towards business value."""
+    return any(os.getenv(k, "").strip() for k in
+               ("TEST_RECIPIENT_OVERRIDE", "FORCE_UC4_ALERT", "PREVIEW_MODE", "OPS_AUDIT_TEST"))
 
 
 @contextmanager
@@ -71,9 +129,95 @@ def _conn():
 def _init():
     with _conn() as con:
         con.executescript(_DDL)
+        for table, cols in _MIGRATIONS.items():
+            have = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+            for name, decl in cols:
+                if name not in have:
+                    con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
 
 _init()
+
+
+# ── Run context ────────────────────────────────────────────────────────────────
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def start_run(slot_date_ist: str, slot_ist: str, delay_min: int, ucs: list[str],
+              users: int, trigger_source: str) -> str:
+    """Record the start of a fire_all_now run and make it the current context."""
+    run_id = uuid.uuid4().hex[:12]
+    is_test = _env_is_test()
+    _CTX.update(run_id=run_id, trigger_source=trigger_source, is_test=is_test)
+    try:
+        with _conn() as con:
+            con.execute(
+                "INSERT INTO trigger_runs (run_id, started_at, slot_date_ist, slot_ist, delay_min,"
+                " ucs_selected, users, trigger_source, is_test) VALUES (?,?,?,?,?,?,?,?,?)",
+                (run_id, _now(), slot_date_ist, slot_ist, delay_min, json.dumps(ucs),
+                 users, trigger_source, int(is_test)))
+    except Exception as exc:
+        log.warning(f"[audit_log] start_run failed: {exc}")
+    return run_id
+
+
+def finish_run(errors: int = 0) -> None:
+    run_id = _CTX.get("run_id")
+    if not run_id:
+        return
+    try:
+        with _conn() as con:
+            con.execute("UPDATE trigger_runs SET finished_at=?, errors=? WHERE run_id=?",
+                        (_now(), errors, run_id))
+    except Exception as exc:
+        log.warning(f"[audit_log] finish_run failed: {exc}")
+
+
+def set_uc(uc_id: str | None) -> None:
+    """Tag subsequent deliveries with the use case being run."""
+    _CTX["uc_id"] = uc_id
+
+
+def log_delivery(*, profile_owner: str, to_email: str, cc_emails: list[str] | None,
+                 subject: str, has_attachment: bool, sent_ok: bool) -> None:
+    """Called by delivery.deliver() for every email handed to Outlook."""
+    cc = list(cc_emails or [])
+    try:
+        with _conn() as con:
+            con.execute(
+                "INSERT INTO email_deliveries (ts, run_id, uc_id, profile_owner, to_email, cc_emails,"
+                " recipient_count, subject, has_attachment, sent_ok, is_test)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (_now(), _CTX.get("run_id"), _CTX.get("uc_id"), profile_owner, to_email,
+                 json.dumps(cc), 1 + len(cc), subject, int(bool(has_attachment)),
+                 int(bool(sent_ok)), int(_CTX.get("is_test") or _env_is_test())))
+    except Exception as exc:
+        log.warning(f"[audit_log] delivery log failed for {profile_owner}: {exc}")
+
+
+def backup_daily() -> Path | None:
+    """Keep one consistent snapshot per day in BACKUP_DIR (last 30 kept)."""
+    target = BACKUP_DIR / f"trigger_audit_{datetime.now():%Y-%m-%d}.db"
+    if target.exists():
+        return None
+    try:
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(".db.tmp")
+        src = sqlite3.connect(str(_DB_PATH), timeout=10)
+        dst = sqlite3.connect(str(tmp))
+        with dst:
+            src.backup(dst)          # safe while WAL writers are active
+        dst.close(); src.close()
+        os.replace(tmp, target)
+        for old in sorted(BACKUP_DIR.glob("trigger_audit_*.db"))[:-_BACKUP_KEEP]:
+            old.unlink(missing_ok=True)
+        log.info(f"[audit_log] daily backup -> {target}")
+        return target
+    except Exception as exc:
+        log.warning(f"[audit_log] daily backup failed: {exc}")
+        return None
 
 
 # ── Write helpers ──────────────────────────────────────────────────────────────
@@ -86,6 +230,15 @@ def log_uc1(user: str, skill: dict, analytics: dict, jira: dict,
         uc_id="UC1", user=user, skill=skill, status=status, error=error,
         analytics=analytics, jira=jira,
         process_types=json.dumps(pts),
+    )
+
+
+def log_uc2(user: str, skill: dict, jira: dict,
+            status: str = "sent", error: str | None = None):
+    """Log a UC2 (Jira SLA) check — 'sent' when an alert went out, else 'healthy'."""
+    _insert(
+        uc_id="UC2", user=user, skill=skill, status=status, error=error,
+        analytics={}, jira=jira,
     )
 
 
@@ -112,6 +265,12 @@ def log_uc4(user: str, skill: dict, analytics: dict,
         threshold_value=threshold_value,
         alert_direction=direction,
     )
+
+
+def log_skipped(uc_id: str, user: str, skill: dict, reason: str):
+    """Log a UC that was due but deliberately not run (e.g. quiet hours)."""
+    _insert(uc_id=uc_id, user=user, skill=skill, status="skipped",
+            error=reason, analytics={}, jira={})
 
 
 def log_error(uc_id: str, user: str, skill: dict, error: str):
@@ -141,10 +300,10 @@ def _insert_row(*, uc_id, user, skill, status, error, analytics, jira,
                 week_label, data_label, process_types,
                 metric_key, alert_value, threshold_value, alert_direction,
                 sla_breaches, sla_warnings, open_tickets,
-                error_msg
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                error_msg, run_id, is_test, trigger_source
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
-            datetime.now(timezone.utc).isoformat(),
+            _now(),
             uc_id,
             user,
             skill.get("project_name", ""),
@@ -167,6 +326,9 @@ def _insert_row(*, uc_id, user, skill, status, error, analytics, jira,
             len(jira.get("sla_warnings", [])),
             jira.get("total_open", 0),
             error,
+            _CTX.get("run_id"),
+            int(bool(_CTX.get("is_test") or _env_is_test())),
+            _CTX.get("trigger_source"),
         ))
 
 

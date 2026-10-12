@@ -166,6 +166,12 @@ def deliver(
             cc_emails=merged_cc,
             attachment_path=attachment_path,
         )
+        # Who received what — the basis of trigger analytics / business value
+        import audit_log
+        audit_log.log_delivery(
+            profile_owner=skill.get("user", ""), to_email=recipient, cc_emails=merged_cc,
+            subject=subject, has_attachment=bool(attachment_path), sent_ok=results["email"],
+        )
     else:
         log.warning(f"No valid email in skill['user']: {recipient!r}")
         results["email"] = False

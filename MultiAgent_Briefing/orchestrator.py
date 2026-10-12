@@ -190,6 +190,7 @@ def run_uc1(skill_file: Path | None = None) -> Path:
         "path":      output_path,
         "analytics": analytics_result,
         "jira":      jira_result,
+        "delivery":  delivery_results,
     }
 
 

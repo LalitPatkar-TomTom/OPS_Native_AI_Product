@@ -16,7 +16,7 @@ Run manually to test:
 import sys
 import logging
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytz
@@ -40,6 +40,21 @@ log = logging.getLogger("fire_all_now")
 
 IST = pytz.timezone("Asia/Kolkata")
 
+# Task Scheduler slots (IST) — used to record which slot a run served and how late it was
+SLOT_HOURS = (9, 13, 17, 21)
+
+
+def _slot_for(now_ist: datetime) -> tuple[str, str, int]:
+    """Return (slot date, 'HH:00', minutes late) for the latest slot at or before now."""
+    past = [h for h in SLOT_HOURS if h <= now_ist.hour]
+    if past:
+        slot = now_ist.replace(hour=past[-1], minute=0, second=0, microsecond=0)
+    else:                                   # before 09:00 → catching up yesterday's 21:00
+        slot = (now_ist - timedelta(days=1)).replace(hour=SLOT_HOURS[-1], minute=0,
+                                                     second=0, microsecond=0)
+    delay = int((now_ist - slot).total_seconds() // 60)
+    return slot.strftime("%Y-%m-%d"), slot.strftime("%H:00"), delay
+
 
 def _which_ucs(hour_ist: int, weekday: int) -> list[str]:
     """Return list of UC IDs to fire based on IST hour and weekday (0=Mon, 4=Fri)."""
@@ -53,12 +68,14 @@ def _which_ucs(hour_ist: int, weekday: int) -> list[str]:
     return ucs
 
 
-def fire_for_user(skill_file: Path, ucs: list[str], dry_run: bool):
+def fire_for_user(skill_file: Path, ucs: list[str], dry_run: bool) -> int:
+    """Fire the selected UCs for one user; returns the number of errors."""
+    errors = 0
     try:
         skill = load_skill(skill_file)
     except Exception as exc:
         log.error(f"  Could not load skill {skill_file.name}: {exc}")
-        return
+        return 1
 
     user = skill.get("user", skill_file.stem)
     active_uc_ids = {uc["uc_id"] for uc in skill.get("use_cases", []) if uc.get("active")}
@@ -78,7 +95,9 @@ def fire_for_user(skill_file: Path, ucs: list[str], dry_run: bool):
         try:
             _dispatch(uc_id, skill, skill_file, user)
         except Exception as exc:
+            errors += 1
             log.error(f"    ERROR {uc_id} [{user}]: {exc}", exc_info=True)
+    return errors
 
 
 def _dispatch(uc_id: str, skill: dict, skill_file: Path, user: str):
@@ -96,6 +115,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Print what would run without executing")
     parser.add_argument("--uc", default=None, choices=["UC1","UC2","UC3","UC4"],
                         help="Force a specific UC regardless of time (e.g. --uc UC1)")
+    parser.add_argument("--scheduled", action="store_true",
+                        help="Set by run_trigger_engine.bat; runs without it are recorded as manual")
     args = parser.parse_args()
 
     now_ist  = datetime.now(IST)
@@ -114,8 +135,20 @@ def main():
         sys.exit(1)
 
     log.info(f"Users found: {len(skill_files)}")
-    for sf in skill_files:
-        fire_for_user(sf, ucs, dry_run=args.dry_run)
+
+    if args.dry_run:
+        for sf in skill_files:
+            fire_for_user(sf, ucs, dry_run=True)
+    else:
+        import audit_log
+        slot_date, slot_ist, delay = _slot_for(now_ist)
+        audit_log.start_run(slot_date, slot_ist, delay, ucs, len(skill_files),
+                            "scheduled" if args.scheduled else "manual")
+        log.info(f"Serving slot {slot_date} {slot_ist} IST ({delay} min after slot time)")
+        errors = sum(fire_for_user(sf, ucs, dry_run=False) for sf in skill_files)
+        audit_log.set_uc(None)
+        audit_log.finish_run(errors)
+        audit_log.backup_daily()
 
     log.info("\n" + "=" * 60)
     log.info("fire_all_now complete.")
