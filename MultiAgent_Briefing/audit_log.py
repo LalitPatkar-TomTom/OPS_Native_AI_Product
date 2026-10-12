@@ -96,6 +96,8 @@ _MIGRATIONS = {
         ("run_id", "TEXT"),
         ("is_test", "INTEGER DEFAULT 0"),
         ("trigger_source", "TEXT"),
+        ("sla_breach_tickets", "TEXT"),     # JSON [{"key": "OM-1", "hours": 80.5}, ...]
+        ("sla_warning_tickets", "TEXT"),
     ],
 }
 
@@ -300,8 +302,9 @@ def _insert_row(*, uc_id, user, skill, status, error, analytics, jira,
                 week_label, data_label, process_types,
                 metric_key, alert_value, threshold_value, alert_direction,
                 sla_breaches, sla_warnings, open_tickets,
-                error_msg, run_id, is_test, trigger_source
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                error_msg, run_id, is_test, trigger_source,
+                sla_breach_tickets, sla_warning_tickets
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             _now(),
             uc_id,
@@ -329,7 +332,17 @@ def _insert_row(*, uc_id, user, skill, status, error, analytics, jira,
             _CTX.get("run_id"),
             int(bool(_CTX.get("is_test") or _env_is_test())),
             _CTX.get("trigger_source"),
+            _ticket_json(jira.get("sla_breaches")),
+            _ticket_json(jira.get("sla_warnings")),
         ))
+
+
+def _ticket_json(tickets) -> str | None:
+    """Keep only what analytics needs: the Jira key and how long it had been silent."""
+    if not tickets:
+        return None
+    return json.dumps([{"key": t.get("key"), "hours": t.get("hours_stale")}
+                       for t in tickets if isinstance(t, dict) and t.get("key")])
 
 
 # ── Query helpers ──────────────────────────────────────────────────────────────

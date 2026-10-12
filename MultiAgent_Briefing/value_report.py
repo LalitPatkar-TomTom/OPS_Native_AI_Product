@@ -96,6 +96,32 @@ def build(days: int, minutes: dict, include_test: bool, db_path: Path = DB_PATH)
     uc2_sent = [e for e in sent if e["uc_id"] == "UC2"]
     sla_breaches = sum(e["sla_breaches"] or 0 for e in uc2_sent)
     sla_warnings = sum(e["sla_warnings"] or 0 for e in uc2_sent)
+    # ── Jira tickets flagged by UC2 (keys recorded from the trigger-analytics update) ──
+    tickets: dict = {}                      # key -> {days, max_hours, users, last_ts, level}
+    last_uc2_check: dict = {}               # user -> latest UC2 check (sent or healthy)
+    for e in events:
+        if e["uc_id"] != "UC2" or e["status"] not in ("sent", "healthy"):
+            continue
+        u = e["user_email"].lower()
+        last_uc2_check[u] = max(last_uc2_check.get(u, ""), e["ts"])
+        if e["status"] != "sent":
+            continue
+        for col, level in (("sla_breach_tickets", "breach"), ("sla_warning_tickets", "warning")):
+            for t in json.loads(e.get(col) or "[]"):
+                rec = tickets.setdefault(t["key"], {"days": set(), "max_hours": 0, "users": set(),
+                                                     "last_ts": "", "level": level})
+                rec["days"].add(e["ts"][:10]); rec["users"].add(u)
+                rec["max_hours"] = max(rec["max_hours"], t.get("hours") or 0)
+                rec["last_ts"] = max(rec["last_ts"], e["ts"])
+                if level == "breach":
+                    rec["level"] = "breach"
+    # Not flagged in the user's latest check any more → probably updated after the alert
+    cleared = [k for k, r in tickets.items()
+               if all(last_uc2_check.get(u, "") > r["last_ts"] for u in r["users"])]
+    repeated = sorted((k for k, r in tickets.items() if len(r["days"]) >= 3),
+                      key=lambda k: -len(tickets[k]["days"]))
+    longest = sorted(tickets, key=lambda k: -tickets[k]["max_hours"])[:5]
+
     skipped = Counter(e["uc_id"] for e in events if e["status"] == "skipped")
     errors = Counter(e["uc_id"] for e in events if e["status"] == "error")
 
@@ -166,6 +192,17 @@ def build(days: int, minutes: dict, include_test: bool, db_path: Path = DB_PATH)
         L.append(f"  - {(m or '?').upper()}: {n}")
     L += [f"- SLA follow-up emails: {len(uc2_sent)} — {sla_breaches} breaches (>72 h), {sla_warnings} warnings (>48 h) surfaced",
           "  (the same ticket can appear in several emails until it is updated)", ""]
+    if tickets:
+        n_breach = sum(1 for r in tickets.values() if r["level"] == "breach")
+        repeated_txt = ", ".join(f"{k} ({len(tickets[k]['days'])} days)" for k in repeated[:8])
+        longest_txt = ", ".join(f"{k} ({tickets[k]['max_hours']:.0f} h)" for k in longest)
+        L += ["## Jira tickets flagged", "",
+              f"- **{len(tickets)} distinct tickets** flagged ({n_breach} breached >72 h, "
+              f"{len(tickets) - n_breach} warnings >48 h only)",
+              f"- **{len(cleared)} no longer flagged** in the owner's latest check — most likely updated after the alert",
+              f"- Flagged on 3 or more days: {len(repeated)}" + (f" — {repeated_txt}" if repeated else ""),
+              f"- Longest without an update: {longest_txt}",
+              ""]
     L += ["## Reliability", ""]
     if run_tracking_since:
         L += [f"- Scheduled slots due since run tracking started ({run_tracking_since}): {len(expected)}; "
