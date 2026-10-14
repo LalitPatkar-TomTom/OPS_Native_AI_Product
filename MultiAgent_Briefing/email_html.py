@@ -618,7 +618,19 @@ def _build_breakdown(analytics, scope_mode="defined"):
             + (f' &nbsp;·&nbsp; {sc}' if sc else '')
             + (f' &nbsp;·&nbsp; Week: {wk}' if wk else '')
             + '</p>')
-    return tbl + note
+    return tbl + note + _build_unsampled(analytics)
+
+
+def _build_unsampled(analytics):
+    """Process types with production but no QC sample this week (no FTA to show)."""
+    un = analytics.get("unsampled_breakdown") or []
+    if not un:
+        return ''
+    items = ' &nbsp;·&nbsp; '.join(
+        f'<span style="font-family:Consolas,monospace">{u["process_type"]}</span> — '
+        f'{u["prod_tasks"]:,} tasks, {u["total_hrs"]:.0f}h' for u in un)
+    return (f'<p style="{_F};font-size:11px;color:{_MUTED};margin:6px 0 0">'
+            f'<b>Produced but not QC-sampled this week</b> (no FTA): {items}</p>')
 
 
 def _build_tickets(jira):

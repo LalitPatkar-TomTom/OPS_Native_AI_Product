@@ -310,6 +310,10 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
                 f"| {p['prod_tasks']:,} "
                 f"| {p['total_hrs']:.0f}h |"
             )
+        unsampled = analytics.get("unsampled_breakdown") or []
+        if unsampled:
+            lines += ["", "**Produced but not QC-sampled this week** (no FTA): " + " · ".join(
+                f"`{u['process_type']}` — {u['prod_tasks']:,} tasks, {u['total_hrs']:.0f}h" for u in unsampled)]
         lines.append("")
 
     # ── Section 5b: Operator Breakdown ────────────────────────────────────────

@@ -60,14 +60,14 @@ _METRICS_SQL = """
 SELECT
     week_start,
     ROUND(SUM(QC_Accept_Count) * 100.0 / NULLIF(SUM(total_qc_count), 0), 2)                  AS fta_pct,
-    ROUND(SUM(Prod_Done_task_count) / NULLIF(SUM(Prod_Total_Time) + SUM(qc_total_time), 0), 4) AS efficiency,
-    ROUND(SUM(qc_total_time) * 100.0 / NULLIF(SUM(Prod_Total_Time) + SUM(qc_total_time), 0), 2) AS coq_pct,
+    ROUND(SUM(Prod_Done_task_count) / NULLIF(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 0), 4) AS efficiency,
+    ROUND(COALESCE(SUM(qc_total_time), 0) * 100.0 / NULLIF(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 0), 2) AS coq_pct,
     AVG(NULLIF(Baseline, 0))                                                                    AS baseline_avg,
     SUM(total_qc_count)        AS total_qc,
     SUM(QC_Accept_Count)       AS accepted,
     SUM(Prod_Done_task_count)  AS prod_tasks,
-    ROUND(SUM(Prod_Total_Time), 2) AS prod_hrs,
-    ROUND(SUM(qc_total_time), 2)   AS qc_hrs
+    ROUND(COALESCE(SUM(Prod_Total_Time), 0), 2) AS prod_hrs,
+    ROUND(COALESCE(SUM(qc_total_time), 0), 2)   AS qc_hrs
 FROM {table}
 WHERE week_start IS NOT NULL
   AND week_start <= '{target_week}'
@@ -82,15 +82,15 @@ _BREAKDOWN_SQL = """
 SELECT
     processType AS process_type,
     ROUND(SUM(QC_Accept_Count) * 100.0 / NULLIF(SUM(total_qc_count), 0), 2)                  AS fta_pct,
-    ROUND(SUM(Prod_Done_task_count) / NULLIF(SUM(Prod_Total_Time) + SUM(qc_total_time), 0), 4) AS efficiency,
-    ROUND(SUM(qc_total_time) * 100.0 / NULLIF(SUM(Prod_Total_Time) + SUM(qc_total_time), 0), 2) AS coq_pct,
+    ROUND(SUM(Prod_Done_task_count) / NULLIF(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 0), 4) AS efficiency,
+    ROUND(COALESCE(SUM(qc_total_time), 0) * 100.0 / NULLIF(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 0), 2) AS coq_pct,
     AVG(NULLIF(Baseline, 0))                                                                    AS baseline_avg,
     SUM(total_qc_count)        AS total_qc,
     SUM(QC_Accept_Count)       AS accepted,
     SUM(Prod_Done_task_count)  AS prod_tasks,
-    ROUND(SUM(Prod_Total_Time), 2) AS prod_hrs,
-    ROUND(SUM(qc_total_time), 2)   AS qc_hrs,
-    ROUND(SUM(Prod_Total_Time) + SUM(qc_total_time), 1) AS total_hrs
+    ROUND(COALESCE(SUM(Prod_Total_Time), 0), 2) AS prod_hrs,
+    ROUND(COALESCE(SUM(qc_total_time), 0), 2)   AS qc_hrs,
+    ROUND(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 1) AS total_hrs
 FROM {table}
 WHERE week_start = '{week}'
   AND total_qc_count > 0
@@ -98,6 +98,24 @@ WHERE week_start = '{week}'
   {scope_filter}
 GROUP BY processType
 ORDER BY total_hrs DESC
+LIMIT {limit}
+"""
+
+
+# Process types with production but no QC sample in the week. They are kept out of _BREAKDOWN_SQL
+# (FTA would read as 0%) and listed separately instead.
+_UNSAMPLED_SQL = """
+SELECT
+    processType AS process_type,
+    SUM(Prod_Done_task_count) AS prod_tasks,
+    ROUND(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 1) AS total_hrs
+FROM {table}
+WHERE week_start = '{week}'
+  AND processType IS NOT NULL
+  {scope_filter}
+GROUP BY processType
+HAVING COALESCE(SUM(total_qc_count), 0) = 0 AND SUM(Prod_Done_task_count) > 0
+ORDER BY prod_tasks DESC
 LIMIT {limit}
 """
 
@@ -252,8 +270,8 @@ SELECT
     processType AS process_type,
     Production_Editor AS operator,
     ROUND(SUM(QC_Accept_Count) * 100.0 / NULLIF(SUM(total_qc_count), 0), 2)                   AS fta_pct,
-    ROUND(SUM(Prod_Done_task_count) / NULLIF(SUM(Prod_Total_Time) + SUM(qc_total_time), 0), 4) AS efficiency,
-    ROUND(SUM(qc_total_time) * 100.0 / NULLIF(SUM(Prod_Total_Time) + SUM(qc_total_time), 0), 2) AS coq_pct,
+    ROUND(SUM(Prod_Done_task_count) / NULLIF(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 0), 4) AS efficiency,
+    ROUND(COALESCE(SUM(qc_total_time), 0) * 100.0 / NULLIF(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 0), 2) AS coq_pct,
     AVG(NULLIF(Baseline, 0))                                                                    AS baseline_avg,
     SUM(Prod_Done_task_count) AS prod_tasks,
     SUM(total_qc_count)       AS total_qc,
@@ -375,7 +393,7 @@ _BASELINE_VIEW = "mo_occ_reporting.manual_efficiency.manual_efficiency_orbit_sd_
 
 _BASELINES_SQL = f"""
 SELECT LOWER(processType) AS pt,
-       SUM(Prod_Done_task_count) / NULLIF(SUM(Prod_Total_Time) + SUM(qc_total_time), 0) AS hist_eff
+       SUM(Prod_Done_task_count) / NULLIF(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 0) AS hist_eff
 FROM {_BASELINE_VIEW}
 WHERE Prod_Done_task_count > 0
   AND processType IS NOT NULL
@@ -679,6 +697,20 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
     except Exception:
         pass  # breakdown is supplementary — don't fail the whole run
 
+    unsampled_breakdown: list[dict] = []
+    try:
+        un_result = client.execute_sql(_UNSAMPLED_SQL.format(
+            table=combined_table, week=week_label, scope_filter=scope_filter, limit=bd_limit,
+        ), max_rows=bd_limit)
+        unsampled_breakdown = [
+            {"process_type": r.get("process_type", ""),
+             "prod_tasks": int(float(r.get("prod_tasks") or 0)),
+             "total_hrs": float(r.get("total_hrs") or 0)}
+            for r in un_result.get("rows", [])
+        ]
+    except Exception:
+        pass  # supplementary, like the breakdown
+
     # ── Efficiency vs baseline — use actual in-scope process types ─────────────
     # For planningid-scoped users (process_types=[]), derive from breakdown rows.
     # This ensures we average only the baselines relevant to this user's scope.
@@ -754,6 +786,7 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         "prod_hrs":          computed["prod_hrs"],
         "qc_hrs":            computed["qc_hrs"],
         "process_breakdown":    process_breakdown,
+        "unsampled_breakdown":  unsampled_breakdown,
         "operator_breakdown":   operator_breakdown,
         "scope_label":          scope_label,
         "scope_mode":        skill.get("scope_mode", "defined") if skill else "defined",

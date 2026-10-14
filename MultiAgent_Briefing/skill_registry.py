@@ -370,15 +370,15 @@ def _extract_databricks_scope(text: str) -> dict[str, Any]:
     if "databricks_process_types" not in result and "databricks_planning_ids" not in result:
         pts_from_table: list[str] = []
         pids_from_table: list[str] = []
-        _SKIP_SCOPE = {"—", "-", "(all)", ""}
+        _SKIP_SCOPE = {"—", "-", "(all)", "all", ""}
         for row in _iter_metric_rows(text):
             if "scope" not in row:
                 continue
             level = _col(row, "level").lower()
             scope = row["scope"]
-            if scope in _SKIP_SCOPE or not level:
+            if scope.lower() in _SKIP_SCOPE or not level:
                 continue
-            items = [p.strip() for p in scope.split(",") if p.strip() and p.strip() not in _SKIP_SCOPE]
+            items = [p.strip() for p in scope.split(",") if p.strip().lower() not in _SKIP_SCOPE]
             if "process type" in level or "operator" in level:
                 pts_from_table.extend(items)
             elif "planning id" in level or "deliverable" in level:
