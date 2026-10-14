@@ -314,6 +314,18 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
         if unsampled:
             lines += ["", "**Produced but not QC-sampled this week** (no FTA): " + " · ".join(
                 f"`{u['process_type']}` — {u['prod_tasks']:,} tasks, {u['total_hrs']:.0f}h" for u in unsampled)]
+        planning = analytics.get("planning_breakdown") or []
+        planning_missing = analytics.get("planning_missing") or []
+        if planning or planning_missing:
+            lines += ["", f"**Planning ID Breakdown — Week {wk_label}**", ""]
+        if planning:
+            lines += ["| Planning ID | FTA | Eff vs BL | CoQ | QC sampled | Tasks | Hrs |", "|---|---|---|---|---|---|---|"]
+            for r in planning:
+                fta = f"{_rag_emoji(r['fta_rag'])} {r['fta_pct']:.2f}%" if r["fta_pct"] is not None else "no QC"
+                eff = f"{r['eff_vs_bl']:.1f}%" if r["eff_vs_bl"] is not None else "N/A"
+                lines.append(f"| {r['planning_id']} | {fta} | {eff} | {r['coq_pct']:.1f}% | {r['total_qc']:,} | {r['prod_tasks']:,} | {r['total_hrs']:.0f}h |")
+        if planning_missing:
+            lines += ["", "No data this week: " + ", ".join(f"`{m}`" for m in planning_missing)]
         lines.append("")
 
     # ── Section 5b: Operator Breakdown ────────────────────────────────────────

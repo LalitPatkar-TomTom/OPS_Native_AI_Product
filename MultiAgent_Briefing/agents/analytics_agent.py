@@ -125,6 +125,28 @@ LIMIT {limit}
 """
 
 
+# Planning IDs listed in the profile, split by process type so each part is judged
+# against its own process-type baseline (same baselines and row rules as the
+# process-type breakdown). s_* columns use the QC-scope rows, a_* every row.
+_PLANNING_SQL = """
+SELECT
+    planningid AS planning_id,
+    LOWER(processType) AS pt,
+    COALESCE(SUM(QC_Accept_Count), 0) AS accepted,
+    COALESCE(SUM(total_qc_count), 0) AS total_qc,
+    COALESCE(SUM(CASE WHEN {qc_rows} THEN Prod_Done_task_count END), 0) AS s_tasks,
+    COALESCE(SUM(CASE WHEN {qc_rows} THEN COALESCE(Prod_Total_Time, 0) + COALESCE(qc_total_time, 0) END), 0) AS s_hrs,
+    COALESCE(SUM(CASE WHEN {qc_rows} THEN COALESCE(qc_total_time, 0) END), 0) AS s_qc_hrs,
+    AVG(NULLIF(Baseline, 0)) AS baseline_avg,
+    COALESCE(SUM(Prod_Done_task_count), 0) AS a_tasks,
+    COALESCE(SUM(COALESCE(Prod_Total_Time, 0) + COALESCE(qc_total_time, 0)), 0) AS a_hrs
+FROM {table}
+WHERE week_start = '{week}'
+  AND LOWER(planningid) IN ({ids})
+GROUP BY planningid, LOWER(processType)
+"""
+
+
 # ── Scope filter builder ───────────────────────────────────────────────────────
 
 def _build_scope_filter(skill: dict | None) -> tuple[str, str, int]:
@@ -716,6 +738,47 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
     except Exception:
         pass  # supplementary, like the breakdown
 
+    planning_breakdown: list[dict] = []
+    planning_missing: list[str] = []
+    listed_ids = list(dict.fromkeys(p.strip().lower() for p in (skill.get("databricks_planning_ids") or []) if p.strip())) if skill else []
+    if listed_ids:
+        try:
+            ids_sql = ", ".join("'" + p.replace("'", "''") + "'" for p in listed_ids)
+            qc_rows = "(total_qc_count > 0 OR (COALESCE(Prod_Done_task_count, 0) = 0 AND qc_total_time > 0))"
+            pl_result = client.execute_sql(_PLANNING_SQL.format(
+                table=combined_table, week=week_label, ids=ids_sql, qc_rows=qc_rows), max_rows=500)
+            agg: dict[str, dict] = {}
+            for r in pl_result.get("rows", []):
+                pid = r.get("planning_id") or ""
+                g = agg.setdefault(pid, dict(acc=0.0, qc=0.0, s_tasks=0.0, s_hrs=0.0, s_qc_hrs=0.0,
+                                             exp_hrs=0.0, bl_hrs=0.0, a_tasks=0.0, a_hrs=0.0))
+                f = lambda k: float(r.get(k) or 0)
+                for k_out, k_in in (("acc", "accepted"), ("qc", "total_qc"), ("s_tasks", "s_tasks"), ("s_hrs", "s_hrs"),
+                                    ("s_qc_hrs", "s_qc_hrs"), ("a_tasks", "a_tasks"), ("a_hrs", "a_hrs")):
+                    g[k_out] += f(k_in)
+                bl = baselines.get(r.get("pt") or "") or f("baseline_avg")
+                if bl > 0 and f("s_hrs") > 0:
+                    g["exp_hrs"] += f("s_tasks") / bl
+                    g["bl_hrs"] += f("s_hrs")
+            for pid, g in sorted(agg.items(), key=lambda kv: -kv[1]["a_tasks"]):
+                sampled = g["qc"] > 0
+                fta = round(g["acc"] * 100 / g["qc"], 2) if sampled else None
+                hrs = g["s_hrs"] if sampled else g["a_hrs"]
+                planning_breakdown.append({
+                    "planning_id": pid,
+                    "fta_pct": fta,
+                    "fta_rag": _fta_rag(fta) if fta is not None else None,
+                    "eff_vs_bl": round(g["exp_hrs"] * 100 / g["bl_hrs"], 1) if sampled and g["bl_hrs"] > 0 else None,
+                    "coq_pct": round(g["s_qc_hrs"] * 100 / g["s_hrs"], 2) if sampled and g["s_hrs"] > 0 else 0.0,
+                    "total_qc": int(g["qc"]),
+                    "prod_tasks": int(g["s_tasks"] if sampled else g["a_tasks"]),
+                    "total_hrs": round(hrs, 1),
+                })
+            seen = {b["planning_id"].lower() for b in planning_breakdown}
+            planning_missing = [p for p in listed_ids if p not in seen]
+        except Exception as exc:
+            print(f"[analytics] Planning ID breakdown failed: {exc}")
+
     # ── Efficiency vs baseline — use actual in-scope process types ─────────────
     # For planningid-scoped users (process_types=[]), derive from breakdown rows.
     # This ensures we average only the baselines relevant to this user's scope.
@@ -792,6 +855,8 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         "qc_hrs":            computed["qc_hrs"],
         "process_breakdown":    process_breakdown,
         "unsampled_breakdown":  unsampled_breakdown,
+        "planning_breakdown":   planning_breakdown,
+        "planning_missing":     planning_missing,
         "operator_breakdown":   operator_breakdown,
         "scope_label":          scope_label,
         "scope_mode":        skill.get("scope_mode", "defined") if skill else "defined",

@@ -621,6 +621,45 @@ def _build_breakdown(analytics, scope_mode="defined"):
     return tbl + note + _build_unsampled(analytics)
 
 
+def _build_planning(analytics):
+    """One row per Planning ID listed in the profile, plus the listed IDs with no data."""
+    pl = analytics.get("planning_breakdown") or []
+    missing = analytics.get("planning_missing") or []
+    if not pl and not missing:
+        return ''
+    th = (f'{_F};font-size:11px;font-weight:bold;color:{_WHITE};background:{_HDR};'
+          f'padding:6px 8px;text-align:left;border-bottom:2px solid {_BORDER}')
+    def cell(i):
+        bg = _WHITE if i % 2 == 0 else _STRIPE
+        return f'{_F};font-size:11px;color:{_TEXT};padding:6px 8px;background:{bg};border-bottom:1px solid {_BORDER}'
+    def coloured(text, rag):
+        c, _, _ = _rag(rag)
+        return f'<span style="color:{c};font-weight:600">{text}</span>'
+    tbl = (f'<table width="100%" cellpadding="0" cellspacing="0" '
+           f'style="border-collapse:collapse;border:1px solid {_BORDER};font-size:11px"><tr>'
+           + ''.join(f'<th style="{th}">{h}</th>' for h in
+                     ("Planning ID", "FTA", "Eff vs BL", "CoQ", "QC sampled", "Tasks", "Hrs")) + '</tr>')
+    for i, r in enumerate(pl):
+        td = cell(i)
+        fta = coloured(f"{r['fta_pct']:.2f}%", r['fta_rag']) if r['fta_pct'] is not None else f'<span style="color:{_MUTED}">no QC</span>'
+        ev = r['eff_vs_bl']
+        eff = coloured(f'{ev:.1f}%', 'GREEN' if ev >= 100 else 'AMBER' if ev >= 90 else 'RED') if ev is not None else f'<span style="color:{_MUTED}">N/A</span>'
+        cq = r['coq_pct']
+        coq = coloured(f'{cq:.1f}%', 'GREEN' if cq < 7 else 'AMBER' if cq < 10 else 'RED')
+        tbl += ('<tr>'
+            + f'<td style="{td};font-family:Consolas,monospace">{r["planning_id"]}</td>'
+            + f'<td style="{td}">{fta}</td><td style="{td}">{eff}</td><td style="{td}">{coq}</td>'
+            + f'<td style="{td};text-align:right">{r["total_qc"]:,}</td>'
+            + f'<td style="{td};text-align:right">{r["prod_tasks"]:,}</td>'
+            + f'<td style="{td};text-align:right">{r["total_hrs"]:.0f}h</td></tr>')
+    tbl += '</table>'
+    note = ''
+    if missing:
+        note = (f'<p style="{_F};font-size:11px;color:{_MUTED};margin:6px 0 0"><b>No data this week:</b> '
+                + ', '.join(f'<span style="font-family:Consolas,monospace">{m}</span>' for m in missing) + '</p>')
+    return (tbl if pl else '') + note
+
+
 def _build_unsampled(analytics):
     """Process types with production but no QC sample this week (no FTA to show)."""
     un = analytics.get("unsampled_breakdown") or []
@@ -1069,6 +1108,10 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
 
     {sec(f"Process-type Breakdown — Week {analytics.get('week_label','')}",
          _build_breakdown(analytics, scope_mode))}
+
+    {sec(f"Planning ID Breakdown — Week {analytics.get('week_label','')}",
+         _build_planning(analytics))
+     if analytics.get("planning_breakdown") or analytics.get("planning_missing") else ""}
 
     {sec(f"Operator Breakdown — Week {analytics.get('week_label','')}",
          _build_operator_breakdown(analytics))
