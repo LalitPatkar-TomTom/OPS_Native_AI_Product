@@ -310,15 +310,15 @@ def _extract_databricks_scope(text: str) -> dict[str, Any]:
     Extract Databricks scope filter from the skill file.
 
     Scope modes (checked in priority order):
+      defined           — explicit process types or planningids listed, either as
+                          "Databricks Process Types: orbis-dir-turnrestriction, ..." /
+                          "Databricks Planning IDs: ADAS-RMLanes, ..."
+                          or in the Scope column of the Key Metrics table
       keyword:gen,lane  — WHERE LOWER(processType) LIKE '%gen%' OR LIKE '%lane%'
       keyword:gen       — WHERE LOWER(processType) LIKE '%gen%'
       keyword:lane      — WHERE LOWER(processType) LIKE '%lane%'
       all               — no filter, full table sorted by volume
-      defined           — explicit process types or planningids listed
-
-    For 'defined' mode, looks for:
-      "Databricks Process Types: orbis-dir-turnrestriction, ..."
-      "Databricks Planning IDs: ADAS-RMLanes, ..."
+      defined           — fallback: legacy "Databricks feature" planning ID, if any
     """
     result: dict[str, Any] = {}
     _SKIP_WORDS = re.compile(r'\ball\b|\bvolume\b|\bsorted\b|\bhighest\b|\bfamily\b|\bkeyword\b', re.I)
@@ -329,7 +329,14 @@ def _extract_databricks_scope(text: str) -> dict[str, Any]:
     if explicit:
         return {"scope_mode": "defined", **explicit}
 
-    # Step 2 — detect keyword / all scope modes from plain-English descriptions
+    # Step 2 — process types / planning IDs picked in the Key Metrics table.
+    # Also beats keyword scope: picked types need not contain the keyword
+    # (attr-create-orbisconnectivity is RM Lanes work without "lane" in it).
+    from_table = _extract_metric_table_scope(text)
+    if from_table:
+        return {"scope_mode": "defined", **from_table}
+
+    # Step 3 — detect keyword / all scope modes from plain-English descriptions
     has_gen  = bool(re.search(r'\bGEN\b.{0,25}process types|\bGEN-family\b', text))
     has_lane = bool(re.search(r'\bLanes?\b.{0,25}process types|\bLane.{0,8}family\b', text))
     has_all  = bool(re.search(
@@ -363,35 +370,40 @@ def _extract_databricks_scope(text: str) -> dict[str, Any]:
                     and not _SKIP_WORDS.search(feature):
                 result["databricks_planning_ids"] = [feature]
 
-    # Step 3 — parse from Metrics Profile table (Metric | Level | Scope | ...)
-    # Rows where Level = "Process Type" → scope values are process type names
-    # Rows where Level = "Planning ID"  → scope values are planning IDs
-    # Only tables with a real "Scope" column qualify (the 6-col form has none).
-    if "databricks_process_types" not in result and "databricks_planning_ids" not in result:
-        pts_from_table: list[str] = []
-        pids_from_table: list[str] = []
-        _SKIP_SCOPE = {"—", "-", "(all)", "all", ""}
-        for row in _iter_metric_rows(text):
-            if "scope" not in row:
-                continue
-            level = _col(row, "level").lower()
-            scope = row["scope"]
-            if scope.lower() in _SKIP_SCOPE or not level:
-                continue
-            items = [p.strip() for p in scope.split(",") if p.strip().lower() not in _SKIP_SCOPE]
-            if "process type" in level or "operator" in level:
-                pts_from_table.extend(items)
-            elif "planning id" in level or "deliverable" in level:
-                pids_from_table.extend(items)
-        seen: set[str] = set()
-        pts_unique = [p for p in pts_from_table if p not in seen and not seen.add(p)]  # type: ignore[func-returns-value]
-        if pts_unique:
-            result["databricks_process_types"] = pts_unique
-        seen = set()
-        pids_unique = [p for p in pids_from_table if p not in seen and not seen.add(p)]  # type: ignore[func-returns-value]
-        if pids_unique:
-            result["databricks_planning_ids"] = pids_unique
+    return result
 
+
+def _extract_metric_table_scope(text: str) -> dict[str, list[str]]:
+    """
+    Scope values from the Metrics Profile table (Metric | Level | Scope | ...):
+      Level = "Process Type" / "Operator"     → process type names
+      Level = "Planning ID"  / "Deliverable"  → planning IDs
+    Only tables with a real "Scope" column qualify (the 6-col form has none).
+    """
+    result: dict[str, list[str]] = {}
+    pts_from_table: list[str] = []
+    pids_from_table: list[str] = []
+    _SKIP_SCOPE = {"—", "-", "(all)", "all", ""}
+    for row in _iter_metric_rows(text):
+        if "scope" not in row:
+            continue
+        level = _col(row, "level").lower()
+        scope = row["scope"]
+        if scope.lower() in _SKIP_SCOPE or not level:
+            continue
+        items = [p.strip() for p in scope.split(",") if p.strip().lower() not in _SKIP_SCOPE]
+        if "process type" in level or "operator" in level:
+            pts_from_table.extend(items)
+        elif "planning id" in level or "deliverable" in level:
+            pids_from_table.extend(items)
+    seen: set[str] = set()
+    pts_unique = [p for p in pts_from_table if p not in seen and not seen.add(p)]  # type: ignore[func-returns-value]
+    if pts_unique:
+        result["databricks_process_types"] = pts_unique
+    seen = set()
+    pids_unique = [p for p in pids_from_table if p not in seen and not seen.add(p)]  # type: ignore[func-returns-value]
+    if pids_unique:
+        result["databricks_planning_ids"] = pids_unique
     return result
 
 
