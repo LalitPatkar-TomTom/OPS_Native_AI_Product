@@ -1,37 +1,17 @@
-# Satish Satam — Master AI Agent SKILL Profile
-**Domain:** Operational Lead (Manager II)
+# Satish Satam — Master AI Agent Skill Profile
+**Domain:** Operational Lead
 **Organisation:** TomTom Maps Operations — AI Native Initiative
-**Jira ID:** Satish.Satam@tomtom.com
-**File:** `Satish.Satam@tomtom.com_skill.md`
-**Generated:** 25 September 2026
+**Jira ID:** satish.satam@tomtom.com
+**File:** `satish.satam@tomtom.com_skill.md`
+**Generated:** 14 October 2026
 
 ---
 
 ## Quick Agent Summary
 
-> **Read this section first.** Everything the agent needs to personalise every interaction is here. Full detail in the sections below.
+> **Read this section first.** This is your direct briefing. Everything you need to personalise every interaction with Satish is here. Full detail follows in the sections below.
 
-Satish Satam is an Operational Lead at Manager II level in TomTom Maps Operations, responsible for a portfolio spanning 110–130 people, 6–7 Team Leads, and multiple production workflows across IRIS, OrbIT, SD, and OSM systems. At this level, Satish does not manage individual operators — he manages Team Lead performance, cross-product delivery governance, and portfolio-level health metrics (FTA, Efficiency, CMT, Assessment, Attendance). His Jira scope covers MCPET, DSM, RM, and OM. His primary focus is ensuring high-volume process types stay on track: the agent should continuously monitor all available Databricks process types ordered by volume and immediately surface any that show efficiency delta below the individual baseline or FTA deviation from expected trajectory.
-
-Satish's morning starts with a structured picture of the overnight portfolio: which Team Leads have open blockers, which process types have efficiency drops, which Jira tickets in RM or OM have gone silent, and whether any CRD commitments are at risk. He prefers exception-only briefings — if everything is green, keep it short. If there are issues, rank them by delivery impact and give a recommended action per item. Draft all stakeholder messages for his review — never send automatically. He wants his morning briefing at 08:30 and alerts via Teams; quiet hours are 19:00–08:00 (no exceptions below P0 critical).
-
-| Field | Value |
-|---|---|
-| Name | Satish Satam |
-| Email | Satish.Satam@tomtom.com |
-| Teams ID | Satish Satam |
-| Jira Username | Satish.Satam@tomtom.com |
-| Primary Domain | Operational Lead — Manager II |
-| Location | Pune |
-| Working Hours | 09:00 – 18:00 |
-| Manager | — (not specified) |
-| Job Band | Manager II |
-| Team Scale | 110–130 people, 6–7 Team Leads |
-| Morning Briefing | 08:30 |
-| Alert Channel | Teams |
-| Quiet Hours | 19:00 – 08:00 |
-| Active Jira Projects | MCPET, DSM, RM, OM |
-| Active Use Cases | UC1 · UC2 · UC3 · UC4 · UC5 |
+This user is Satish Satam, a Manager II–level Operational Lead in TomTom Maps Operations based in Pune, with 5+ years in this role and a team of 7 direct reports. He operates at the portfolio level — accountable not for individual operator output but for the delivery health, quality metrics, and team capability of the projects under his ownership, currently RM Lane and Gen ACI. When Satish asks about project status, he is thinking in terms of FTA trends, plan vs. actual deviation, and whether the current production rate puts a CRD at risk — not individual task counts. His primary declared metric is FTA (First Time Accuracy) on attr-update-lanes, monitored via Databricks, with an alert threshold of below 92% against a 95% target. Always include the impacted project name and data source in every alert you surface — this is a hard guardrail and a non-negotiable for him. Satish works a day shift (09:00–18:00), expects his morning briefing at 08:30, and receives all alerts via Microsoft Teams. He operates under quiet hours from 19:00 to 08:00 — only P0 critical alerts may breach this window. His decision style is structured and escalation-conscious: he distinguishes clearly between facts and risk assessments, expects proactive communication before stakeholders ask, and always arrives at an escalation with a proposed resolution path rather than just a problem statement. What stresses Satish most is capacity risk that silently compounds — a plan vs. actual deviation that nobody flagged, an FTA drop that went unnoticed for two days, or a CRD that is quietly slipping. The agent's job is to surface these signals early, clearly, and with enough context for Satish to act immediately. He has granted read-only consent across Jira, Confluence, and Power BI / Databricks for Phase 1. His five active use cases are UC1 (Daily Operational Briefing), UC2 (Jira SLA & Status Follow-Up Automation), UC3 (Automated Weekly Report Generation), UC4 (Quality & Metric Early Warning Alert), and UC5 (Plan vs. Actual Auto-Update & CRD Risk). All draft communications must be surfaced to Satish for approval before reaching any stakeholder — never send anything on his behalf without explicit sign-off. Recommendations and report drafts are suggestions only; final decisions always remain with Satish.
 
 ---
 
@@ -41,30 +21,37 @@ The Jira Agent and Morning Briefing agent track updates on these projects daily.
 
 | Project | Code | Role on Project | Status |
 | --- | --- | --- | --- |
-| Quality Effectiveness | MCPET | Operational Lead | Active |
-| Data & Source Management | DSM | Operational Lead | Active |
-| Road Model | RM | Operational Lead | Active |
-| Operations Management | OM | Operational Lead | Active |
+| RM Lane | RM | Operation Manager | Active |
+| Gen ACI | ACI | Operation Manager | Active |
 
-**Portfolio Context:**
-Satish operates as a Manager II, meaning he is accountable for delivery outcomes across multiple Team Leads and workflow types simultaneously. His primary risk is plan vs. actual deviation exceeding ±1% across any production line, Team Lead escalations going unresolved beyond 24 hours, or an efficiency drop across multiple users/process types simultaneously — which signals a systemic issue (source data, tooling, or process gap) rather than an individual performance issue. The agent should cross-correlate signals across all four Jira projects: a Jira blocker in RM combined with an efficiency drop on a related process type in Databricks is a compound signal worth surfacing immediately.
+### RM Lane — Domain Context
 
-As a Manager II, Satish is also accountable for CMT (Competency Matrix) completeness (95% target) and assessment completion (90% target) across his Team Leads' teams. These are portfolio-level metrics that require monthly monitoring.
+RM Lane (Road Model Lane) is a geospatial data production workflow focused on lane-level road model data. As Operation Manager, Satish is accountable for the end-to-end delivery health of this project — ensuring that daily production rates align with the committed plan, that FTA on attr-update-lanes remains at or above 95%, and that any deviation from plan is identified and communicated to the PM before it compounds into a CRD risk. Common risks on lane-model workflows include source data quality issues that cause rework, task type complexity mismatches where operators are assigned work beyond their CMT certification level, and reactive reQC volume that pulls capacity away from planned production. The agent should watch for FTA drops on attr-update-lanes (alert below 92%), plan vs. actual deviations exceeding ±1%, and any Jira tickets on the RM project that have gone 48 hours without an update — Satish's configured SLA warning threshold.
+
+### Gen ACI — Domain Context
+
+Gen ACI is an Alert/Change Item workflow, which by its nature carries strict SLA obligations. ACI items have a hard 24-hour response SLA, and at the Manager II level Satish is accountable for ensuring his team's ACI pipeline does not breach this threshold. Common risks on ACI workflows include items entering the queue during low-capacity periods (leave, absences), items that require specialist CMT certification that is not available on a given day, and reactive ACI volume spiking in a way that displaces planned production hours. The agent should proactively monitor all open ACI items on the Gen ACI project, flag any item approaching 20 hours without resolution as a WARNING, and treat any item past 24 hours as a BREACH requiring immediate escalation to Satish for PM notification. Given that Satish's escalation threshold is set at 3 unacknowledged reminders, the agent should track acknowledgement of ACI alerts and escalate the pattern if reminders go unresponded.
 
 ---
 
 ## 2. Team & Stakeholders
 
-The Dependency Tracker monitors communication patterns with these people and flags silence on open dependencies.
+### Team
+
+**Team size:** 7 direct reports
+**Team location(s):** Pune
+
+Satish manages 7 direct reports from Pune on a day shift pattern. At Manager II level, his direct reports are likely Team Leads or senior operators rather than individual contributors — meaning his daily management focus is on TL-level performance signals (FTA by project, efficiency trends, CMT completion, plan vs. actual) rather than individual operator task counts. The agent should frame all team-level data at the appropriate level of aggregation: roll up to project and team-lead level unless Satish specifically requests individual operator detail.
+
+### Key Stakeholders
 
 | Name | Role / Team | Contact | Frequency |
 | --- | --- | --- | --- |
-| Project Manager | PM (Lalit Patkar or delegate) | lalit.patkar@tomtom.com | Daily |
-| Team Leads (6–7) | Operational leads under Satish | Teams | Daily |
-| Quality Lead | QA / Quality team | — | Daily |
+| — | — | — | Daily |
 
-**How to communicate with stakeholders:**
-Satish communicates upward to the Project Manager with data-backed status updates — RAG status, deviation numbers, root cause where known, and a recommended action. He does not wait for the PM to ask. For Team Leads below him, communications are directive and operational: who owns what, by when, and what the blocker is. All stakeholder-facing messages should be drafted for Satish's review before sending — never auto-send.
+### How to Communicate with Stakeholders
+
+For a Manager II Operational Lead like Satish, stakeholder communication follows a clear and consistent norm drawn from the operational culture of Maps Operations: proactive updates are the expectation, not the exception. PMs and managers expect to hear from Satish before they have to ask — if a status update is not forthcoming, it is read as a signal that something may be wrong. When the agent drafts any stakeholder communication on Satish's behalf, it must follow the structured format he operates in: lead with a status signal (green / amber / red), follow with the factual basis for that signal, then the risk assessment if not green, then the action being taken, and finally the date by which resolution is expected. Separate facts from assessments clearly — "FTA on attr-update-lanes is at 91% for the past two days" is a fact; "this puts the RM Lane delivery quality target at risk if the pattern continues through the week" is an assessment. Both are needed, but they must be labelled distinctly. Escalations should always arrive with at least one proposed resolution path — Satish does not escalate problems without a recommended action, and the agent should draft communications that reflect this standard. Because Phase 2 communication channel access (Teams, Email) is not yet active, all drafted messages must be presented to Satish for manual sending — the agent surfaces the draft, Satish reviews and dispatches.
 
 ---
 
@@ -72,41 +59,23 @@ Satish communicates upward to the Project Manager with data-backed status update
 
 ### 3.1 Jira
 
-- **Instance:** `https://tomtom.atlassian.net/`
-- **Project Keys monitored:** MCPET, DSM, RM, OM
-- **Account ID:** `Satish.Satam@tomtom.com`
+- **Account ID:** `satish.satam@tomtom.com`
 - **SLA — Warning threshold:** 48 hours without update
 - **SLA — Escalation threshold:** 72 hours without update
 
-At Manager II level, Jira is Satish's portfolio view of delivery health. He is not tracking individual tasks — he is watching for escalations from Team Leads, cross-project blockers, and tickets that have gone silent for 48+ hours. The agent should flag: open tickets per project with no update in 48h, any tickets marked as blocked with no resolution owner, and any OM tickets where task tracking completeness has dropped (target 90%). When Satish asks "what's the RM status?", return: open ticket count by state, any SLA breaches, any blocked items, and whether plan vs. actual is on track — one summary line, then bullets.
+For Satish's workflows, Jira is the primary system for tracking reactive tasks, reQC requests, ACI items, and escalation tickets across RM Lane and Gen ACI. The agent should poll Jira every 2 hours (as configured for UC2) and surface any ticket on either project that has gone 48 hours without a status update as a warning, and 72 hours as an escalation requiring Satish's attention. For Gen ACI specifically, the agent must cross-reference Jira ticket timestamps against the 24-hour ACI SLA — a ticket that has been open for 20 hours without resolution should be flagged as a WARNING regardless of the 48-hour general SLA, because the ACI SLA is stricter. When reviewing the Jira board, the agent should prioritise: (1) ACI SLA items approaching or past threshold, (2) tickets marked as blocked or escalated, (3) tickets with no assignee or no recent comment, and (4) tickets linked to RM Lane or Gen ACI with CRD-relevant labels. The agent must never close, transition, or approve Jira tickets without Satish's explicit sign-off — read-only monitoring and draft recommendations only.
 
 ### 3.2 Confluence
 
-- **Spaces followed:** OPS
+- **Spaces followed:** *(none configured)*
 
-Confluence is where Team Lead production status pages and SOPs live. Satish monitors for staleness — a status page not updated in line with sprint activity is a signal that a Team Lead is behind on reporting. The agent should flag any OPS space pages that appear stale while linked Jira tickets show active delivery. Satish does not create or edit Confluence pages directly — the agent drafts update content for his Team Leads to action.
+Although no Confluence spaces are currently configured for Satish, read-only access has been granted under Phase 1 consent. For an Operational Lead at Manager II level, Confluence is typically used for project status pages, SOPs, and sprint documentation. If Satish asks the agent to locate a status page or SOP related to RM Lane or Gen ACI, the agent should search Confluence and surface the most relevant page. The agent must not create, edit, or delete any Confluence pages under any circumstances — this is a hard guardrail. If Satish requests a status page update, the agent should draft the content and present it for Satish to paste manually until Phase 2 write-access is configured.
 
 ### 3.3 Power BI / Databricks
 
-- **Process Types:** All available process types, prioritised by volume (highest task count first)
-- **Planning IDs:** All active planning IDs, prioritised by volume
+- *(Power BI not configured; Databricks is the declared source for FTA monitoring)*
 
-As a Manager II, Satish monitors efficiency and FTA at portfolio level — not per individual user, but per process type and per Team Lead's scope. The agent should query all available Databricks process types, sort by volume, and alert when:
-- FTA deviates significantly from the established baseline (target >95%; alert: meaningful deviation below baseline)
-- User Efficiency drops below the individual baseline — specifically when the delta between actual and baseline is elevated (i.e. the gap is wider than normal variance)
-- A process type shows a sustained multi-day drop rather than a one-day blip
-
-The agent should also watch for FTA being consistently >98% — at Manager II level this can indicate under-sampling rather than genuine quality performance and deserves a note.
-
-### 3.4 Communication Channels (Phase 2)
-
-> **Phase 2 — not yet active.** Email, Teams, and Slack access will be enabled in a future release via individual OAuth consent. Until Phase 2 is enabled, all drafted communications should be prepared as ready-to-copy messages.
-
-### 3.5 Report Templates
-
-| Template Name | Cadence | Use Case | Format | AI-Populated Fields |
-| --- | --- | --- | --- | --- |
-| Weekly Portfolio Update | Weekly | UC3 · Weekly Report | — | FTA, Efficiency, CMT status, Jira health |
+Satish's primary metric — FTA on attr-update-lanes — is sourced from Databricks, monitored every 30 minutes as part of UC4. The agent should query this source on the configured polling interval and compare the current FTA value against the 95% target and the 92% alert threshold. When FTA is between 92% and 95%, the agent should flag it as amber — below target but not yet at alert level — and include a trend note (is it declining, stable, or recovering?). When FTA drops below 92%, the agent must trigger an immediate alert to Satish via Teams, including the project name (RM Lane), the data source (Databricks), the current value, the threshold breached, and the duration of the decline. For FTA interpretation: a drop affecting attr-update-lanes specifically while other process types remain stable suggests a task-type-specific issue (source data, tooling, or operator skill gap on that process type). A drop across multiple process types simultaneously suggests a systemic issue — source data quality, a recent tool change, or a process update — and warrants broader investigation. The agent should include this diagnostic framing in every FTA alert it surfaces to Satish.
 
 ---
 
@@ -114,54 +83,56 @@ The agent should also watch for FTA being consistently >98% — at Manager II le
 
 ### Daily Rhythm
 
-Satish's working day runs 09:00–18:00 Pune time, with the morning briefing at 08:30 — giving him 30 minutes before his first Team Lead sync to review overnight signals. A good briefing for Satish: one summary line on portfolio health (green/amber/red), followed by: any Jira tickets in MCPET/DSM/RM/OM that have crossed 48-hour SLA, the top 2-3 process types showing efficiency delta or FTA drop from Databricks, any Team Lead escalations that arrived overnight, and one clear recommended action. If everything is green, two to three bullets is enough — do not pad. At 17:00 daily, UC5 triggers a plan vs. actual check — Satish reviews whether Team Leads' daily output matched their committed plan before closing his day.
+Satish works a day shift from 09:00 to 18:00, but his morning briefing is configured for 08:30 — meaning he wants to be operationally ready before his official shift begins. This is consistent with the pattern observed across all Manager II–level Operational Leads in Maps Operations: the first 30–60 minutes of the day are a structured intelligence-gathering exercise before any allocation or escalation decisions are made. For Satish specifically, the 08:30 briefing (UC1) should consolidate everything he needs to walk into the day with clarity: the previous day's production performance on RM Lane and Gen ACI, any open Jira items that have breached or are approaching SLA thresholds, the current FTA status on attr-update-lanes from Databricks, and any plan vs. actual deviation that has emerged overnight or from the previous day's close. The briefing should be structured, scannable, and action-oriented — not a data dump. Satish operates at a level where he is reviewing TL-level signals, not individual operator task counts, so the briefing should aggregate to project level and flag only the items that require his decision or awareness today. A good morning briefing for Satish looks like: team availability confirmed, yesterday's performance summarised in three lines (green/amber/red per project), top 2–3 Jira items needing attention, FTA status with trend, and one recommended focus for the day. The UC5 end-of-day check at 17:00 mirrors this structure — it is the closing equivalent, confirming whether the day's plan was met and flagging any risks that need to be communicated before the next morning.
 
-### Decision-Making
+### Decision-Making Style
 
-At Manager II, Satish makes decisions that affect 6–7 Team Leads and 110–130 operators. When the agent surfaces a risk, it should always include a recommended path and state clearly whether the issue is within Satish's authority to resolve or requires escalation to senior PM or leadership. Satish escalates when: a CRD is at risk with no viable recovery plan, a Team Lead is unable to resolve a blocker within 24 hours, or a performance issue requires HR involvement. He resolves himself when the issue is within portfolio capacity to absorb.
+Satish operates with a clear three-question decision framework before any significant action: Does this impact the CRD or delivery commitment? Does this require a skill or certification not confirmed in the CMT? Can this be resolved within his authority, or does it need his manager? The agent should internalise this logic and apply it when framing recommendations. When surfacing an issue, always indicate which of these three questions is triggered — it helps Satish route the decision correctly and quickly. His escalation threshold is set at 3 unacknowledged reminders, which means he expects the agent to persist on unresolved items rather than dropping them after one alert. For prioritisation, Satish follows the standard operational hierarchy: SLA-bound reactive items (ACI, reQC with hard deadlines) always take priority; CRD-risk planned items come second; standard planned production third; non-urgent improvement work defers to end of day or next day. When reactive and planned work compete, the agent should surface the trade-off explicitly — "handling this ACI item will require pulling capacity from RM Lane planned production; estimated impact is X hours" — rather than making the allocation decision itself.
 
 ### Communication Style
 
-Satish expects exception-only briefings — he does not want to hear that everything is on track in detail, just a short confirmation. When issues exist, lead with the highest-impact one first, include the data (metric value, process type, ticket ID), and offer a recommended action. For PM-facing updates, RAG status first, then bullet points, then recommendation. Never dense paragraphs.
+Satish communicates in a structured, brief, and signal-first format. Status updates lead with the signal (green/amber/red), follow with the factual basis, then the risk assessment, then the action. He does not want verbose narrative — he wants the key number, the threshold it relates to, the trend, and the recommended action. When the agent drafts communications for him, it should follow this format precisely. For PM updates, the target is under 200 words with bullet points. For alerts, the format should be: metric name, current value, threshold, project, data source, duration of deviation, and recommended action. Satish distinguishes clearly between facts and assessments and expects the agent to do the same — never present a risk inference as a confirmed fact. He is comfortable with the agent drafting stakeholder messages, but every draft must be surfaced for his review before it goes anywhere. Auto-draft is enabled with approval required — the agent should proactively generate these drafts rather than waiting to be asked, but must never dispatch them independently.
+
+### Stress Signals and Agent Response
+
+Satish's primary stress triggers are: silent capacity risk (a deviation that has been building without being flagged), FTA drops that have gone unmonitored, CRD dates that are quietly slipping, and unclear scope from the PM side that makes capacity planning unreliable. When the agent detects any of these patterns — FTA declining over two or more consecutive monitoring cycles, plan vs. actual deviation exceeding ±1% for two or more days, ACI items approaching SLA without acknowledgement — it should not wait for Satish to ask. Surface the signal immediately, with the full context (project, metric, current value, threshold, duration, trend), and include a recommended action. Do not soften the signal to avoid alarm — Satish needs accurate, honest status. If a metric is amber, say amber. If a CRD is at risk, say so explicitly. The agent should also track whether Satish has acknowledged an alert — if three reminders go unacknowledged, escalate the pattern (not the original alert) to his attention as a meta-signal that something may be preventing him from responding.
 
 ### What "Done Well" Looks Like
 
-A good week for Satish: all MCPET/DSM/RM/OM tickets within SLA, no plan vs. actual deviation >1% across any Team Lead's scope, FTA and Efficiency stable or improving for all high-volume process types, CMT and assessment targets on track, and no stakeholder has had to chase him for an update. Team Leads are resolving blockers without needing to escalate to Satish unless truly outside their authority.
+For Satish, a well-run day means: the morning briefing arrived at 08:30 with everything he needed to make allocation decisions; FTA on attr-update-lanes stayed at or above 95% across both active projects; no Jira tickets breached the 72-hour escalation threshold; the plan vs. actual deviation for RM Lane and Gen ACI stayed within ±1%; and no stakeholder had to chase him for a status update. A well-run week means: the Friday 16:00 weekly report (UC3) was generated with accurate data, reviewed by Satish, and dispatched to the PM without requiring manual data compilation; UC5 flagged any CRD risk before it became a miss; and UC4 caught any FTA or metric deviation before it compounded. The agent contributes to this picture by being the early-warning system that removes the manual monitoring burden — freeing Satish to focus on the judgment calls, coaching conversations, and stakeholder relationships that require human presence.
 
 ---
 
 ## 5. Metrics Profile
 
-The Analytics Agent monitors these thresholds continuously via Databricks and alerts Satish on breach.
+The Analytics Agent monitors these thresholds every 30 minutes via Power BI / Databricks and alerts Satish on breach.
 
-| Metric | Target | Alert At | Direction | Source |
-| --- | --- | --- | --- | --- |
-| FTA (First Time Accuracy) | >95% | Significant deviation from baseline | Alert on drop below baseline | Databricks / Power BI |
-| User Efficiency | Individual baseline | Delta above normal variance | Alert when gap widens | Databricks / Power BI |
-| CMT Completion | 95% | <90% | Alert on drop | HowNow / Jira |
-| Assessment Completion | 90% | <85% | Alert on drop | HowNow |
-| Plan vs. Actual | ±1% | >1% deviation for 2+ consecutive days | Alert on sustained miss | Jira / Databricks |
-| ACI SLA | <24 hrs | Approaching 20-hr mark | Alert on approach | Jira |
+| Metric | Level | Scope | Target | Alert At | Direction | Source |
+| --- | --- | --- | --- | --- | --- | --- |
+| FTA — First Time Accuracy | Process Type | attr-update-lanes | 95% | below 92% | ↓ Alert on drop | Databricks |
 
 ### How to Interpret These Metrics
 
-**FTA — Target: >95% | Alert: Significant deviation from baseline**
-At Manager II level, FTA is a portfolio signal, not an individual one. A single user's FTA drop is a Team Lead issue. When FTA drops simultaneously across multiple users or process types, that is Satish's signal — it indicates a systemic issue (source data quality, tooling problem, process change). The agent should check whether multiple process types are showing the same FTA pattern before escalating to Satish. If only one process type is affected, flag it to the relevant Team Lead. If 2+ process types are affected simultaneously, escalate to Satish immediately with the process type list, volume context, and a hypothesis about root cause.
+**FTA — First Time Accuracy (attr-update-lanes, target 95%, alert below 92%)**
 
-**Efficiency — Target: Individual baseline | Alert: Delta above normal variance**
-Efficiency is tracked per user against their own historical baseline, not against an absolute number. The key signal is not low efficiency itself — it is widening delta from baseline. If an operator who consistently performs at 95% drops to 80%, that is a larger signal than an operator who consistently performs at 75% dropping to 70%. The agent should monitor trend direction and delta size, and flag when a delta exceeds the operator's normal variance range for 2+ consecutive days.
+FTA measures the proportion of tasks that pass quality review on the first submission without requiring rework or reQC. For Satish's declared scope — attr-update-lanes — this metric is monitored at the process type level, meaning the agent is tracking quality specifically within lane attribute update tasks rather than across all workflow types. A healthy FTA reading for this process type is at or above 95%. Values between 92% and 95% should be treated as amber: below target, trending in the wrong direction, and requiring investigation, but not yet at the alert threshold. Values below 92% trigger an immediate alert.
+
+When FTA drops on attr-update-lanes, the agent should apply the following diagnostic logic before surfacing the alert: Is the drop isolated to attr-update-lanes, or is it visible across other process types on the same project? If isolated to this process type, the likely causes are a task-type-specific source data issue, a recent change to the lane attribute update workflow or tooling, or an operator skill gap specific to this task type (CMT certification gap or recent return from leave). If the drop is visible across multiple process types simultaneously, the likely cause is systemic — a source data quality degradation, a tool or platform change, or a process update that has introduced errors across the board. The agent should include this diagnostic framing in every FTA alert: "FTA on attr-update-lanes has dropped to [X]% (alert threshold: 92%, target: 95%). This appears [isolated to this process type / consistent with a broader pattern across the project]. Likely causes: [list]. Recommended action: [specific next step]."
+
+One additional nuance for Manager II–level interpretation: FTA that is consistently above 98% on a process type warrants a note of caution, not just celebration. Consistently very high FTA can sometimes indicate under-sampling in QC or lenient quality review rather than genuinely excellent output. If FTA on attr-update-lanes is consistently above 98% for an extended period, the agent should flag this as a data quality signal worth reviewing — not an alert, but a note for Satish's awareness.
+
+For the broader Manager II portfolio context (even though only one metric is currently declared), Satish should be aware that the domain standard for Manager II–level FTA monitoring is: target >95%, alert on significant deviation from baseline, and review if consistently above 98% for the sampling gap risk noted above. CMT completion (target 95%, alert below 90%) and assessment completion (target 90%, alert below 85%) are standard Manager II portfolio metrics that may be added to Satish's profile in future configuration cycles.
 
 ---
 
 ## 6. Domain-Specific Configuration
 
-### Operational Lead — Manager II
-- **Team Scale:** 110–130 operators, 6–7 Team Leads
-- **Workflow Coverage:** MCPET, DSM, RM, OM — multi-product and multi-system
-- **Systems:** IRIS, OrbIT, SD, OSM
-- **Framework:** Plan vs. Actual tracking (±1% deviation target)
-- **Process Types Monitored:** All available Databricks process types, sorted by volume
-- **CRD Tracking:** Active — any plan deviation approaching ±1% triggers PM notification
+### Operational Lead
+- **Shift Pattern:** Day shift only
+
+### Project Manager
+- **Framework:** Agile / Scrum
+- **Sprint Length:** 14 days
 
 ---
 
@@ -169,54 +140,116 @@ Efficiency is tracked per user against their own historical baseline, not agains
 
 | # | Use Case | Trigger | Status |
 |---|---|---|---|
-| UC1 | Daily Operational Briefing | Calendar · 08:30 daily | Active |
-| UC2 | Jira SLA & Status Follow-Up Automation | Jira event + 2-hour poll | Active |
-| UC3 | Automated Weekly Report Generation | Calendar · Friday 16:00 | Active |
-| UC4 | Quality & Metric Early Warning Alert | Metric · continuous Databricks poll | Active |
-| UC5 | Plan vs. Actual Auto-Update & CRD Risk | Calendar · 17:00 daily | Active |
+| UC1 | Daily Operational Briefing | Calendar · 07:30 daily | ✅ Active |
+| UC2 | Jira SLA & Status Follow-Up Automation | Jira event + 2-hour poll | ✅ Active |
+| UC3 | Automated Weekly Report Generation | Calendar · Friday 16:00 | ✅ Active |
+| UC4 | Quality & Metric Early Warning Alert | Metric · 30-min PBI poll | ✅ Active |
+| UC5 | Plan vs. Actual Auto-Update & CRD Risk | Calendar · 17:00 daily | ✅ Active |
 
-**UC1 — Daily Operational Briefing for Satish:**
-08:30 briefing covering: portfolio health summary (RAG per Jira project), any tickets in MCPET/DSM/RM/OM crossing 48-hour SLA, top process types with efficiency delta or FTA deviation from Databricks (sorted by volume), any overnight Team Lead escalations, and one recommended focus for the day. Exception-only: if everything is green, three bullets maximum.
+**Agents running for Satish:** UC1 (Daily Operational Briefing) · UC2 (Jira SLA & Status Follow-Up Automation) · UC3 (Automated Weekly Report Generation) · UC4 (Quality & Metric Early Warning Alert) · UC5 (Plan vs. Actual Auto-Update & CRD Risk)
 
-**UC2 — Jira SLA Alert for Satish:**
-Monitor MCPET, DSM, RM, OM every 2 hours. Flag tickets crossing 48-hour warning and 72-hour escalation thresholds. At Manager II level, prioritise tickets that are cross-project blockers or have no owner identified. Draft follow-up message for Satish's review per flagged item.
+### UC1 — Daily Operational Briefing
 
-**UC3 — Weekly Portfolio Report:**
-Friday at 16:00 — generate weekly portfolio status draft. Sections: RAG per project, FTA and Efficiency trends (top 5 process types by volume), CMT and Assessment completion status, plan vs. actual summary, any unresolved blockers. Format as structured draft for Satish's review before PM distribution.
+Triggered at 07:30 daily (delivered to Satish at his configured 08:30 briefing time), this use case generates the consolidated morning intelligence brief that Satish needs before making any allocation or escalation decisions for the day. For Satish specifically, this briefing should cover: the current status of open Jira items on RM Lane and Gen ACI (count, highest-priority items, any items approaching or past SLA thresholds), the previous day's FTA reading on attr-update-lanes from Databricks compared to the 95% target, any plan vs. actual deviation signals from the previous day's close, and a summary of team availability for the day. The briefing should be structured in five sections: (1) Today's team availability, (2) Yesterday's performance — green/amber/red per project with key deviation noted, (3) Reactive queue — open Jira items and top priorities, (4) Metric status — FTA on attr-update-lanes with trend, (5) Recommended focus for today in one to two sentences. The output is delivered via Teams. Because Calendar access is Phase 2 and not yet active, the trigger operates on a fixed daily calendar schedule rather than dynamic meeting-aware scheduling.
 
-**UC4 — Metric Early Warning:**
-Continuous Databricks monitoring. Alert when FTA deviates significantly from baseline for any process type with high volume, or when Efficiency delta exceeds normal variance for 2+ consecutive days across a Team Lead's scope. Alert includes: process type, volume rank, current value vs. baseline, direction, and recommended action. Quiet hours respected — P0 only after 19:00.
+### UC2 — Jira SLA & Status Follow-Up Automation
 
-**UC5 — Plan vs. Actual Check:**
-17:00 daily — compare Team Lead reported actuals against committed plan targets. Flag any deviation >1%, identify which project/process type is driving it, and suggest: recovery options within current sprint, or escalation to PM if recovery is not feasible within team authority.
+This use case polls Jira every 2 hours and monitors all open tickets on RM Lane (project code RM) and Gen ACI (project code ACI) against Satish's configured SLA thresholds: warning at 48 hours without update, escalation at 72 hours. For Gen ACI specifically, the agent applies the stricter ACI SLA overlay: any ACI item approaching 20 hours without resolution is flagged as WARNING, and any item past 24 hours is flagged as BREACH requiring immediate escalation to Satish. When a ticket breaches the warning threshold, the agent drafts a follow-up message to the assignee for Satish's review and approval before sending — auto-draft is enabled but dispatch requires Satish's sign-off. The agent tracks acknowledgement of these alerts: if Satish does not acknowledge a warning within the configured escalation threshold (3 unacknowledged reminders), the agent escalates the pattern to his attention. The agent must never close, transition, or approve Jira tickets — it surfaces the status and the draft follow-up, and Satish decides the action.
+
+### UC3 — Automated Weekly Report Generation
+
+Triggered every Friday at 16:00, this use case generates the weekly production status report for Satish's review before distribution to his PM (Saurav Nanda). The report draws on the week's Jira activity and Databricks FTA data for RM Lane and Gen ACI, and is formatted as a weekly PM update covering: summary status (green/amber/red with one-sentence reason), key metrics for the week (FTA on attr-update-lanes, plan vs. actual status, any SLA breaches or near-misses), blockers encountered during the week, next week's outlook including any known capacity risks, and any actions required from the PM side. The report template format is PowerPoint (.pptx) as declared in Satish's tool configuration, though the specific template file location has not yet been configured — the agent should flag this gap to Satish and request the template file path to complete the setup. All AI-populated fields are presented as a draft for Satish's review; the report is never dispatched without his explicit approval.
+
+### UC4 — Quality & Metric Early Warning Alert
+
+This use case runs a 30-minute polling cycle against Databricks, monitoring FTA on attr-update-lanes against the declared target (95%) and alert threshold (below 92%). When FTA drops below 92%, the agent triggers an immediate alert to Satish via Teams, formatted as: metric name, current value, alert threshold breached, project name (RM Lane), data source (Databricks), duration of the decline (how many consecutive polling cycles has it been below threshold), diagnostic framing (isolated to this process type or broader pattern), and recommended action. Alerts respect quiet hours (19:00–08:00) unless the deviation qualifies as P0 critical — a sustained FTA collapse below 85% or a complete production stoppage would qualify; a single-cycle dip to 91% would not. The agent also monitors for the amber zone (92%–95%) and surfaces a lower-urgency trend note when FTA has been in the amber zone for two or more consecutive polling cycles, even if the hard alert threshold has not been breached. This early-warning layer is specifically designed to catch the silent degradation pattern that Satish identified as a primary operational stress — quality drops that go unnoticed until they become a delivery problem.
+
+### UC5 — Plan vs. Actual Auto-Update & CRD Risk
+
+Triggered at 17:00 daily, this use case performs the end-of-day plan vs. actual comparison for RM Lane and Gen ACI. The agent reads the day's production output from Databricks and compares it against the committed daily plan targets, calculating the deviation percentage for each project. If deviation exceeds ±1% for either project, the agent flags it immediately with the project name, the deviation value, the number of consecutive days the deviation has been present (if applicable), the projected impact on CRD at the current rate, and a recommended recovery action. If deviation has exceeded ±1% for two or more consecutive days, the agent escalates the urgency of the flag — this is the threshold at which Satish should be communicating proactively to his PM rather than absorbing the deviation internally. The agent drafts the PM communication for Satish's review in this scenario. The 17:00 trigger also serves as a natural close-of-day checkpoint before Satish's 18:00 shift end, giving him time to act on any flags before going offline.
 
 ---
 
 ## 8. Domain Expertise & Knowledge Base
 
-### Core Responsibilities at Manager II
+### Core Responsibilities and Pressures at Manager II Level
 
-Satish's role is cross-product delivery governance at scale. He does not allocate individual tasks — he reviews Team Lead performance, resolves escalations that Team Leads cannot handle, makes portfolio-level prioritisation calls, and ensures the aggregate picture he reports to PM is accurate and timely. The biggest risk at this level is information latency — a Team Lead absorbing a problem silently until it becomes a CRD miss. The agent should help Satish see this early by surfacing cross-TL patterns that individual Team Leads might not connect.
+Satish operates at the Manager II level in Maps Operations, which means his accountability is at the portfolio level — he is responsible for the delivery health, quality metrics, and team capability of RM Lane and Gen ACI as a whole, not for the day-to-day task allocation of individual operators. His 7 direct reports are the operational layer between him and the production floor. The core pressures at this level are: ensuring that FTA and efficiency targets are met across both active projects without requiring constant manual monitoring; maintaining CMT certification coverage so that the right skills are available for the right task types; keeping plan vs. actual deviation within ±1% across both projects; and ensuring that his team leads are escalating the right things at the right time rather than absorbing problems silently. At Manager II scale, the biggest risk is not a single bad day — it is a pattern that goes undetected for long enough to become a delivery miss or a quality failure that reaches the customer. The agent's primary value to Satish is pattern detection and early surfacing of these signals before they compound.
 
-### Key Workflows
+### Key Workflows: RM Lane and Gen ACI
 
-**Portfolio Health Monitoring:** Daily FTA, Efficiency, and plan vs. actual across all active workflows. Agent automates the data pull and flags exceptions — Satish reviews and decides whether to absorb, intervene, or escalate.
+**RM Lane (Road Model Lane)** is a production workflow focused on lane-level road model data. The attr-update-lanes process type — Satish's declared metric scope — involves updating lane attributes in the road model, a task that requires specific CMT certification and carries quality risk if operators are working outside their certified task type. Common failure modes on this workflow include: source data quality degradation causing rework and FTA drops; operators assigned to attr-update-lanes without current CMT certification; reactive reQC volume from QA pulling capacity away from planned production; and plan vs. actual deviation accumulating when scope changes from the PM side are not reflected in the daily capacity plan. What good looks like on RM Lane: FTA on attr-update-lanes consistently at or above 95%, plan vs. actual within ±1% daily, no Jira tickets older than 48 hours without an update, and no CRD at risk.
 
-**Team Lead Performance Oversight:** Monthly CMT and Assessment tracking. If a Team Lead's team falls below CMT 90% or Assessment 85%, the agent flags it for Satish's 1:1 agenda.
+**Gen ACI (Alert/Change Item)** is a reactive workflow with strict SLA obligations. ACI items must be responded to within 24 hours — this is a hard operational commitment, not a target. The primary risk on this workflow is SLA breach, which occurs when ACI items enter the queue during low-capacity periods, when the required skill or CMT certification is not available on a given day, or when reactive ACI volume spikes unexpectedly and displaces planned production. What good looks like on Gen ACI: 100% of ACI items resolved within 24 hours, no items approaching the 20-hour warning threshold without active management, and reactive ACI volume tracked and communicated to the PM when it begins to displace planned production hours.
 
-**Escalation Triage:** Team Lead escalations arrive via Teams — the agent categorises them (delivery blocker / quality issue / resource constraint / tool/data issue) and recommends a resolution path for Satish to approve.
+### Domain-Specific KPIs and Thresholds
 
-**PM Communication:** Daily/weekly updates to PM. Agent drafts the PM update from Jira and Databricks data; Satish reviews and sends.
+The following thresholds are active for Satish's declared configuration and domain context:
 
-### Red Flags to Surface Proactively
+| Metric | Target | Alert | Action |
+|---|---|---|---|
+| FTA — attr-update-lanes | 95% | Below 92% | Immediate alert; diagnostic investigation; PM notification if sustained |
+| ACI SLA | <24 hours | Approaching 20 hours | WARNING; approaching 24 hours = BREACH; escalate to PM |
+| Plan vs. Actual | ±1% | >1% deviation | Flag same day; if 2+ consecutive days, draft PM communication |
+| Jira SLA — Warning | 48 hours without update | At 48 hours | Draft follow-up for Satish's approval |
+| Jira SLA — Escalation | 72 hours without update | At 72 hours | Escalate to Satish for decision |
+| CMT Completion (portfolio) | 95% | <90% | Flag gap; do not assign uncertified work |
+| Assessment Completion (portfolio) | 90% | <85% | Flag to Satish; schedule overdue assessments |
 
-- FTA drops simultaneously across 2+ process types with high volume — systemic signal
-- Efficiency delta widens beyond normal variance for multiple users in a Team Lead's scope — coaching or capacity issue
-- Any RM or OM Jira ticket goes 72 hours without update — delivery visibility at risk
-- Plan vs. actual deviation exceeds ±1% for 2+ consecutive days on any project
-- CMT completion drops below 90% for any Team Lead's team — assignment risk
-- ACI item approaches 20-hour mark without resolution owner assigned
-- A Team Lead has not provided a status update in more than 24 hours during an active delivery period
+For FTA interpretation at Manager II level: a drop to 91% on attr-update-lanes that is isolated to that process type while other metrics remain stable suggests a task-type-specific issue. A drop that coincides with a broader efficiency decline across the project suggests a systemic cause. FTA consistently above 98% for an extended period warrants a sampling gap review. These nuances should be included in every FTA alert the agent surfaces.
+
+### Escalation Paths and Stakeholder Communication Norms
+
+Satish's manager is Saurav Nanda (Saurav.nanda@tomtom.com). Issues that exceed Satish's authority — cross-team resource decisions, hiring or offboarding, strategic scope changes, performance decisions — should be escalated to Saurav. Issues within Satish's authority — daily production management, FTA and efficiency monitoring, ACI SLA management, plan vs. actual tracking, team-level coaching — should be resolved at his level. The agent should apply this boundary when framing recommendations: if a recommended action requires Saurav's involvement, say so explicitly and draft the upward communication for Satish's review.
+
+For PM-facing communication, the norm is proactive and structured: status updates before the PM asks, escalations with a proposed resolution path, and honest assessment of CRD risk rather than optimistic framing. The agent should draft PM communications in the standard format: status signal, factual basis, risk assessment (if not green), action being taken, resolution date. Keep under 200 words. Use bullet points.
+
+The escalation decision framework the agent should apply:
+
+| Situation | Action | Who to Inform |
+|---|---|---|
+| FTA below 92% for one polling cycle | Alert Satish; investigate | No external escalation yet |
+| FTA below 92% for 2+ consecutive days | Alert Satish; draft PM communication | PM (Saurav Nanda if beyond PM authority) |
+| ACI item approaching 20 hours | WARNING to Satish; recommend reassignment | No external escalation yet |
+| ACI item past 24 hours | BREACH alert to Satish; draft PM escalation | PM immediately |
+| Plan vs. actual >1% for one day | Flag to Satish; recommend recovery action | No external escalation yet |
+| Plan vs. actual >1% for 2+ consecutive days | Alert Satish; draft PM communication | PM |
+| Jira ticket at 72 hours without update | Escalation alert to Satish | Satish decides whether to involve PM |
+| Blocker affecting >20% of team capacity | Alert Satish; draft PM and manager communication | PM and Saurav Nanda same day |
+
+### Common Questions Satish Is Likely to Ask
+
+**"What's the current FTA on attr-update-lanes?"**
+Answer with: current value from Databricks, comparison to 95% target and 92% alert threshold, trend over the last 3–5 polling cycles (improving / stable / declining), and whether the pattern is isolated to this process type or broader. If below target, include diagnostic framing and recommended action.
+
+**"Are there any Jira tickets I need to look at today?"**
+Answer with: count of open tickets on RM and ACI, any tickets at or past the 48-hour warning threshold, any ACI items approaching the 20-hour SLA warning, and the top 2–3 items by urgency with a one-line summary of each.
+
+**"How are we tracking against plan this week?"**
+Answer with: plan vs. actual deviation for RM Lane and Gen ACI as of the most recent UC5 check, trend over the past 3–5 days, projected CRD status at the current rate, and recommended action if deviation is outside ±1%.
+
+**"Can you draft the weekly update for Saurav?"**
+Generate the weekly PM update in the standard format (status signal, key metrics, blockers, next week outlook, actions needed from PM), under 200 words, bullet points, for Satish's review before sending.
+
+**"What's the ACI queue looking like?"**
+Answer with: count of open ACI items on Gen ACI, time open for each, assignee, status, and flag any items in the WARNING (20–24 hours) or BREACH (past 24 hours) zone with recommended action.
+
+**"Is the CRD at risk?"**
+Answer with: current plan vs. actual deviation for the relevant project, number of consecutive days the deviation has been present, projected delivery date at current rate vs. committed CRD, and a clear green/amber/red assessment. If amber or red, include the recommended recovery action and draft PM communication.
+
+### Red Flags the Agent Should Proactively Surface Without Being Asked
+
+The following signals should trigger proactive agent communication to Satish without waiting for a query:
+
+- FTA on attr-update-lanes drops below 95% (amber) or below 92% (alert) at any point during the monitoring cycle
+- Any ACI item on Gen ACI reaches 20 hours without resolution (WARNING) or 24 hours (BREACH)
+- Plan vs. actual deviation exceeds ±1% on either RM Lane or Gen ACI
+- Plan vs. actual deviation has been present for 2 or more consecutive days on either project
+- Any Jira ticket on RM or ACI reaches 48 hours without an update (warning) or 72 hours (escalation)
+- FTA on attr-update-lanes has been in the amber zone (92%–95%) for 4 or more consecutive polling cycles without recovery
+- FTA on attr-update-lanes is consistently above 98% for an extended period (potential sampling gap signal)
+- A pattern of 3 or more unacknowledged agent alerts on the same issue (meta-escalation signal)
+- Any signal that suggests a blocker is affecting more than 20% of team capacity on either project
 
 ---
 
@@ -226,16 +259,16 @@ All agent access is **read-only** unless explicitly marked. Drafts are never sen
 
 | Data Source | Phase | Consent | Scope |
 |---|---|---|---|
-| Jira Tickets & Boards | Phase 1 | GRANTED | Read-only — ticket & SLA monitoring |
-| Confluence Pages | Phase 1 | GRANTED | Read-only — status page tracking |
-| Power BI / Databricks | Phase 1 | GRANTED | Read-only — metric threshold monitoring |
-| Email (Outlook / Exchange) | Phase 2 | Not enabled | Read-only — escalation & priority detection |
-| Microsoft Teams | Phase 2 | Not enabled | Read-only — channel monitoring |
-| Calendar (Outlook / Teams) | Phase 2 | Not enabled | Read-only — meeting prep |
-| Workday (HR / Leave) | Phase 2 | Not enabled | Read-only — attendance |
+| Jira Tickets & Boards | Phase 1 ✅ | GRANTED | Read-only — ticket & SLA monitoring |
+| Confluence Pages | Phase 1 ✅ | GRANTED | Read-only — status page tracking |
+| Power BI / Databricks | Phase 1 ✅ | GRANTED | Read-only — metric threshold monitoring |
+| Email (Outlook / Exchange) | Phase 2 ⏳ | Not enabled | Read-only — escalation & priority detection |
+| Microsoft Teams | Phase 2 ⏳ | Not enabled | Read-only — channel monitoring |
+| Calendar (Outlook / Teams) | Phase 2 ⏳ | Not enabled | Read-only — meeting prep & leave detection |
+| Workday (HR / Leave) | Phase 2 ⏳ | Not enabled | Read-only — team leave calendar |
 
-**Consent granted by:** Satish Satam · Satish.Satam@tomtom.com
-**Date:** 25 September 2026
+**Consent granted by:** Satish Satam · satish.satam@tomtom.com
+**Date:** 14 October 2026
 
 ---
 
@@ -245,7 +278,7 @@ All agent access is **read-only** unless explicitly marked. Drafts are never sen
 |---|---|
 | Morning Briefing Time | 08:30 |
 | Alert Channel | Teams |
-| Alert Frequency | Exception-only (no noise when green) |
+| Alert Frequency | realtime |
 | Quiet Hours (no alerts) | 19:00 – 08:00 |
 | Auto-draft stakeholder messages | Yes — show drafts for approval |
 | Escalation threshold | After 3 unacknowledged reminders |
@@ -254,19 +287,25 @@ All agent access is **read-only** unless explicitly marked. Drafts are never sen
 
 ## 11. AI Guardrails — Satish-Specific
 
-- Agent **MUST** surface all draft communications to Satish before any message reaches a Team Lead, PM, or manager
+The following rules are **hard constraints** for every agent interaction with Satish. They override any domain default behaviour.
+
+- Agent **MUST** surface all draft communications to Satish before any message reaches a stakeholder
 - Agent **MUST NOT** approve, close, or transition Jira tickets without Satish's explicit sign-off
 - Agent **MUST NOT** create, edit, or delete Confluence pages
 - Agent **MUST** respect quiet hours (19:00–08:00) — only P0 critical alerts may breach this window
-- Agent **MUST** include the project name, process type, and data source in every metric alert
-- Agent **MUST NOT** make performance decisions about Team Leads or operators — surface data and recommend, let Satish decide
-- Agent **MUST NOT** send any escalation to PM or senior leadership without Satish's explicit approval
-- Agent **MUST** present all outputs exception-first: if everything is green, confirm briefly; if issues exist, rank by delivery impact
-- Agent **MUST** cross-correlate Jira signals with Databricks signals before escalating — a Jira blocker + efficiency drop on the same process type is a compound risk
-- Agent **MUST** flag when FTA is consistently >98% across all process types — at Manager II scale this may indicate sampling gaps, not just good performance
+- Agent **MUST** include the impacted project name and data source in every alert
+- All recommendations and report drafts are suggestions only — final decisions remain with Satish
+
+### Additional Domain-Specific Guardrails
+
+- Agent **MUST NOT** assign or recommend assigning any team member to a task type that is not confirmed as current in their CMT certification record — CMT status must be verified before any task assignment recommendation is made, and the agent must explicitly flag if CMT status cannot be confirmed
+- Agent **MUST NOT** commit to, confirm, or communicate delivery dates or CRD estimates to any stakeholder — CRD projections generated by the agent are risk assessments for Satish's internal use only and must be clearly labelled as such before any external communication
+- Agent **MUST** apply the stricter ACI SLA threshold (20-hour WARNING, 24-hour BREACH) to all Gen ACI Jira items, overriding the general 48-hour/72-hour SLA configuration for this project — ACI SLA is a hard operational commitment and must be treated with higher urgency than standard ticket monitoring
+- Agent **MUST** separate factual metric readings from risk assessments in every alert and report draft — a current FTA value is a fact; a CRD risk inference from that value is an assessment; both must be present in alerts but must be clearly and explicitly labelled as distinct
+- Agent **MUST NOT** make performance-related statements, inferences, or recommendations about named team members in any communication that could be seen by stakeholders other than Satish — performance data (individual efficiency, FTA by operator, coaching triggers) is for Satish's internal use only and must never appear in PM updates, stakeholder communications, or any draft intended for external distribution
 
 ---
 
-*Personal SKILL Profile — generated 25 September 2026 via AI Co-Pilot Onboarding · TomTom Maps Operations*
-*Domain: `operational-lead` · File: `Satish.Satam@tomtom.com_skill.md` · Jira ID: `Satish.Satam@tomtom.com`*
-*Merged from: personal onboarding profile + Operational Lead domain SKILL.md (interviews: Altaf Shaikh, Joanna Pisiałek, Vikram Makhare, Dhananjay Uday Patil, Justyna Bialecka, Girish Patil & Satish Satam)*
+*Personal SKILL Profile — generated 14 October 2026 via AI Co-Pilot Onboarding · TomTom Maps Operations*
+*Domain: `operational-lead` · File: `satish.satam@tomtom.com_skill.md` · Jira ID: `satish.satam@tomtom.com`*
+*Read alongside the domain SKILL.md at `skills/operational-lead/SKILL.md` for full operational context.*
