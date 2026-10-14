@@ -56,6 +56,9 @@ def _compute_target(report_type: str) -> tuple[str, str]:
 # {week_filter}  is injected at runtime via _compute_target().
 # week_start is a DATE column — ORDER BY natively, no TO_DATE() needed.
 
+# Rows: QC-sampled production rows, plus the rows where IRIS books QC time on its own
+# (QC editor, no task or QC counts) — without those, CoQ reads 0% for IRIS teams.
+# The HAVING keeps only weeks / process types that had a QC sample (FTA defined).
 _METRICS_SQL = """
 SELECT
     week_start,
@@ -71,9 +74,10 @@ SELECT
 FROM {table}
 WHERE week_start IS NOT NULL
   AND week_start <= '{target_week}'
-  AND total_qc_count > 0
+  AND (total_qc_count > 0 OR (COALESCE(Prod_Done_task_count, 0) = 0 AND qc_total_time > 0))
   {scope_filter}
 GROUP BY week_start
+HAVING COALESCE(SUM(total_qc_count), 0) > 0
 ORDER BY week_start DESC
 LIMIT 4
 """
@@ -93,10 +97,11 @@ SELECT
     ROUND(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 1) AS total_hrs
 FROM {table}
 WHERE week_start = '{week}'
-  AND total_qc_count > 0
+  AND (total_qc_count > 0 OR (COALESCE(Prod_Done_task_count, 0) = 0 AND qc_total_time > 0))
   AND processType IS NOT NULL
   {scope_filter}
 GROUP BY processType
+HAVING COALESCE(SUM(total_qc_count), 0) > 0
 ORDER BY total_hrs DESC
 LIMIT {limit}
 """
