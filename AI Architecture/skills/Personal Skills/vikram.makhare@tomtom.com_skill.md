@@ -127,6 +127,9 @@ Confluence is Vikram's documentation and status reporting layer. The pages he ow
 
 - *(Power BI not configured as standalone; metrics sourced from Databricks)*
 
+- **Databricks Process Types:** attr-update-tmcpath, attr-update-tmclongpath, attr-sourceprep-tmcpath, attr-dpa-tmcpath, hdorbis-conflictsolving-defectfixing, hdorbis-create-legediting
+- **Databricks Planning IDs:** tti-genesistmcmaintenance, ADAS-LMBasemap, ADAS-LMBasemapQB, ADAS-LMBasemapLB
+
 **How Vikram uses Power BI / Databricks and what the agent should watch:**
 Databricks is the primary source for all of Vikram's declared operational metrics — FTA, CoQ, Efficiency vs. Baseline, Yield, Invalid Rejection Rate, Deliverable Completion, Plan vs. Actual, and Rework Count. The agent polls these metrics every 30 minutes as part of UC4 and UC5. For the tti-genesistmcmaintenance planning ID (the core TMC production tracking scope), the agent should treat Plan vs. Actual, Deliverable Completion, and Yield as the three most time-sensitive metrics — these directly determine whether the quarterly package will be delivered on time. For attr-update-tmclongpath and attr-update-tmcpath, CoQ is the primary Databricks metric to watch, with an alert threshold above 3%. The Invalid Rejection Rate metric covers all operators and should be monitored at the individual level — a single operator above 5% is an alert, and the agent should include the operator name and project context when surfacing this. Efficiency vs. Baseline is monitored across tti-genesistmcmaintenance, ADAS-LMBasemap, ADAS-LMBasemapLB, and ADAS-LMBasemapQB planning IDs; a drop below 90% on any of these should trigger an immediate alert with the specific planning ID named. The agent should never present raw Databricks numbers without contextualising them against the declared target and alert threshold — always show the gap, not just the value.
 
