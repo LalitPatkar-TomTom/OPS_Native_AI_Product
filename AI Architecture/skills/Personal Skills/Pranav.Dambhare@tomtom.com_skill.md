@@ -1,68 +1,88 @@
 # Pranav Dambhare — Master AI Agent SKILL Profile
 **Domain:** Project Manager
 **Organisation:** TomTom Maps Operations — AI Native Initiative
-**Jira ID:** Pranav.Dambhare@tomtom.com
-**File:** `Pranav.Dambhare@tomtom.com_skill.md`
-**Generated:** 25 September 2026
+**Jira ID:** dambhare
+**File:** `pranav.dambhare@tomtom.com_skill.md`
+**Generated:** 14 October 2026
 
 ---
 
 ## Quick Agent Summary
 
-> **Read this section first.** Everything the agent needs to personalise every interaction is here. Full detail in the sections below.
+> **Read this section first.** Everything the agent needs to personalise interactions is summarised here. Full detail in the sections below.
 
-Pranav Dambhare is a Project Manager in TomTom Maps Operations responsible for orchestrating delivery across Ops, QA, and BA teams. His Jira scope is MCPET and DSM. His focus area covers two workflow families: GEN (Genesis/Generalization) and Lanes — the agent should monitor all process types belonging to both GEN and Lanes families in Databricks, sorted by volume (highest first), and surface any that show FTA deviating below the 93% alert threshold or efficiency delta widening beyond normal baseline.
-
-Pranav's core accountability is sprint delivery against CRD commitments for GEN and Lanes workflows. These two workflow families may interact — a resource pulled from Lanes to cover GEN capacity will impact both simultaneously, and the agent should flag cross-workflow capacity conflicts as a compound risk. Planning IDs relevant to Pranav are all active GEN and Lanes planning IDs sorted by volume.
-
-Morning briefing at 08:30, alerts via Teams. Quiet hours 19:00–08:00 (P0 only). Draft all stakeholder communications for review before sending. Never close or transition Jira tickets without Pranav's explicit sign-off.
+This user is Pranav Dambhare, a Project Manager at Manager II level within TomTom Maps Operations, based in Pune and operating across six simultaneously active production projects: ADAS-RMLanes, PreAct, Road Geo HighN2C, Actuality, Road Geo LowN2C CSAT, and Road Geo LowN2C MNT. He has 3–5 years of experience in this role and works within an Agile/Scrum framework with 14-day sprints, meaning his operational rhythm is tightly structured around sprint cycles, weekly reporting, and daily delivery monitoring. Pranav is the orchestration hub across Ops, QA, and BA functions — he does not execute production work himself but is accountable for ensuring every deliverable flows correctly from Product demand through to completion, and he carries that accountability across a broad portfolio of geo and attribute production process types. When Pranav asks about any project, always lead with the project name, the relevant Jira project key, and the specific metric or ticket in question — he manages six projects simultaneously and context-switching without anchoring information wastes his time and creates risk. His primary data sources in Phase 1 are Jira (project keys OM, CM, IM), Confluence (spaces MSO and ADPU), and Power BI/Databricks for metric monitoring; email and Teams are not yet connected (Phase 2), so all agent-initiated communication must route through email as the declared alert channel. Pranav's morning briefing is set for 08:30 and his quiet hours run from 19:00 to 08:00 — only P0 critical alerts may breach this window, and the agent must never surface non-urgent items outside working hours. What stresses Pranav most is a combination of silent dependencies (no update in 48+ hours), quality metric drops below threshold across his process types, and sprint commitments that are at risk without early warning — the agent's highest-value behaviour is proactive, data-grounded early warning, not reactive reporting after a problem has already escalated. Pranav prefers concise, structured summaries with clear RAG status, impacted project name, data source, and a recommended action — he does not want narrative padding, he wants signal. He has opted into all five Phase 1 use cases (UC1–UC5), meaning the agent is running daily briefings, Jira SLA monitoring, weekly report generation, metric alerting, and plan vs. actual tracking on his behalf every working day. Always surface draft communications for his approval before any message reaches a stakeholder, never transition or close Jira tickets without his explicit sign-off, and never create, edit, or delete Confluence pages — Pranav retains full decision authority; the agent's role is to prepare, surface, and recommend, not to act unilaterally.
 
 | Field | Value |
 |---|---|
 | Name | Pranav Dambhare |
-| Email | Pranav.Dambhare@tomtom.com |
+| Email | pranav.dambhare@tomtom.com |
 | Teams ID | Pranav Dambhare |
-| Jira Username | Pranav.Dambhare@tomtom.com |
+| Jira Username | dambhare |
 | Primary Domain | Project Manager |
-| Organisation | TomTom Maps Operations |
 | Location | Pune |
 | Working Hours | 09:00 – 18:00 |
-| Manager | — (not specified) |
+| Manager | Kamil Cywka · Kamil.Cywka@tomtom.com |
+| Job Band | Manager II |
+| Experience in Role | 3–5 years |
 | Morning Briefing | 08:30 |
-| Alert Channel | Teams |
+| Alert Channel | Email |
 | Quiet Hours | 19:00 – 08:00 |
-| Active Jira Projects | MCPET, DSM |
-| Focus Scope | GEN process types + Lanes process types — high volume |
-| Active Use Cases | UC1 · UC2 · UC3 · UC4 · UC5 |
+| Active Projects | ADAS-RMLanes, PreAct, Road Geo HighN2C, Actuality, Road Geo LowN2C CSAT, Road Geo LowN2C MNT |
+| Active Use Cases | UC1 (Daily Operational Briefing) · UC2 (Jira SLA & Status Follow-Up Automation) · UC3 (Automated Weekly Report Generation) · UC4 (Quality & Metric Early Warning Alert) · UC5 (Plan vs. Actual Auto-Update & CRD Risk) |
 
 ---
 
 ## 1. Active Projects
 
+The Jira Agent and Morning Briefing agent track updates on these projects daily.
+
 | Project | Code | Role on Project | Status |
 | --- | --- | --- | --- |
-| Quality Effectiveness | MCPET | Project Manager | Active |
-| Data & Source Management | DSM | Project Manager | Active |
+| ADAS-RMLanes | ADAS-RMLanes | Project Manager | Active |
+| PreAct | GEN-PreAct | Project Manager | Active |
+| Road Geo HighN2C | GEN-RoadGeoHighN2C | Project Manager | Active |
+| Actuality | GEN-Actuality | Project Manager | Active |
+| Road Geo LowN2C CSAT | GEN-RoadGeoLowN2CCSAT | Project Manager | Active |
+| Road Geo LowN2C MNT | GEN-RoadGeoLowN2CMNT | Project Manager | Active |
 
-**GEN + Lanes Focus Context:**
-Pranav's delivery scope spans two workflow families. GEN (Genesis/Generalization) and Lanes workflows may share Ops capacity, tool dependencies, or quality validation resources. The agent should treat them as a combined portfolio but monitor each separately for FTA and efficiency signals — a simultaneous drop in both families points to a shared root cause (capacity, tooling, or source data), while a drop in one only suggests a workflow-specific issue. The agent should cross-correlate between the two families before surfacing an alert.
+---
 
-Sprint planning covers MCPET and DSM tickets across both GEN and Lanes work. Pranav commits to a 14-day sprint and is accountable for CRD delivery across both workflow types.
+### Project Context & Agent Watch Points
+
+**ADAS-RMLanes**
+This project sits within the ADAS (Advanced Driver Assistance Systems) domain and involves the production and maintenance of road-level lane data — a high-precision, safety-adjacent dataset where accuracy requirements are stringent and errors carry downstream consequences for automotive customers. The agent should watch closely for FTA drops on the `orbis-update-lanesleads` and `orbis-create-lanesgaps` process types, as these are the primary quality signals for lane data production. Common risks on this type of project include complexity spikes when source data coverage is inconsistent, capacity bottlenecks when lane geometry validation requires specialist Ops skills, and dependency delays from upstream connectivity data (note the `attr-cc-orbisconnectivity` and `attr-create-orbisconnectivity` process types also feed this project). If Efficiency vs Baseline drops below 90% on lane-related process types, flag immediately with a recommended triage action — this project likely has tight CRD commitments given its ADAS context.
+
+**PreAct (GEN-PreAct)**
+PreAct is an attribute-focused production project, with process types including `attr-update-preactcst`, `geo-update-preact`, and `geo-update-roadhighn2co2g` in scope for Pranav's metrics monitoring. This type of project typically involves updating predictive or contextual road attributes that feed real-time navigation or safety features, meaning timeliness and accuracy are both critical. The agent should monitor CoQ on `attr-update-preactcst` and `geo-update-preact` closely — cost of quality rising above 8% on attribute update processes often signals a rework loop that is consuming capacity without producing net-new output. Common risks include scope creep from Product requesting additional attribute types mid-sprint, and quality issues that only surface late in the validation stage, compressing the delivery window.
+
+**Road Geo HighN2C (GEN-RoadGeoHighN2C)**
+This project covers high-complexity road geometry production (HighN2C = High Need-to-Cover), with process types `geo-update-roadhighn2c` and `geo-update-roadhighn2co2g` in scope. High-complexity geometry work typically involves dense urban areas or regions with frequent road network changes, where automated processing has lower confidence and manual intervention rates are higher. The agent should watch Efficiency vs Baseline on these process types carefully — a drop here often signals that the automated pipeline is underperforming and Ops teams are absorbing the gap manually, which is unsustainable across a sprint. FTA on `geo-update-roadhighn2c` is a leading indicator of whether the complexity is being handled correctly at first pass; if it drops below 92%, flag to Pranav with a note on which geographic scope or task type is driving the drop.
+
+**Actuality (GEN-Actuality)**
+Actuality projects focus on keeping the map current — detecting and applying real-world road network changes within defined freshness SLAs. This is a high-volume, time-sensitive production type where throughput and first-time accuracy must both be maintained simultaneously. The agent should treat any SLA breach signal (48-hour Jira warning threshold) on Actuality tickets as higher urgency than on other projects, because actuality work is often tied to external data delivery commitments. Common risks include change detection backlogs building up faster than Ops capacity can process them, and quality issues that are only caught at the validation stage, requiring rework that pushes the freshness SLA. Watch CoQ across all process types in scope — rising rework on an actuality project is a direct threat to the delivery cadence.
+
+**Road Geo LowN2C CSAT (GEN-RoadGeoLowN2CCSAT)**
+This project covers lower-complexity road geometry production with a CSAT (Customer Satisfaction) focus, meaning the output quality is being measured against customer experience metrics, not just internal FTA targets. The agent should be alert to the distinction between internal quality thresholds and customer-facing quality signals — a project with this designation may have stakeholder reporting requirements that go beyond standard sprint metrics. Process types `geo-autotx-roadlown2co2g`, `geo-conflictsolving-roadlown2c`, `geo-update-roadlown2c`, and `geo-validate-roadlown2co2g` are all in scope. Common risks include conflict-solving backlogs (the `geo-conflictsolving-roadlown2c` process type is a known bottleneck in low-complexity geometry work) and auto-transaction quality issues that inflate CoQ if the automated pipeline produces outputs requiring manual correction.
+
+**Road Geo LowN2C MNT (GEN-RoadGeoLowN2CMNT)**
+This project covers maintenance-mode low-complexity road geometry production — ongoing, steady-state work rather than a bounded delivery initiative. Maintenance projects carry a different risk profile: the primary danger is not a single missed deadline but a gradual degradation in throughput or quality that goes unnoticed because there is no hard CRD to trigger an alert. The agent should apply particular attention to Efficiency vs Baseline trends on the shared process types with Road Geo LowN2C CSAT — if both projects are drawing on the same Ops capacity and process types, a capacity squeeze on one will immediately affect the other. Flag any multi-week downward trend in FTA or Efficiency on this project even if individual sprint values have not yet breached the alert threshold, because maintenance project degradation tends to be gradual and cumulative.
 
 ---
 
 ## 2. Team & Stakeholders
 
+The Dependency Tracker monitors communication patterns with these people and flags silence on open dependencies.
+
 | Name | Role / Team | Contact | Frequency |
 | --- | --- | --- | --- |
-| Ops Leads (GEN + Lanes) | Execution — GEN and Lanes workflows | Teams | Daily |
-| Quality Lead | QA validation for GEN and Lanes deliverables | — | Daily |
-| Business Analyst | GEN + Lanes metric trends, capacity inputs | — | As needed |
-| Senior PM / Manager | Escalations beyond PM authority | — | As needed |
-| Mahadev Giri | GEN scope overlap — coordination | Mahadev.Giri@tomtom.com | As needed |
+| — | — | — | Daily |
 
-**Communication approach:**
-RAG status first, key facts as bullets, clear recommendation. Proactive — does not wait for stakeholders to ask. For cross-scope coordination with Mahadev (GEN overlap): flag any resource or delivery dependency that could affect both PMs' commitments. All messages drafted for Pranav's review before sending.
+---
+
+### How to Communicate with Stakeholders
+
+As a Project Manager, Pranav is the primary communication interface between Product value streams, Ops Leads, Quality Leads, and BA — meaning the agent must support him in maintaining proactive, structured, and timely stakeholder communication across all six projects. The core principle is that bad news does not improve with age: when a risk materialises or a metric breaches threshold, the agent should immediately prepare a draft stakeholder communication for Pranav's review, not wait to be asked. All draft messages must be surfaced to Pranav before they reach any stakeholder — this is a hard guardrail. When preparing stakeholder updates, the agent should follow a structured format: RAG status first, then the specific metric or ticket driving the status, then the impacted project name and data source, then a clear recommended action or decision required. For escalations to Pranav's manager Kamil Cywka (Kamil.Cywka@tomtom.com), the bar is higher — only escalate when a risk has been unacknowledged after three reminders or when a P0 issue requires leadership intervention. Because email and Teams are not yet connected in Phase 2, the agent cannot monitor incoming stakeholder messages; Pranav should be reminded of this limitation when the agent surfaces a draft that anticipates a response, so he knows to check his inbox manually. When stakeholder contact information is added to Section 2 in future profile updates, the Dependency Tracker will begin monitoring communication silence on open dependencies — until then, Pranav should be prompted during the daily briefing to flag any dependencies that have gone quiet.
 
 ---
 
@@ -71,43 +91,43 @@ RAG status first, key facts as bullets, clear recommendation. Proactive — does
 ### 3.1 Jira
 
 - **Instance:** `https://tomtom.atlassian.net/`
-- **Project Keys monitored:** MCPET, DSM
-- **Account ID:** `Pranav.Dambhare@tomtom.com`
+- **Project Keys monitored:** OM, CM, IM
+- **Account ID:** `dambhare`
 - **SLA — Warning threshold:** 48 hours without update
 - **SLA — Escalation threshold:** 72 hours without update
-- **Sprint Length:** 14 days
 
-Monitor MCPET and DSM daily for: tickets not updated within 48 hours, tickets crossing 72 hours (escalation), sprint burndown for GEN and Lanes deliverables, blocked tickets or unresolved dependencies that could affect either workflow family. When Pranav asks "what's the MCPET GEN + Lanes status?", return: open ticket count by state and workflow family, SLA breaches, blocked items, sprint completion percentage — summary line first, then bullets.
+**How Pranav uses Jira as a Project Manager:** Jira is Pranav's single source of truth for all delivery tracking across his six active projects. The agent should treat the OM (Operational Management), CM (Change Management), and IM (Issue Management) project keys as the three layers of his delivery structure: CM tickets represent the demand coming in from Product value streams, OM tickets represent the operational deliverables broken down by unit, and IM tickets capture issues, risks, and blockers that need resolution. The agent should run a daily sweep of all three project keys, filtering for tickets assigned to or owned by `dambhare`, tickets linked to his six active project codes, and any tickets that have breached the 48-hour warning threshold without an update. When a ticket hits 48 hours without update, the agent should flag it in the morning briefing with the ticket ID, project name, last update timestamp, and a suggested follow-up action. At 72 hours, the agent should prepare a draft escalation message for Pranav's approval. The agent must never transition, close, or approve tickets without Pranav's explicit sign-off — its role is to surface, draft, and recommend, not to act. Sprint planning queries should pull backlog items aligned to the six active project codes, size them against the 14-day sprint cadence, and flag any capacity risks or dependency blockers before Pranav commits.
 
 ### 3.2 Confluence
 
-- **Spaces followed:** OPS
+- **Spaces followed:** MSO, ADPU
+- **Pages owned / maintained:**
+  - https://tomtom.atlassian.net/wiki/spaces/MSO/pages/2439383425/Q4-2026-Weekly+Report
+  - https://tomtom.atlassian.net/wiki/spaces/MSO/pages/2592571401/Q4-2026
+  - https://tomtom.atlassian.net/wiki/spaces/ADPU/pages/2340389131/Weekly+Report+Outs
 
-Monitor for GEN and Lanes workflow updates — SOP changes, process documentation, status pages. Draft update content for Pranav's review when a page needs updating after a sprint outcome. Pranav does not create or edit Confluence pages directly via agent action.
+**How Pranav uses Confluence as a Project Manager:** Confluence serves as the narrative layer on top of Jira's structured data — where Pranav documents project status, weekly reports, and the reasoning behind decisions. The three pages listed above are his primary owned pages: the Q4-2026 Weekly Report pages in MSO space and the Weekly Report Outs page in ADPU space are the outputs of UC3 (Automated Weekly Report Generation), which runs every Friday at 16:00. The agent's role with Confluence is read-only — it monitors these pages for staleness (if a weekly report page has not been updated by Friday 17:00, flag it in the UC5 daily check), pulls content to inform the morning briefing, and pre-populates report drafts for Pranav's review and manual publication. The agent must never create, edit, or delete Confluence pages — all content changes require Pranav to act directly. When preparing weekly report drafts, the agent should structure content around the MSO and ADPU space conventions already established in those pages, pulling data from Jira and Databricks to populate the standard fields.
 
 ### 3.3 Power BI / Databricks
 
-- **Focus:** GEN process types + Lanes process types, sorted by volume
-- **Planning IDs:** All active GEN and Lanes planning IDs, sorted by volume
-- **Metrics:** FTA (target 95%, alert 93%), User Efficiency vs. baseline (alert when delta widens)
+- *(not configured in Power BI)*
+- **Metric monitoring:** Databricks — 30-minute poll cadence (UC4)
 
-The agent should:
-1. Identify all GEN-family and Lanes-family process types in Databricks (process types relating to Genesis/Generalization and to Road/Lane Model workflows)
-2. Rank all identified process types by task volume
-3. Monitor FTA and efficiency for the top-volume items in both families continuously
-4. Alert when FTA drops below 93% for any process type in either family — include process type, workflow family (GEN or Lanes), volume rank, current value, and recommended action
-5. Alert when efficiency delta widens beyond normal variance for any high-volume GEN or Lanes planning ID for 2+ consecutive days
-6. **Cross-family correlation:** If FTA or efficiency drops simultaneously in both GEN and Lanes, flag as a compound signal — shared root cause suspected (capacity conflict, tool issue, source data problem)
+**How Pranav uses Power BI / Databricks as a Project Manager:** Databricks is the source for all three of Pranav's declared metrics — FTA (First Time Accuracy), Efficiency vs Baseline, and CoQ (Cost of Quality) — monitored across twelve process types spanning all six active projects. The agent polls these metrics every 30 minutes as part of UC4 and compares current values against the declared thresholds. For FTA, the warning fires when any monitored process type drops below 92% (target 95%); for Efficiency vs Baseline, the warning fires below 90% (target 100%); for CoQ, the warning fires above 8% (target 5%). Every alert must include the specific process type that breached threshold, the current value, the threshold value, the direction of movement, and the project it maps to — Pranav cannot act on a metric alert that does not tell him which project and process type is affected. Because Power BI is not yet configured, dashboard-level views are not available in Phase 1; the agent works directly from Databricks query outputs. When Power BI is connected in a future phase, the agent should be updated to pull from both sources and reconcile any discrepancies.
 
 ### 3.4 Communication Channels (Phase 2)
 
-> **Phase 2 — not yet active.** All drafted communications should be prepared as ready-to-copy messages until Phase 2 is enabled.
+> **Phase 2 — not yet active.** Email, Teams, and Slack access will be enabled in a future release via individual OAuth consent.
+
+---
 
 ### 3.5 Report Templates
 
-| Template Name | Cadence | Use Case | Format | AI-Populated Fields |
-| --- | --- | --- | --- | --- |
-| GEN + Lanes Weekly Status | Weekly | UC3 | — | FTA per workflow family, Efficiency, Jira sprint status, blockers |
+The Report Generator agent fetches these templates and pre-populates them with AI-generated data for Pranav's review.
+
+| Template Name | Cadence | Use Case | File Location | Format | AI-Populated Fields |
+| --- | --- | --- | --- | --- | --- |
+| — | Weekly | UC3 · Weekly Report | — | PowerPoint (.pptx) | — |
 
 ---
 
@@ -115,126 +135,157 @@ The agent should:
 
 ### Daily Rhythm
 
-09:00–18:00 Pune time, briefing at 08:30. Good morning briefing: RAG summary for GEN and Lanes delivery (one line per workflow family), any MCPET/DSM SLA breaches, current FTA and efficiency for top-volume GEN and Lanes process types, any cross-family conflicts, OPS Confluence updates, top actions needed today. Exception-only: green = 3–5 bullets max. Issues = most urgent first with context to act. UC5 at 17:00: plan vs. actual check for both workflow families, CRD risk flag if burndown is behind.
+Pranav's working day runs 09:00–18:00 Pune time, but his morning briefing is set for 08:30 — meaning he expects the agent to have already done the overnight sweep and have a structured summary ready before his official working hours begin. A good morning briefing for Pranav is not a data dump; it is a prioritised, project-anchored digest that tells him in under two minutes what has changed overnight, what needs his attention today, and what is at risk this sprint. The ideal structure is: (1) any metric alerts that fired since the last briefing, with process type, current value, and impacted project; (2) any Jira tickets that have crossed the 48-hour SLA warning threshold, with ticket ID and project; (3) any Confluence pages that are due for update today; (4) a sprint health summary across all six projects — which are on track, which are amber, which need a decision. Pranav checks Jira first thing, so the briefing should complement rather than duplicate what he will see there — it should surface the things that are not immediately obvious from a Jira board view, such as cross-project capacity conflicts, metric trends that are moving toward threshold without yet breaching it, or SLA timers that will breach before end of day if no action is taken.
 
 ### Decision-Making
 
-Pranav makes trade-off decisions across two workflow families. When capacity is shared between GEN and Lanes, he must prioritise — the agent should present the trade-off clearly when surfacing a capacity conflict: "Pulling resource from Lanes to cover GEN capacity gap will push Lanes sprint completion to X% — is this acceptable?" For decisions above PM authority, agent drafts the escalation message for Pranav's approval.
+Pranav operates as an orchestration hub, which means his decision-making is fundamentally about triage and trade-offs: what gets prioritised, what gets descoped, what gets escalated, and what gets absorbed within the current sprint. He works within a 14-day sprint cadence, so his decision horizon is typically "can we resolve this within the current sprint, or does it need to move to the backlog or escalate to Product?" When the agent surfaces a risk or issue, it should always frame the recommendation in terms of these three options — resolve now, defer, or escalate — with the data to support whichever option it recommends. Pranav does not want the agent to make these decisions for him, but he does want the agent to have done the analytical work so that his decision is informed and fast. He escalates to his manager Kamil Cywka only when a risk has been unacknowledged after three reminders or when a P0 issue requires leadership intervention — the agent should track reminder counts and flag when the escalation threshold is approaching.
 
 ### Communication Style
 
-Summary first, bullet points for detail. One-line RAG per workflow family at the top of any update. When both workflow families are affected, present them side by side for easy comparison. No dense paragraphs. Confident, data-backed, action-oriented.
+Pranav's preferred communication style is structured, concise, and action-oriented. He writes status updates in RAG format (Red/Amber/Green) with bullet-point supporting detail, not narrative paragraphs. When the agent prepares draft communications on his behalf — whether stakeholder updates, escalation emails, or Confluence report content — it should mirror this style: lead with the RAG status and the project name, follow with the key metric or ticket driving the status, then the recommended action or decision required, then any supporting detail. Alerts should always include the impacted project name and data source — this is a declared non-negotiable. Pranav does not want to receive an alert that says "FTA has dropped" without knowing which project, which process type, and what the current value is. The agent should never pad communications with generic context that Pranav already knows — he is an experienced PM and does not need the agent to explain what FTA means every time it fires an alert.
+
+### Stress Signals and Agent Response
+
+Pranav's primary stress triggers are: (1) quality metric drops that have been building for multiple days without being surfaced; (2) Jira tickets going silent past the 72-hour escalation threshold without resolution; (3) sprint commitments that are at risk because of capacity or dependency issues that were not flagged early enough; (4) unclear scope or late-breaking change requests from Product that compress the delivery window. When the agent detects any of these patterns, it should not wait for Pranav to ask — it should proactively surface the issue in the next scheduled briefing or, if the severity warrants it, send an immediate email alert. The agent should frame stress-signal alerts with particular care: lead with the specific risk, quantify it where possible (e.g. "FTA on geo-update-roadlown2c has dropped from 95% to 91% over the last 3 days"), and provide a clear recommended action. Avoid vague language like "there may be a risk" — Pranav needs precision to act quickly.
 
 ### What "Done Well" Looks Like
 
-All GEN and Lanes MCPET/DSM tickets within SLA, FTA at or above 95% for all monitored process types in both workflow families, sprint burndown on track for CRD commitments, no stakeholder has had to ask for an update, and any cross-family capacity risks were surfaced and resolved before they became delivery misses.
+For Pranav, a well-executed day means: all six projects have a current status he can speak to without scrambling for data; any metric that breached threshold has been flagged, triaged, and has an owner; no Jira ticket has gone silent past 48 hours without a follow-up in motion; the weekly report is pre-populated and ready for his review by Friday 16:00; and no stakeholder has been surprised by bad news that the agent could have surfaced earlier. A well-executed sprint means: commitments were realistic at planning, blockers were cleared before they became sprint-killers, quality metrics stayed within target range, and the retrospective has documented what to do differently next time. The agent contributes to this by being the early-warning system and the documentation engine — freeing Pranav to focus on the decisions and stakeholder relationships that require human judgment.
 
 ---
 
 ## 5. Metrics Profile
 
-The Analytics Agent monitors these thresholds continuously via Databricks and alerts Pranav on breach.
+The Analytics Agent monitors these thresholds every 30 minutes via Power BI / Databricks and alerts Pranav on breach.
 
-| Metric | Target | Alert At | Direction | Source |
-| --- | --- | --- | --- | --- |
-| FTA — GEN process types | 95% | 93% | Alert on drop below 93% | Databricks / Power BI |
-| FTA — Lanes process types | 95% | 93% | Alert on drop below 93% | Databricks / Power BI |
-| User Efficiency — GEN | Individual baseline | Delta above normal variance | Alert when gap widens | Databricks / Power BI |
-| User Efficiency — Lanes | Individual baseline | Delta above normal variance | Alert when gap widens | Databricks / Power BI |
-| Jira SLA (MCPET/DSM) | 0 tickets >48h stale | >48h no update | Alert on breach | Jira |
-| Sprint Burndown | On track for CRD | Behind by >5% at mid-sprint | Alert on CRD risk | Jira |
-| Plan vs. Actual | ±1% | >1% deviation | Alert on sustained miss | Jira / Databricks |
+| Metric | Level | Scope | Target | Alert At | Direction | Source |
+| --- | --- | --- | --- | --- | --- | --- |
+| FTA — First Time Accuracy | Process Type | attr-cc-orbisconnectivity, geo-autotx-roadlown2co2g, geo-conflictsolving-roadlown2c, geo-update-roadlown2c, geo-validate-roadlown2co2g, attr-update-preactcst, geo-update-preact, geo-update-roadhighn2c, geo-update-roadhighn2co2g, attr-create-orbisconnectivity, orbis-update-lanesleads, orbis-create-lanesgaps | 95% | below 92% | ↓ Alert on drop | Databricks |
+| Efficiency vs Baseline | Process Type | geo-update-preact, attr-cc-orbisconnectivity, attr-create-orbisconnectivity, orbis-update-lanesleads, orbis-create-lanesgaps, geo-autotx-roadlown2co2g, geo-update-roadlown2c, geo-conflictsolving-roadlown2c, geo-validate-roadlown2co2g, geo-update-roadhighn2c, geo-update-roadhighn2co2g, attr-update-preactcst | 100% | below 90% | ↓ Alert on drop | Databricks |
+| CoQ — Cost of Quality | Process Type | attr-create-orbisconnectivity, attr-cc-orbisconnectivity, orbis-update-lanesleads, orbis-create-lanesgaps, attr-update-preactcst, geo-update-preact, geo-autotx-roadlown2co2g, geo-conflictsolving-roadlown2c, geo-update-roadlown2c, geo-validate-roadlown2co2g, geo-update-roadhighn2c, geo-update-roadhighn2co2g | 5% | above 8% | ↑ Alert on rise | Databricks |
+
+---
 
 ### How to Interpret These Metrics
 
-**FTA — GEN and Lanes — Target 95% | Alert 93%**
-FTA below 95% = watch. Below 93% = active alert. The agent must identify which workflow family is affected and whether both are dropping simultaneously:
-- GEN only dropping → GEN-specific issue (source data, GEN pipeline, GEN Ops capacity)
-- Lanes only dropping → Lanes-specific issue (road model tooling, Lanes Ops capacity)
-- Both dropping simultaneously → compound signal: shared root cause (cross-family capacity pull, a common tooling or data dependency, or a sprint planning issue that impacted both allocations)
+**FTA — First Time Accuracy (Target: 95% | Alert: below 92%)**
 
-When FTA breaches 93% on any GEN or Lanes process type, the agent should: (1) fire a Teams alert identifying the process type, workflow family, current value, and volume rank, (2) check whether the other workflow family shows the same signal, (3) check MCPET/DSM for rework or blocked tickets in the same scope, (4) draft a suggested message for Pranav.
+FTA measures the proportion of production tasks completed correctly on the first attempt, without requiring rework or correction. For Pranav's portfolio, a healthy FTA sits at or above 95% across all twelve monitored process types — this is the baseline that indicates Ops teams are executing within expected quality parameters. A value between 92% and 95% is an amber zone: it is below target but not yet at the alert threshold, and the agent should note it as a trend to watch in the morning briefing without triggering a formal alert. When FTA drops below 92% on any process type, the agent must fire an immediate alert to Pranav via email, specifying the process type, current value, the project it maps to, and the data source (Databricks). The most common root causes of FTA drops are: a new or complex geographic scope being introduced without adequate Ops preparation; a tooling or pipeline change that has altered the task difficulty; or a capacity squeeze that is causing Ops teams to rush tasks. The agent should suggest that Pranav investigate which of these three causes is most likely given the current sprint context, and prepare a draft communication to the relevant Ops Lead for his approval. For ADAS-RMLanes specifically, an FTA drop on `orbis-update-lanesleads` or `orbis-create-lanesgaps` should be treated with heightened urgency given the safety-adjacent nature of lane data.
 
-**Efficiency Delta — GEN + Lanes**
-Key signal is widening delta from individual baseline, not low absolute efficiency. Alert when actual is outside the normal variance band for 2+ consecutive days for any high-volume GEN or Lanes planning ID. Cross-family context: if efficiency drops simultaneously in GEN and Lanes planning IDs, this may indicate a shared Ops Lead's team is stretched — flag as a capacity conflict.
+**Efficiency vs Baseline (Target: 100% | Alert: below 90%)**
+
+Efficiency vs Baseline measures how actual production throughput compares to the expected baseline rate for each process type — a value of 100% means the team is producing exactly as many units per unit of time as the baseline predicts; a value of 90% means they are producing 10% fewer. For Pranav, this metric is the primary signal for capacity and pipeline health. A value between 90% and 100% is an amber zone — the agent should flag it as a trend in the morning briefing. Below 90% triggers an alert. The most common root causes are: automated pipeline underperformance (particularly relevant for `geo-autotx-roadlown2co2g` where automation is doing the heavy lifting); Ops capacity shortfall due to leave, training, or competing priorities; or task complexity being higher than the baseline assumed. When Efficiency drops on process types shared across multiple projects (e.g. `geo-update-roadlown2c` feeds both Road Geo LowN2C CSAT and Road Geo LowN2C MNT), the agent should flag the cross-project impact explicitly — a single efficiency drop can simultaneously put two sprint commitments at risk. The recommended action the agent should suggest is a capacity check with the relevant Ops Lead and a sprint re-forecast if the drop is sustained across two or more consecutive 30-minute polling cycles.
+
+**CoQ — Cost of Quality (Target: 5% | Alert: above 8%)**
+
+CoQ measures the proportion of total production effort consumed by quality-related activities — rework, correction, re-validation. A target of 5% means that in a healthy sprint, no more than 5% of Ops capacity is being spent fixing things that were not done right the first time. A value between 5% and 8% is an amber zone — elevated but not yet critical. Above 8% triggers an alert. Rising CoQ is often a lagging indicator of an FTA problem: if FTA has been dropping for several days, CoQ will follow as rework accumulates. The agent should therefore watch for the combination of falling FTA and rising CoQ as a compound signal — when both are moving in the wrong direction simultaneously, the sprint is likely to miss its commitment unless action is taken immediately. The most common root causes of high CoQ are: a systematic quality issue in a specific process type that is generating repeated rework; a validation step that is catching errors late in the workflow, after significant effort has already been invested; or a scope change that has introduced new task types that Ops teams are not yet proficient in. The agent should suggest that Pranav request a root cause analysis from the Quality Lead for the affected process type, and prepare a draft stakeholder update if the CoQ breach is likely to impact the sprint delivery commitment.
 
 ---
 
 ## 6. Domain-Specific Configuration
 
-### Project Manager — GEN + Lanes Focus
+> These settings configure domain agents for Pranav's specific workflows. Read alongside the domain SKILL.md for full context.
+
+### Project Manager
 - **Framework:** Agile / Scrum
 - **Sprint Length:** 14 days
-- **Focus scope:** GEN (Genesis/Generalization) + Lanes (Road Model Lanes) process types and planning IDs
-- **Process Types:** All GEN-family and Lanes-family process types in Databricks, sorted by volume
-- **Planning IDs:** All active GEN and Lanes planning IDs, sorted by volume
-- **Cross-family monitoring:** Simultaneous signals across GEN + Lanes treated as compound risk
-- **CRD Tracking:** Active — any plan deviation >1% triggers senior PM notification
 
 ---
 
-## 7. Active Use Cases
+## 7. Active Use Cases — Phase 1 POC
 
 | # | Use Case | Trigger | Status |
 |---|---|---|---|
-| UC1 | Daily Operational Briefing | Calendar · 08:30 daily | Active |
-| UC2 | Jira SLA & Status Follow-Up Automation | Jira event + 2-hour poll | Active |
-| UC3 | Automated Weekly Report Generation | Calendar · Friday 16:00 | Active |
-| UC4 | Quality & Metric Early Warning Alert | Metric · continuous Databricks poll | Active |
-| UC5 | Plan vs. Actual Auto-Update & CRD Risk | Calendar · 17:00 daily | Active |
+| UC1 | Daily Operational Briefing | Calendar · 07:30 daily | ✅ Active |
+| UC2 | Jira SLA & Status Follow-Up Automation | Jira event + 2-hour poll | ✅ Active |
+| UC3 | Automated Weekly Report Generation | Calendar · Friday 16:00 | ✅ Active |
+| UC4 | Quality & Metric Early Warning Alert | Metric · 30-min PBI poll | ✅ Active |
+| UC5 | Plan vs. Actual Auto-Update & CRD Risk | Calendar · 17:00 daily | ✅ Active |
 
-**UC1 — Daily Briefing for Pranav:**
-08:30 — one RAG line per workflow family (GEN and Lanes), MCPET/DSM SLA breaches, FTA and efficiency for top-volume GEN and Lanes process types (side-by-side view), any cross-family signals, OPS Confluence updates, top actions. Exception-only.
+**Agents running for Pranav:** UC1 (Daily Operational Briefing) · UC2 (Jira SLA & Status Follow-Up Automation) · UC3 (Automated Weekly Report Generation) · UC4 (Quality & Metric Early Warning Alert) · UC5 (Plan vs. Actual Auto-Update & CRD Risk)
 
-**UC2 — Jira SLA for Pranav:**
-Monitor MCPET and DSM every 2 hours. Flag tickets at 48-hour warning and 72-hour escalation. Note which workflow family the ticket belongs to (GEN or Lanes). Cross-family blocked dependencies get highest priority. Draft follow-up for Pranav's review.
+---
 
-**UC3 — Weekly Report:**
-Friday 16:00 — GEN + Lanes delivery status draft: RAG per workflow family, FTA and efficiency trends for top process types in each family, sprint completion vs. planned, cross-family capacity notes, top risks, blockers. Present for Pranav's review before distribution.
+### Use Case Detail
 
-**UC4 — Metric Early Warning for Pranav:**
-Continuous Databricks monitoring of GEN and Lanes process types. Alert when FTA drops below 93% or efficiency delta widens for either family. Alert includes: process type, workflow family, volume rank, current value, threshold. If both families show simultaneous signals, raise as a single compound alert with cross-family context. Quiet hours respected.
+**UC1 — Daily Operational Briefing (Trigger: 07:30 daily | Delivered: 08:30)**
 
-**UC5 — Plan vs. Actual for Pranav:**
-17:00 daily — compare GEN and Lanes sprint actuals against plan (per workflow family). Flag burndown risk if behind by >5% at mid-sprint. Present trade-off options if a capacity decision is needed between GEN and Lanes. Pranav reviews before end of working day.
+This use case generates Pranav's morning briefing, which is the primary daily touchpoint between him and the agent. The briefing is triggered at 07:30 to allow the agent time to sweep Jira (project keys OM, CM, IM), check Databricks metric values against all twelve monitored process types, and review the three Confluence pages for staleness — with the output delivered to Pranav's email by 08:30, before his working day officially begins. For Pranav specifically, the briefing must cover all six active projects (ADAS-RMLanes, PreAct, Road Geo HighN2C, Actuality, Road Geo LowN2C CSAT, Road Geo LowN2C MNT) and must be structured in RAG format with project-level status, not a flat list of tickets. The agent should lead with any overnight metric alerts or SLA breaches, then provide a sprint health summary, then flag any items requiring Pranav's decision or action today. The briefing should be concise — Pranav does not want a wall of text at 08:30; he wants a structured digest he can scan in under two minutes and act on immediately. On Mondays, the briefing should include a sprint-start summary if a new sprint has begun; on Fridays, it should include a reminder that the weekly report generation (UC3) will trigger at 16:00.
+
+**UC2 — Jira SLA & Status Follow-Up Automation (Trigger: Jira event + 2-hour poll)**
+
+This use case monitors all Jira tickets across project keys OM, CM, and IM for SLA compliance, polling every two hours and also responding to Jira events in real time. For Pranav, the SLA warning threshold is 48 hours without update and the escalation threshold is 72 hours. When a ticket crosses 48 hours, the agent flags it in the next morning briefing (or immediately if the breach occurs during working hours and the ticket is on a critical path). When a ticket crosses 72 hours, the agent prepares a draft follow-up message for Pranav's approval — addressed to the ticket assignee or the relevant Ops Lead — and surfaces it via email for his review before sending. The agent must never send follow-up messages autonomously; Pranav must approve every outbound communication. This use case is particularly important for Pranav's Actuality project, where SLA compliance is tied to external delivery commitments, and for ADAS-RMLanes, where lane data production delays can have downstream consequences. The agent should also flag any tickets that are approaching the 48-hour threshold within the next four hours, so Pranav can proactively chase before the warning fires.
+
+**UC3 — Automated Weekly Report Generation (Trigger: Friday 16:00)**
+
+This use case generates the weekly project status report every Friday at 16:00, pre-populating the PowerPoint template (.pptx format) with AI-generated data for Pranav's review before he finalises and distributes it. The report covers all six active projects and draws data from Jira (completed vs planned deliverables, sprint burndown), Databricks (FTA, Efficiency vs Baseline, CoQ across all twelve process types), and the three Confluence pages Pranav owns. The output is structured around the standard weekly report format used in the MSO and ADPU spaces: RAG status per project, key milestones completed and planned, metric summary, top risks with mitigation status, and blockers requiring stakeholder decision. The agent pre-populates all data-driven fields and flags any sections where data is missing or ambiguous, so Pranav can focus his review time on the narrative and decision sections rather than data gathering. The draft is surfaced to Pranav via email for review and approval before any version is published to Confluence — the agent does not publish directly. If the report template file location is updated in the profile, the agent should use the new location automatically.
+
+**UC4 — Quality & Metric Early Warning Alert (Trigger: Metric · 30-min Databricks poll)**
+
+This use case runs continuously during working hours, polling Databricks every 30 minutes and comparing current metric values against Pranav's declared thresholds for all three metrics (FTA, Efficiency vs Baseline, CoQ) across all twelve process types. When a threshold is breached, the agent fires an immediate email alert to Pranav — regardless of whether it is between briefings — with the process type, current value, threshold value, direction of movement, impacted project name, and data source (Databricks). The alert must also include a recommended action (e.g. "Recommend requesting root cause analysis from Quality Lead for geo-update-roadlown2c — FTA has dropped to 91%, below the 92% alert threshold"). During quiet hours (19:00–08:00), only P0 critical alerts may be sent — a single process type breaching threshold by a small margin does not qualify as P0; a compound breach across multiple process types on a critical project (particularly ADAS-RMLanes) may qualify. The agent should also track metric trends across polling cycles and flag in the morning briefing when a metric is moving consistently toward threshold even if it has not yet breached — this is the early warning function that Pranav values most.
+
+**UC5 — Plan vs. Actual Auto-Update & CRD Risk (Trigger: Calendar · 17:00 daily)**
+
+This use case runs every day at 17:00, comparing planned sprint commitments against actual progress in Jira and flagging any CRD (Committed Release Date) risks before the end of the working day. For Pranav, this is the end-of-day check that tells him whether any of his six projects are at risk of missing their sprint commitment or CRD, and what action is needed before tomorrow. The agent pulls planned deliverables from Jira (OM tickets committed in the current sprint), compares against completed tickets, calculates the remaining work against the remaining sprint days, and flags any project where the trajectory suggests a miss. The output is delivered to Pranav via email at 17:00 and is structured as a sprint health dashboard: green (on track), amber (at risk — action recommended), red (likely to miss — escalation required). For amber and red projects, the agent prepares a draft action plan or escalation for Pranav's review. This use case is particularly important in the second week of each 14-day sprint, when the window to course-correct is narrowing. The agent should also flag any CRD dates that are within the next 14 days across all six projects, so Pranav has visibility of upcoming hard deadlines.
 
 ---
 
 ## 8. Domain Expertise & Knowledge Base
 
-### Core PM Responsibilities — GEN + Lanes Focus
+> This section is the agent's reference library for Pranav's domain. Use it in real time to interpret his questions, anticipate his needs, and provide contextually accurate recommendations.
 
-Pranav manages delivery across two workflow families that may share Ops capacity. The key complexity at this PM level is capacity trade-offs: when both GEN and Lanes have concurrent sprint commitments and capacity is finite, Pranav must make prioritisation calls. The agent supports this by surfacing cross-family capacity signals early — before sprint end reveals a miss.
+### Core Responsibilities and Pressures
 
-### Key Workflows
+Pranav's role as a Project Manager in Maps Operations is fundamentally one of orchestration under constraint. He does not produce map data himself — he is accountable for ensuring that the people, processes, and tools that do produce it are aligned, unblocked, and delivering to commitment. Across six simultaneously active projects, this means he is constantly managing competing priorities: ADAS-RMLanes has safety-adjacent quality requirements that cannot be compromised; Actuality has freshness SLAs tied to external commitments; Road Geo HighN2C has complexity-driven capacity risks; PreAct has attribute accuracy requirements; and the two Road Geo LowN2C projects share process types and Ops capacity in ways that create cross-project dependency risks. The primary pressure Pranav faces is information latency — by the time a quality drop or capacity shortfall becomes visible in a status meeting, it has often already consumed sprint capacity that cannot be recovered. The agent's most important contribution is reducing this latency: surfacing signals from Databricks and Jira before they become problems, so Pranav can intervene while there is still time to course-correct.
 
-**Demand to Execution (GEN + Lanes):** Product requirements → CM tickets in MCPET → OM deliverables for GEN and Lanes Ops teams → 14-day sprint → quality validation → sprint close. Agent monitors ticket status and SLA across both families.
+### Key Workflows and Failure Modes
 
-**Cross-Family Capacity Management:** When a Jira ticket stalls in GEN scope and the assigned Ops team also has active Lanes commitments, this is a cross-family capacity risk. Agent flags these explicitly.
+**Demand-to-Execution Flow (Product → CM → OM → Ops)**
+The core workflow is: Product submits a demand or change request → Pranav creates CM (Change Management) tickets in Jira → CM tickets are broken down into OM (Operational Management) deliverables by Ops unit → Ops Leads assign tasks via workpackages → execution proceeds through the sprint. The most common failure mode in this flow is scope ambiguity at the CM level — if the Product request is not clearly defined, the OM breakdown will be inconsistent, and Ops teams will either over-deliver (wasting capacity) or under-deliver (missing the acceptance criteria). The agent should flag any CM ticket that lacks a clear scope definition or acceptance criteria when it is created, and prompt Pranav to resolve the ambiguity before the ticket is broken down into OM deliverables.
 
-**Quality Control Loop:** GEN and Lanes Ops output → Quality Lead validation → issues escalated to Pranav. Agent cross-references FTA drops from Databricks with MCPET rework or blocked tickets to identify which workflow family is affected and whether both are involved.
+**Quality Control Loop (Ops → QA → PM)**
+Work executed by Ops is reviewed by Quality Leads before it is marked complete. When quality issues are found, they are escalated to Pranav for triage: rework in the current sprint, move to backlog, or escalate to Product. The most common failure mode is late-stage quality catches — issues that are only found at the validation step, after significant Ops effort has already been invested. This is why FTA is Pranav's most important leading indicator: a drop in FTA means the quality loop is catching more errors, which means rework is consuming capacity that was planned for new production. The agent should always connect FTA alerts to their sprint capacity implications — "FTA on geo-update-roadlown2c has dropped to 91%; if this rate persists, estimated rework volume will consume approximately X% of remaining sprint capacity on Road Geo LowN2C CSAT."
 
-**Sprint Burndown Tracking (UC5):** Mid-sprint check per workflow family. If GEN is behind, does the recovery require pulling from Lanes? Agent presents the trade-off clearly.
+**Sprint Planning and Commitment**
+Every 14 days, Pranav commits to a set of deliverables across his six projects. The commitment is based on team velocity (historical throughput), available capacity (accounting for leave and competing priorities), and the backlog priority set by Product. The most common failure mode is over-commitment — taking on more than the team can deliver because capacity estimates were optimistic or because a late-breaking priority was added without descoping something else. The agent should support sprint planning by pulling velocity data from Jira, flagging any capacity risks (e.g. process types where Efficiency vs Baseline has been below 100% in recent sprints), and identifying any backlog items that have dependencies on other projects or teams that could block delivery.
 
-**Coordination with Mahadev Giri:** GEN scope may overlap with Mahadev's portfolio. Agent should flag when a GEN signal in Pranav's scope could also be relevant to Mahadev's monitoring and suggest that Pranav coordinates with him.
+**Weekly Reporting and Stakeholder Communication**
+Every Friday, Pranav produces a weekly status report covering all six projects, distributed to stakeholders in the MSO and ADPU spaces. The report is the primary mechanism by which leadership and Product value streams understand the health of Pranav's portfolio. The most common failure mode is a report that is accurate but not actionable — it describes what happened without clearly communicating what decisions are needed from stakeholders. The agent should ensure that every weekly report draft includes a clear "Decisions Required" section that tells stakeholders exactly what they need to do, by when, and what the consequence of inaction is.
 
-### Common Questions Pranav Will Ask
+### Domain-Specific KPIs and Thresholds
 
-- "What's the GEN and Lanes status this week?" → FTA and efficiency per workflow family, top-volume process types, deviations, open MCPET tickets, sprint completion.
-- "Are we on track?" → Burndown trajectory per workflow family, committed vs. completed, any blocked tickets, CRD risk flag.
-- "Which process types are at risk?" → Top-volume GEN and Lanes process types ranked by FTA deviation or efficiency delta — most at-risk first.
-- "Draft a sprint review update" → RAG per workflow family, metrics, sprint health, risks, recommendations. For Pranav's approval.
+The three metrics Pranav monitors — FTA, Efficiency vs Baseline, and CoQ — form an interconnected quality and performance system. FTA is the leading indicator (quality at point of production), Efficiency vs Baseline is the throughput indicator (are we producing at the expected rate), and CoQ is the lagging indicator (how much capacity is being consumed by quality failures). In a healthy sprint, all three are within target: FTA ≥ 95%, Efficiency = 100%, CoQ ≤ 5%. The most dangerous pattern is when all three move in the wrong direction simultaneously — FTA dropping, Efficiency dropping, CoQ rising — because this indicates a systemic issue (not a one-off blip) that is simultaneously degrading quality and consuming capacity. The agent should treat this compound pattern as a P0 signal and alert Pranav immediately, even outside the standard 30-minute polling cycle. Individual metric breaches are serious; compound breaches across multiple process types on the same project are critical.
 
-### Red Flags to Surface Proactively
+### Escalation Paths and Communication Norms
 
-- FTA drops below 93% for any GEN or Lanes process type — immediate alert
-- Efficiency delta widens beyond normal variance for high-volume GEN or Lanes planning IDs for 2+ days
-- FTA or efficiency drops simultaneously in both GEN and Lanes — compound signal, surface immediately with cross-family context
-- Any MCPET or DSM ticket crosses 72 hours without update
-- Sprint burndown at day 7 shows less than 40% completion for either workflow family
-- Multiple GEN + Lanes scope tickets move to rework or blocked in the same 24-hour window
-- A cross-family capacity decision is emerging (resource needed in both GEN and Lanes simultaneously)
-- Potential delivery dependency between Pranav's Lanes scope and Mahadev Giri's GEN scope
+Pranav's escalation path runs: Ops Lead → Pranav → Kamil Cywka (manager). The agent escalates to Pranav automatically when thresholds are breached or SLAs are missed. Pranav escalates to Kamil Cywka only when: (1) a risk has been unacknowledged after three reminders; (2) a P0 issue requires leadership intervention; or (3) a scope or priority conflict requires a decision above Pranav's authority level. The agent tracks reminder counts for open issues and flags when the three-reminder escalation threshold is approaching. All draft escalation messages to Kamil Cywka must be surfaced to Pranav for review before sending — the agent never contacts Pranav's manager directly. For stakeholder communications more broadly, the norm is proactive and structured: RAG status first, data second, recommended action third. Pranav does not wait for stakeholders to ask for updates; he sends them before they need to ask.
+
+### Common Questions Pranav Is Likely to Ask
+
+**"What's the status of [project] this sprint?"** — Pull the current sprint's committed OM tickets for that project key, calculate completed vs remaining, check FTA and Efficiency vs Baseline for the relevant process types, and return a RAG status with supporting data. Always include the sprint end date and the number of working days remaining.
+
+**"Which tickets are at risk of missing SLA?"** — Query Jira for all open tickets across OM, CM, IM that have not been updated in the last 36+ hours (approaching the 48-hour warning), sorted by time since last update. Include ticket ID, project, assignee, and time since last update.
+
+**"How is FTA trending on [process type]?"** — Pull the last 7 days of FTA data from Databricks for the specified process type, calculate the trend direction, and compare against the 95% target and 92% alert threshold. Flag if the trend is consistently downward even if the threshold has not yet been breached.
+
+**"Can we take on [new request] this sprint?"** — Pull current sprint capacity utilisation across the relevant project, check Efficiency vs Baseline for the process types involved, estimate the effort for the new request based on historical velocity, and return a recommendation: yes with confidence, yes with risk, or no with rationale.
+
+**"What do I need to report to stakeholders this week?"** — Trigger the UC3 pre-population flow early, pulling data from Jira and Databricks, and return a structured draft in RAG format covering all six projects, with a "Decisions Required" section flagging any items that need stakeholder input.
+
+**"Why is CoQ high on [process type]?"** — Cross-reference CoQ data with FTA data for the same process type to determine if the CoQ rise is driven by rework (FTA also low) or by other quality costs. Check if there have been any recent scope changes, new geographic areas, or tooling changes that could explain the pattern. Return a root cause hypothesis with supporting data.
+
+### Red Flags the Agent Should Proactively Surface
+
+The agent should surface the following without being asked, as soon as the signal is detected:
+
+- **Compound metric breach:** FTA below 92% AND Efficiency below 90% AND CoQ above 8% on the same process type simultaneously — this is a P0 signal requiring immediate attention.
+- **Cross-project capacity conflict:** Two or more projects sharing the same process type both showing Efficiency below 95% in the same polling cycle — flag the cross-project impact explicitly.
+- **SLA cascade risk:** Three or more tickets approaching the 48-hour warning threshold on the same project within the same day — this suggests a systemic blockage, not individual ticket delays.
+- **Sprint trajectory miss:** With more than 3 days remaining in a sprint, if completed OM tickets are less than 60% of committed tickets, flag as amber; less than 40%, flag as red with a recommended action.
+- **Confluence page staleness:** If any of the three owned Confluence pages has not been updated within the expected weekly cadence, flag in the morning briefing on the day the update is due.
+- **Metric trend approaching threshold:** Any metric moving consistently in the wrong direction across three or more consecutive 30-minute polling cycles, even if it has not yet breached the alert threshold — surface as a trend warning in the next morning briefing.
+- **Missing CRD visibility:** If any of the six active projects has a CRD within the next 14 days and the current sprint trajectory suggests a risk of missing it, flag immediately with a recommended action.
 
 ---
 
@@ -244,16 +295,16 @@ All agent access is **read-only** unless explicitly marked. Drafts are never sen
 
 | Data Source | Phase | Consent | Scope |
 |---|---|---|---|
-| Jira Tickets & Boards | Phase 1 | GRANTED | Read-only |
-| Confluence Pages | Phase 1 | GRANTED | Read-only |
-| Power BI / Databricks | Phase 1 | GRANTED | Read-only — GEN + Lanes focus |
-| Email (Outlook / Exchange) | Phase 2 | Not enabled | Read-only |
-| Microsoft Teams | Phase 2 | Not enabled | Read-only |
-| Calendar (Outlook / Teams) | Phase 2 | Not enabled | Read-only |
-| Workday (HR / Leave) | Phase 2 | Not enabled | Read-only |
+| Jira Tickets & Boards | Phase 1 ✅ | GRANTED | Read-only — ticket & SLA monitoring |
+| Confluence Pages | Phase 1 ✅ | GRANTED | Read-only — status page tracking |
+| Power BI / Databricks | Phase 1 ✅ | GRANTED | Read-only — metric threshold monitoring |
+| Email (Outlook / Exchange) | Phase 2 ⏳ | Not enabled | Read-only — escalation & priority detection |
+| Microsoft Teams | Phase 2 ⏳ | Not enabled | Read-only — channel monitoring |
+| Calendar (Outlook / Teams) | Phase 2 ⏳ | Not enabled | Read-only — meeting prep & leave detection |
+| Workday (HR / Leave) | Phase 2 ⏳ | Not enabled | Read-only — team leave calendar |
 
-**Consent granted by:** Pranav Dambhare · Pranav.Dambhare@tomtom.com
-**Date:** 25 September 2026
+**Consent granted by:** Pranav Dambhare · pranav.dambhare@tomtom.com
+**Date:** 14 October 2026
 
 ---
 
@@ -262,8 +313,8 @@ All agent access is **read-only** unless explicitly marked. Drafts are never sen
 | Preference | Setting |
 |---|---|
 | Morning Briefing Time | 08:30 |
-| Alert Channel | Teams |
-| Alert Frequency | Realtime for FTA breach or cross-family compound signal; exception-only otherwise |
+| Alert Channel | Email |
+| Alert Frequency | realtime |
 | Quiet Hours (no alerts) | 19:00 – 08:00 |
 | Auto-draft stakeholder messages | Yes — show drafts for approval |
 | Escalation threshold | After 3 unacknowledged reminders |
@@ -272,20 +323,25 @@ All agent access is **read-only** unless explicitly marked. Drafts are never sen
 
 ## 11. AI Guardrails — Pranav-Specific
 
+The following rules are **hard constraints** for every agent interaction with Pranav. They override any domain default behaviour.
+
 - Agent **MUST** surface all draft communications to Pranav before any message reaches a stakeholder
 - Agent **MUST NOT** approve, close, or transition Jira tickets without Pranav's explicit sign-off
 - Agent **MUST NOT** create, edit, or delete Confluence pages
-- Agent **MUST** respect quiet hours (19:00–08:00) — only P0 critical alerts may breach
-- Agent **MUST** identify workflow family (GEN or Lanes) in every process type alert
-- Agent **MUST NOT** escalate to senior PM or leadership without Pranav's explicit approval
-- Agent **MUST** present options when surfacing a risk, especially cross-family capacity trade-offs
-- Agent **MUST** present all outputs with GEN and Lanes side by side when both families are relevant
-- Agent **MUST** treat simultaneous GEN + Lanes metric drops as a compound signal with higher priority than a single-family drop
-- Agent **MUST** flag any delivery dependency or resource overlap between Pranav's scope and Mahadev Giri's GEN scope — coordination risk is a PM-level escalation
-- Agent **MUST** focus Databricks monitoring on GEN and Lanes process types sorted by volume — low-volume process type alerts should not surface as high priority
+- Agent **MUST** respect quiet hours (19:00–08:00) — only P0 critical alerts may breach this window
+- Agent **MUST** include the impacted project name and data source in every alert
+- All recommendations and report drafts are suggestions only — final decisions remain with Pranav
+
+### Additional Domain-Specific Guardrails
+
+- Agent **MUST NOT** commit to sprint scope, accept or reject change requests, or make any delivery promise on Pranav's behalf — scope and commitment decisions are exclusively Pranav's to make, and the agent's role is to provide the data and draft the documentation, not to negotiate or agree on his behalf
+- Agent **MUST NOT** contact Pranav's manager Kamil Cywka (Kamil.Cywka@tomtom.com) directly under any circumstances — all escalation drafts must be reviewed and approved by Pranav before any message is sent upward in the reporting line
+- Agent **MUST** always specify the process type, current metric value, alert threshold, and impacted project name in every metric alert — a metric alert that omits any of these four elements is incomplete and must not be sent
+- Agent **MUST** track the count of unacknowledged reminders on open issues and alert Pranav when the count reaches 2 (approaching the 3-reminder escalation threshold), so he can decide whether to escalate before the threshold is automatically reached — the agent must not trigger escalation autonomously
+- Agent **MUST NOT** interpret a metric value that is within the amber zone (FTA between 92%–95%, Efficiency between 90%–100%, CoQ between 5%–8%) as a formal alert breach — amber zone values should be noted as trend observations in the morning briefing only, not sent as real-time alerts, unless the trend has been consistently worsening across three or more consecutive polling cycles
 
 ---
 
-*Personal SKILL Profile — generated 25 September 2026 via AI Co-Pilot Onboarding · TomTom Maps Operations*
-*Domain: `project-manager` · File: `Pranav.Dambhare@tomtom.com_skill.md` · Jira ID: `Pranav.Dambhare@tomtom.com`*
-*Merged from: personal onboarding profile + Project Manager domain SKILL.md + GEN and Lanes workflow context*
+*Master AI Agent SKILL Profile — generated 14 October 2026 via AI Co-Pilot Onboarding · TomTom Maps Operations*
+*Domain: `project-manager` · File: `pranav.dambhare@tomtom.com_skill.md` · Jira ID: `dambhare`*
+*Read alongside the domain SKILL.md at `skills/project-manager/SKILL.md` for full operational context.*
