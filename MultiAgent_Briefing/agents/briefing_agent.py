@@ -281,6 +281,24 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
         else:
             bd_header = f"Process-type Breakdown — Week {wk_label}"
         lines += [f"## 5. {bd_header}", ""]
+        wus = analytics.get("workunit_breakdown") or []
+
+        def _wu_line(name, w):
+            ev, yp, sp = w.get("eff_vs_bl"), w.get("yield_pct"), w.get("sampling_pct")
+            return (f"| {name} | {w.get('fta_pct') or 0:.2f}% | {f'{ev:.1f}%' if ev is not None else 'N/A'} "
+                    f"| {w.get('coq_pct') or 0:.1f}% | {f'{yp:.1f}%' if yp is not None else '—'} "
+                    f"| {f'{sp:.1f}%' if sp is not None else '—'} | {int(w.get('prod_tasks') or 0):,} "
+                    f"| {w.get('total_hrs') or 0:.0f}h |")
+        if wus:
+            overall = {"fta_pct": fta, "eff_vs_bl": eff_vs_bl, "coq_pct": coq, "yield_pct": yield_current,
+                       "sampling_pct": sampling, "prod_tasks": prod_tasks,
+                       "total_hrs": (prod_hrs or 0) + (qc_hrs or 0)}
+            lines += ["**By work unit**", "",
+                      "| Work Unit | FTA | Eff vs BL | CoQ | Yield | Sampling | Tasks | Hrs |",
+                      "|---|---|---|---|---|---|---|---|",
+                      _wu_line("**Overall**", overall)]
+            lines += [_wu_line(w["name"], w) for w in wus]
+            lines.append("")
         lines += [
             "| Process Type | FTA | Eff vs BL | CoQ | Yield | Sampling | Tasks | Hrs |",
             "|---|---|---|---|---|---|---|---|",
@@ -310,6 +328,11 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
                 f"| {p['prod_tasks']:,} "
                 f"| {p['total_hrs']:.0f}h |"
             )
+            p_wus = p.get("work_units") or []
+            if len(p_wus) > 1:
+                lines += [_wu_line(f"↳ {w['name']}", w) for w in p_wus]
+            elif p_wus:
+                lines[-1] = lines[-1].replace(f"| {p['process_type']} ", f"| {p['process_type']} ({p_wus[0]['name']}) ", 1)
         unsampled = analytics.get("unsampled_breakdown") or []
         if unsampled:
             lines += ["", "**Produced but not QC-sampled this week** (no FTA): " + " · ".join(

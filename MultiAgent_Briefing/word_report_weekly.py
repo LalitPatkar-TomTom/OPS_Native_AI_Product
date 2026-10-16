@@ -270,7 +270,49 @@ def build(
 
     # ── Section 3: Process-type Breakdown ──────────────────────────────────────
 
-    section(f"Process-type Breakdown — Week {week}")
+    section(f"Work Unit & Process-type Breakdown — Week {week}")
+
+    def _metric_vals(p):
+        sp = p.get("sampling_pct")
+        yp = p.get("yield_pct")
+        return (
+            f'{p.get("fta_pct", 0):.2f}%',
+            (_eff_str(p.get("eff_vs_bl")) if p.get("has_prod", True) else "—"),
+            f'{p.get("coq_pct", 0):.1f}%',
+            f'{yp:.1f}%' if yp is not None else '—',
+            f'{sp:.1f}%' if sp is not None else '—',
+            f'{p.get("prod_tasks", 0):,}',
+            f'{p.get("total_hrs", 0):.0f}h',
+        )
+
+    def _mute_row(table, ri):
+        for cell in table.rows[ri].cells:
+            for run in cell.paragraphs[0].runs:
+                run.font.size = Pt(8)
+                run.font.color.rgb = _C["GRAY"]
+
+    wus = analytics.get("workunit_breakdown") or []
+    if wus:
+        overall_row = {
+            "fta_pct": fta_current, "eff_vs_bl": eff_vs_bl, "coq_pct": coq_current,
+            "yield_pct": analytics.get("yield_current"), "sampling_pct": analytics.get("sampling_pct"),
+            "prod_tasks": int(analytics.get("prod_tasks") or 0),
+            "total_hrs": (analytics.get("prod_hrs") or 0) + (analytics.get("qc_hrs") or 0),
+        }
+        wtbl = doc.add_table(rows=2 + len(wus), cols=8)
+        wtbl.style = "Table Grid"
+        _hdr_row(wtbl, "Work Unit", "FTA", "Eff vs BL", "CoQ", "Yield", "Sampling", "Tasks", "Hours")
+        _data_row(wtbl, 1, "Overall", *_metric_vals(overall_row), bg="F4F5F7")
+        for run in wtbl.rows[1].cells[0].paragraphs[0].runs:
+            run.font.bold = True
+        for wi, w in enumerate(wus):
+            _data_row(wtbl, wi + 2, w["name"], *_metric_vals(w))
+            fta_cell = wtbl.rows[wi + 2].cells[1]
+            fta_cell.paragraphs[0].runs[0].font.color.rgb = _C.get(w.get("fta_rag", "GREEN"), _C["GRAY"])
+        wnote = doc.add_paragraph('All process types in scope, split by work unit. "Not assigned" = rows with no work unit in Databricks.')
+        wnote.runs[0].font.size      = Pt(8)
+        wnote.runs[0].font.color.rgb = _C["GRAY"]
+        wnote.paragraph_format.space_after = Pt(6)
 
     many = len(breakdown) > 15
 
@@ -286,6 +328,7 @@ def build(
     else:
         display_rows = sorted(breakdown, key=lambda p: p.get("fta_pct", 100))
         mode_note = f"All {len(breakdown)} process type(s) — sorted by FTA (worst first)"
+    mode_note += " · ↳ rows split a process type by work unit"
 
     note_p = doc.add_paragraph(mode_note)
     note_p.runs[0].font.size      = Pt(8)
@@ -293,31 +336,29 @@ def build(
     note_p.paragraph_format.space_after = Pt(3)
 
     if display_rows:
-        tbl = doc.add_table(rows=1 + len(display_rows), cols=8)
+        # One row per process type, plus one per work unit when more than one unit worked on it
+        lines = []
+        for p in display_rows:
+            pw = p.get("work_units") or []
+            label = p.get("process_type", "")
+            if len(pw) == 1:
+                label += f" ({pw[0]['name']})"
+            lines.append((p, label, False))
+            if len(pw) > 1:
+                lines += [(w, f"  ↳ {w['name']}", True) for w in pw]
+        tbl = doc.add_table(rows=1 + len(lines), cols=8)
         tbl.style = "Table Grid"
-        _hdr_row(tbl, "Process Type", "FTA", "Eff vs BL", "CoQ", "Yield", "Sampling", "Tasks", "Hours")
-        for ri, p in enumerate(display_rows):
+        _hdr_row(tbl, "Process Type / Work Unit", "FTA", "Eff vs BL", "CoQ", "Yield", "Sampling", "Tasks", "Hours")
+        for ri, (p, label, is_wu) in enumerate(lines):
             fr = p.get("fta_rag", "GREEN")
-            row_bg = _BG.get(fr, "FFFFFF") if fr in ("RED", "AMBER") else None
-            sp = p.get("sampling_pct")
-            yp = p.get("yield_pct")
-            _data_row(
-                tbl, ri + 1,
-                p.get("process_type", ""),
-                f'{p.get("fta_pct", 0):.2f}%',
-                (_eff_str(p.get("eff_vs_bl")) if p.get("has_prod", True) else "—"),
-                f'{p.get("coq_pct", 0):.1f}%',
-                f'{yp:.1f}%' if yp is not None else '—',
-                f'{sp:.1f}%' if sp is not None else '—',
-                f'{p.get("prod_tasks", 0):,}',
-                f'{p.get("total_hrs", 0):.0f}h',
-                bg=row_bg,
-                align=WD_ALIGN_PARAGRAPH.CENTER,
-            )
+            row_bg = _BG.get(fr, "FFFFFF") if fr in ("RED", "AMBER") and not is_wu else None
+            _data_row(tbl, ri + 1, label, *_metric_vals(p), bg=row_bg, align=WD_ALIGN_PARAGRAPH.CENTER)
+            if is_wu:
+                _mute_row(tbl, ri + 1)
             # Color the FTA cell
             fta_cell = tbl.rows[ri + 1].cells[1]
             fta_cell.paragraphs[0].runs[0].font.color.rgb = _C.get(fr, _C["GRAY"])
-            fta_cell.paragraphs[0].runs[0].font.bold = True
+            fta_cell.paragraphs[0].runs[0].font.bold = not is_wu
 
     # ── Section 3b: Operator Breakdown (only when the skill opts into operator level) ──
 

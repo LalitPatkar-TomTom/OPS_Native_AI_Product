@@ -314,7 +314,7 @@ def build(
 
     {_build_kpi_summary(analytics, jira, pm)}
 
-    {sec(f"Process-type Breakdown — Week {week}",
+    {sec(f"Work Unit &amp; Process-type Breakdown — Week {week}",
          _build_breakdown(analytics, scope_mode))}
 
     {sec(f"Operator Breakdown — Week {week}",

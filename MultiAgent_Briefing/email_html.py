@@ -553,26 +553,6 @@ def _build_breakdown(analytics, scope_mode="defined"):
         display_groups = [("", sorted(bd, key=lambda p: p.get("fta_pct", 100)))]
         mode_note = f"All {len(bd)} process type{'s' if len(bd) != 1 else ''} — sorted by FTA (worst first)"
 
-    def fta_cell(val, rag):
-        c, bg, bd_c = _rag(rag)
-        return (f'<span style="background:{bg};color:{c};border:1px solid {bd_c};'
-                f'padding:2px 6px;border-radius:3px;font-weight:bold;font-size:11px;{_F}">'
-                f'{val:.2f}%</span>')
-
-    def eff_cell(ev, has_prod=True):
-        if ev is None:
-            # "—" = no production work done this week; "N/A" = work done but baseline lookup failed
-            label = "N/A" if has_prod else "—"
-            return f'<span style="{_F};font-size:11px;color:{_MUTED}">{label}</span>'
-        rag = "GREEN" if ev >= 100 else "AMBER" if ev >= 90 else "RED"
-        c, _, _ = _rag(rag)
-        return f'<span style="{_F};font-size:11px;color:{c};font-weight:600">{_eff_str(ev)}</span>'
-
-    def coq_cell(val):
-        rag = "GREEN" if val < 7 else "AMBER" if val < 10 else "RED"
-        c, _, _ = _rag(rag)
-        return f'<span style="{_F};font-size:11px;color:{c};font-weight:600">{val:.1f}%</span>'
-
     headers = ["Process Type", "FTA", "Eff vs BL", "CoQ", "Yield", "Sampling", "Tasks", "Hrs"]
     th = (f'{_F};font-size:11px;font-weight:bold;color:{_WHITE};background:{_HDR};'
           f'padding:6px 8px;text-align:left;border-bottom:2px solid {_BORDER}')
@@ -587,38 +567,121 @@ def _build_breakdown(analytics, scope_mode="defined"):
            f'style="border-collapse:collapse;border:1px solid {_BORDER};border-radius:4px;font-size:11px">'
            f'<tr>' + ''.join(f'<th style="{th}">{h}</th>' for h in headers) + '</tr>')
 
+    td_wu = (f'{_F};font-size:10px;color:{_MUTED};padding:3px 8px;'
+             f'background:{_WHITE};border-bottom:1px dotted {_BORDER}')
+
     for group_label, group in display_groups:
         if group_label:
             tbl += f'<tr><td colspan="8" style="{sep}">&#9656;&nbsp; {group_label}</td></tr>'
         for i, p in enumerate(group):
             td = td_e if i % 2 == 0 else td_o
-            sp = p.get("sampling_pct")
-            sp_str = f'{sp:.1f}%' if sp is not None else '—'
-            yp = p.get("yield_pct")
-            if yp is None:
-                yield_str = f'<span style="{_F};font-size:11px;color:{_MUTED}">—</span>'
-            else:
-                yr = "GREEN" if yp >= 95 else "AMBER" if yp >= 94 else "RED"
-                yc, _, _ = _rag(yr)
-                yield_str = f'<span style="{_F};font-size:11px;color:{yc};font-weight:600">{yp:.1f}%</span>'
-            tbl += ('<tr>'
-                + f'<td style="{td};font-family:Consolas,monospace">{p["process_type"]}</td>'
-                + f'<td style="{td}">{fta_cell(p["fta_pct"], p["fta_rag"])}</td>'
-                + f'<td style="{td}">{eff_cell(p.get("eff_vs_bl"), p.get("has_prod", True))}</td>'
-                + f'<td style="{td}">{coq_cell(p.get("coq_pct", 0))}</td>'
-                + f'<td style="{td};text-align:right">{yield_str}</td>'
-                + f'<td style="{td};text-align:right;color:{_MUTED}">{sp_str}</td>'
-                + f'<td style="{td};text-align:right">{p["prod_tasks"]:,}</td>'
-                + f'<td style="{td};text-align:right">{p["total_hrs"]:.0f}h</td>'
-                + '</tr>')
+            wus = p.get("work_units") or []
+            name = f'<span style="font-family:Consolas,monospace">{p["process_type"]}</span>'
+            if len(wus) == 1:
+                name += f'<br><span style="font-size:10px;color:{_MUTED}">{wus[0]["name"]}</span>'
+            tbl += _metric_row(p, name, td)
+            if len(wus) > 1:
+                for w in wus:
+                    tbl += _metric_row(w, f'&nbsp;&nbsp;&#8627; {w["name"]}', td_wu, small=True)
 
     tbl += '</table>'
     note = (f'<p style="{_F};font-size:10px;color:{_MUTED};margin:5px 0 0">'
             f'{mode_note}'
+            + ' &nbsp;·&nbsp; &#8627; rows split a process type by work unit'
             + (f' &nbsp;·&nbsp; {sc}' if sc else '')
             + (f' &nbsp;·&nbsp; Week: {wk}' if wk else '')
             + '</p>')
-    return tbl + note + _build_unsampled(analytics)
+    return _build_workunits(analytics) + tbl + note + _build_unsampled(analytics)
+
+
+def _fta_cell(val, rag, size=11):
+    c, bg, bd_c = _rag(rag)
+    return (f'<span style="background:{bg};color:{c};border:1px solid {bd_c};'
+            f'padding:2px 6px;border-radius:3px;font-weight:bold;font-size:{size}px;{_F}">'
+            f'{val:.2f}%</span>')
+
+
+def _eff_cell(ev, has_prod=True, size=11):
+    if ev is None:
+        # "—" = no production work done this week; "N/A" = work done but baseline lookup failed
+        label = "N/A" if has_prod else "—"
+        return f'<span style="{_F};font-size:{size}px;color:{_MUTED}">{label}</span>'
+    rag = "GREEN" if ev >= 100 else "AMBER" if ev >= 90 else "RED"
+    c, _, _ = _rag(rag)
+    return f'<span style="{_F};font-size:{size}px;color:{c};font-weight:600">{_eff_str(ev)}</span>'
+
+
+def _coq_cell(val, size=11):
+    rag = "GREEN" if val < 7 else "AMBER" if val < 10 else "RED"
+    c, _, _ = _rag(rag)
+    return f'<span style="{_F};font-size:{size}px;color:{c};font-weight:600">{val:.1f}%</span>'
+
+
+def _yield_cell(yp, size=11):
+    if yp is None:
+        return f'<span style="{_F};font-size:{size}px;color:{_MUTED}">—</span>'
+    yr = "GREEN" if yp >= 95 else "AMBER" if yp >= 94 else "RED"
+    yc, _, _ = _rag(yr)
+    return f'<span style="{_F};font-size:{size}px;color:{yc};font-weight:600">{yp:.1f}%</span>'
+
+
+def _metric_row(p, name_html, td, small=False):
+    """One breakdown row: name, FTA, Eff vs BL, CoQ, Yield, Sampling, Tasks, Hrs."""
+    size = 10 if small else 11
+    sp = p.get("sampling_pct")
+    sp_str = f'{sp:.1f}%' if sp is not None else '—'
+    fta = (f'<span style="{_F};font-size:{size}px;color:{_rag(p["fta_rag"])[0]};font-weight:600">{p["fta_pct"]:.2f}%</span>'
+           if small else _fta_cell(p["fta_pct"], p["fta_rag"]))
+    return ('<tr>'
+        + f'<td style="{td}">{name_html}</td>'
+        + f'<td style="{td}">{fta}</td>'
+        + f'<td style="{td}">{_eff_cell(p.get("eff_vs_bl"), p.get("has_prod", True), size)}</td>'
+        + f'<td style="{td}">{_coq_cell(p.get("coq_pct", 0), size)}</td>'
+        + f'<td style="{td};text-align:right">{_yield_cell(p.get("yield_pct"), size)}</td>'
+        + f'<td style="{td};text-align:right;color:{_MUTED}">{sp_str}</td>'
+        + f'<td style="{td};text-align:right">{p["prod_tasks"]:,}</td>'
+        + f'<td style="{td};text-align:right">{p["total_hrs"]:.0f}h</td>'
+        + '</tr>')
+
+
+def _workunit_overall(analytics):
+    """The scope-wide totals as a row shaped like a work-unit row."""
+    hrs = (analytics.get("prod_hrs") or 0) + (analytics.get("qc_hrs") or 0)
+    return {
+        "fta_pct": analytics.get("fta_current") or 0.0,
+        "fta_rag": analytics.get("fta_rag", "GREEN"),
+        "eff_vs_bl": analytics.get("efficiency_vs_bl"),
+        "coq_pct": analytics.get("coq_current") or 0.0,
+        "yield_pct": analytics.get("yield_current"),
+        "sampling_pct": analytics.get("sampling_pct"),
+        "prod_tasks": int(analytics.get("prod_tasks") or 0),
+        "total_hrs": hrs,
+    }
+
+
+def _build_workunits(analytics):
+    """Overall + one row per work unit, across every process type in scope."""
+    wus = analytics.get("workunit_breakdown") or []
+    if not wus:
+        return ''
+    th = (f'{_F};font-size:11px;font-weight:bold;color:{_WHITE};background:{_HDR};'
+          f'padding:6px 8px;text-align:left;border-bottom:2px solid {_BORDER}')
+    def td(i):
+        bg = _WHITE if i % 2 == 0 else _STRIPE
+        return f'{_F};font-size:11px;color:{_TEXT};padding:6px 8px;background:{bg};border-bottom:1px solid {_BORDER}'
+    tbl = (f'<p style="{_F};font-size:12px;font-weight:bold;color:{_TEXT};margin:0 0 6px">By work unit</p>'
+           f'<table width="100%" cellpadding="0" cellspacing="0" '
+           f'style="border-collapse:collapse;border:1px solid {_BORDER};font-size:11px"><tr>'
+           + ''.join(f'<th style="{th}">{h}</th>' for h in
+                     ("Work Unit", "FTA", "Eff vs BL", "CoQ", "Yield", "Sampling", "Tasks", "Hrs")) + '</tr>')
+    tbl += _metric_row(_workunit_overall(analytics), '<b>Overall</b>', td(0) + ';border-bottom:2px solid ' + _BORDER)
+    for i, w in enumerate(wus, start=1):
+        tbl += _metric_row(w, w["name"], td(i))
+    tbl += '</table>'
+    note = (f'<p style="{_F};font-size:10px;color:{_MUTED};margin:5px 0 14px">'
+            'All process types in your scope, split by the work unit that did the work. '
+            '"Not assigned" = rows with no work unit in Databricks.</p>')
+    return tbl + note
 
 
 def _build_planning(analytics):
@@ -1106,7 +1169,7 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
 
     {_build_kpi_row(analytics, jira, pm)}
 
-    {sec(f"Process-type Breakdown — Week {analytics.get('week_label','')}",
+    {sec(f"Work Unit &amp; Process-type Breakdown — Week {analytics.get('week_label','')}",
          _build_breakdown(analytics, scope_mode))}
 
     {sec(f"Planning ID Breakdown — Week {analytics.get('week_label','')}",
@@ -1175,6 +1238,7 @@ def build_alert(
     label: str | None = None,      # override headline, e.g. "Efficiency vs Baseline"
     alert_on: str | None = None,   # "drop" | "rise" — override threshold wording
     operator_breakdown: list[dict] | None = None,   # set when the skill opts into operator level
+    analytics: dict[str, Any] | None = None,        # full analytics result, for the work-unit split
 ) -> str:
     """Compact HTML email for UC4 real-time quality alerts."""
     _s           = skill or {}
@@ -1227,26 +1291,35 @@ def build_alert(
             sp = p.get("sampling_pct")
             return f'{sp:.1f}%' if sp is not None else '—'
 
-        if is_fta:
-            proc_rows = [
-                [f'<span style="{_F};font-size:12px;font-family:Consolas,monospace">{p["process_type"]}</span>',
+        def _wu_rows(p):
+            wus = p.get("work_units") or []
+            if len(wus) < 2:
+                return []
+            m = f'{_F};font-size:11px;color:{_MUTED}'
+            return [[f'<span style="{m}">&nbsp;&nbsp;&#8627; {w["name"]}</span>',
+                     f'<span style="{m};color:{_rag(w["fta_rag"])[0]}">{w["fta_pct"]:.2f}%</span>',
+                     f'<span style="{m}">{w["coq_pct"]:.1f}%</span>',
+                     f'<span style="{m}">{_sp(w)}</span>',
+                     f'<span style="{m}">{w["total_hrs"]:.0f}h</span>'] for w in wus]
+
+        def _pt_name(p):
+            wus = p.get("work_units") or []
+            name = f'<span style="{_F};font-size:12px;font-family:Consolas,monospace">{p["process_type"]}</span>'
+            if len(wus) == 1:
+                name += f'<br><span style="{_F};font-size:10px;color:{_MUTED}">{wus[0]["name"]}</span>'
+            return name
+
+        coq_style = "" if is_fta else ";font-weight:bold;color:#922B21"
+        proc_rows = []
+        for p in flagged:
+            proc_rows.append(
+                [_pt_name(p),
                  f'<span style="{_F};font-size:12px;color:{_rag(p["fta_rag"])[0]};font-weight:bold">{p["fta_pct"]:.2f}%</span>',
-                 f'<span style="{_F};font-size:12px">{p["coq_pct"]:.1f}%</span>',
+                 f'<span style="{_F};font-size:12px{coq_style}">{p["coq_pct"]:.1f}%</span>',
                  f'<span style="{_F};font-size:12px;color:{_MUTED}">{_sp(p)}</span>',
-                 f'<span style="{_F};font-size:12px">{p["total_hrs"]:.0f}h</span>']
-                for p in flagged
-            ]
-            proc_table = _data_table(["Process Type", "FTA", "CoQ", "Sampling", "Hrs"], proc_rows)
-        else:
-            proc_rows = [
-                [f'<span style="{_F};font-size:12px;font-family:Consolas,monospace">{p["process_type"]}</span>',
-                 f'<span style="{_F};font-size:12px;color:{_rag(p["fta_rag"])[0]};font-weight:bold">{p["fta_pct"]:.2f}%</span>',
-                 f'<span style="{_F};font-size:12px;font-weight:bold;color:#922B21">{p["coq_pct"]:.1f}%</span>',
-                 f'<span style="{_F};font-size:12px;color:{_MUTED}">{_sp(p)}</span>',
-                 f'<span style="{_F};font-size:12px">{p["total_hrs"]:.0f}h</span>']
-                for p in flagged
-            ]
-            proc_table = _data_table(["Process Type", "FTA", "CoQ", "Sampling", "Hrs"], proc_rows)
+                 f'<span style="{_F};font-size:12px">{p["total_hrs"]:.0f}h</span>'])
+            proc_rows += _wu_rows(p)
+        proc_table = _data_table(["Process Type / Work Unit", "FTA", "CoQ", "Sampling", "Hrs"], proc_rows)
     else:
         proc_table = f'<p style="{_F};font-size:12px;color:{_MUTED}">No process-type breakdown available.</p>'
 
@@ -1335,7 +1408,7 @@ def build_alert(
     ]), 1)}
 
     <!-- Flagged process types -->
-    {_section("Contributing Process Types", proc_table, 2)}
+    {_section("Contributing Process Types", (_build_workunits(analytics) if analytics else "") + proc_table, 2)}
 
     {op_section}
 

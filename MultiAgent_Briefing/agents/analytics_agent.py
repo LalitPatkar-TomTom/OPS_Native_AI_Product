@@ -107,6 +107,40 @@ LIMIT {limit}
 """
 
 
+# Same rows as _BREAKDOWN_SQL, split by work unit. Feeds the work-unit rows under each process
+# type and the work-unit summary; rows with no work unit are kept as '' ("Not assigned").
+_BREAKDOWN_WU_SQL = """
+SELECT
+    LOWER(processType) AS pt,
+    COALESCE(LOWER(TRIM(work_unit)), '') AS wu,
+    COALESCE(SUM(QC_Accept_Count), 0)       AS accepted,
+    COALESCE(SUM(total_qc_count), 0)        AS total_qc,
+    COALESCE(SUM(Prod_Done_task_count), 0)  AS prod_tasks,
+    COALESCE(SUM(Prod_Total_Time), 0)       AS prod_hrs,
+    COALESCE(SUM(qc_total_time), 0)         AS qc_hrs,
+    AVG(NULLIF(Baseline, 0))                AS baseline_avg
+FROM {table}
+WHERE week_start = '{week}'
+  AND (total_qc_count > 0 OR (COALESCE(Prod_Done_task_count, 0) = 0 AND qc_total_time > 0))
+  AND processType IS NOT NULL
+  {scope_filter}
+GROUP BY LOWER(processType), COALESCE(LOWER(TRIM(work_unit)), '')
+HAVING COALESCE(SUM(total_qc_count), 0) > 0
+"""
+
+# Display names for the work_unit values (the KPI table is lowercase, the yield view mixed case).
+_WU_NAMES = {
+    "occ": "OCC", "dpu globallogic": "DPU GlobalLogic", "dpu noida": "DPU Noida",
+    "dpu hyderabad": "DPU Hyderabad", "dpu rmsi": "DPU RMSI", "others": "Others",
+    "partner-ceda": "Partner-CEDA", "": "Not assigned",
+}
+
+
+def wu_name(wu: str | None) -> str:
+    key = (wu or "").strip().lower()
+    return _WU_NAMES.get(key, key.title())
+
+
 # Process types with production but no QC sample in the week. They are kept out of _BREAKDOWN_SQL
 # (FTA would read as 0%) and listed separately instead.
 _UNSAMPLED_SQL = """
@@ -397,9 +431,10 @@ ORDER BY week_mon DESC
 LIMIT 4
 """
 
-_YIELD_BY_PT_SQL = """
+_YIELD_BY_PT_WU_SQL = """
 SELECT
     LOWER(process_type) AS pt,
+    COALESCE(LOWER(TRIM(work_unit)), '') AS wu,
     SUM(CASE WHEN to_status IN ('Resolved', 'DB alternatively updated')
              AND to_stage IN ('Resolution', 'Expert', 'Source Expert', 'OSM')
              THEN prod_count ELSE 0 END) AS yield_num,
@@ -411,7 +446,7 @@ WHERE CAST(updated_at AS DATE) >= TO_DATE('{target_week}')
   AND CAST(updated_at AS DATE) <= DATE_ADD(TO_DATE('{target_week}'), 6)
   AND LOWER(work_unit) IN ('occ', 'dpu hyderabad', 'dpu noida', 'dpu globallogic', 'others')
   {scope_filter}
-GROUP BY LOWER(process_type)
+GROUP BY LOWER(process_type), COALESCE(LOWER(TRIM(work_unit)), '')
 """
 
 
@@ -533,27 +568,105 @@ def _load_yield(client, skill: dict | None, actual_pts: list[str], target_week: 
     except Exception as exc:
         print(f"[analytics] Yield (4-week) query failed: {exc}")
 
-    # ── Per-process-type for current week ─────────────────────────────────────
+    # ── Current week by process type × work unit, rolled up to each level ─────
+    pct = lambda n, d: round(n / d * 100, 2) if d > 0 else None
     yield_by_pt: dict[str, float | None] = {}
+    yield_by_wu: dict[str, float | None] = {}
+    yield_by_pt_wu: dict[tuple[str, str], float | None] = {}
     try:
-        pt_sql = _YIELD_BY_PT_SQL.format(view=_YIELD_VIEW, target_week=target_week, scope_filter=scope_filter)
-        pt_result = client.execute_sql(pt_sql, max_rows=200)
+        pt_sql = _YIELD_BY_PT_WU_SQL.format(view=_YIELD_VIEW, target_week=target_week, scope_filter=scope_filter)
+        pt_result = client.execute_sql(pt_sql, max_rows=1000)
+        pt_tot: dict[str, list[float]] = {}
+        wu_tot: dict[str, list[float]] = {}
         for r in pt_result.get("rows", []):
             pt  = (r.get("pt") or "").lower()
+            wu  = (r.get("wu") or "").lower()
             num = float(r.get("yield_num") or 0)
             den = float(r.get("yield_den") or 0)
-            if pt:
-                yield_by_pt[pt] = round(num / den * 100, 2) if den > 0 else None
-        print(f"[analytics] Yield by PT: {len(yield_by_pt)} process types")
+            if not pt:
+                continue
+            yield_by_pt_wu[(pt, wu)] = pct(num, den)
+            for tot, key in ((pt_tot, pt), (wu_tot, wu)):
+                t = tot.setdefault(key, [0.0, 0.0])
+                t[0] += num
+                t[1] += den
+        yield_by_pt = {k: pct(n, d) for k, (n, d) in pt_tot.items()}
+        yield_by_wu = {k: pct(n, d) for k, (n, d) in wu_tot.items()}
+        print(f"[analytics] Yield by PT: {len(yield_by_pt)} process types, {len(yield_by_wu)} work units")
     except Exception as exc:
-        print(f"[analytics] Yield (by PT) query failed: {exc}")
+        print(f"[analytics] Yield (by PT / work unit) query failed: {exc}")
 
     current = weekly[0]["yield"] if weekly else None
     print(f"[analytics] Yield loaded: current={current}  weeks={len(weekly)}")
-    return {"yield_current": current, "yield_4w": weekly, "yield_by_pt": yield_by_pt}
+    return {"yield_current": current, "yield_4w": weekly, "yield_by_pt": yield_by_pt,
+            "yield_by_wu": yield_by_wu, "yield_by_pt_wu": yield_by_pt_wu}
 
 
 # ── Databricks client factory ──────────────────────────────────────────────────
+
+def _load_workunit_breakdown(client, table: str, week: str, scope_filter: str,
+                             baselines: dict[str, float], process_breakdown: list[dict]) -> list[dict]:
+    """
+    Split the week's in-scope rows by work unit. Adds a "work_units" list to each
+    process_breakdown entry and returns the overall per-work-unit summary (all
+    in-scope process types). Eff vs BL is expected hours (tasks / process-type
+    baseline) over actual hours, so mixed process types are each judged against
+    their own baseline.
+    """
+    try:
+        result = client.execute_sql(_BREAKDOWN_WU_SQL.format(
+            table=table, week=week, scope_filter=scope_filter), max_rows=2000)
+    except Exception as exc:
+        print(f"[analytics] Work-unit breakdown failed: {exc}")
+        return []
+
+    def _new():
+        return dict(acc=0.0, qc=0.0, tasks=0.0, prod_hrs=0.0, qc_hrs=0.0, exp_hrs=0.0, bl_hrs=0.0)
+
+    def _add(g, r, pt):
+        f = lambda k: float(r.get(k) or 0)
+        g["acc"] += f("accepted"); g["qc"] += f("total_qc"); g["tasks"] += f("prod_tasks")
+        g["prod_hrs"] += f("prod_hrs"); g["qc_hrs"] += f("qc_hrs")
+        bl = baselines.get(pt) or f("baseline_avg")
+        hrs = f("prod_hrs") + f("qc_hrs")
+        if bl > 0 and f("prod_tasks") > 0 and hrs > 0:
+            g["exp_hrs"] += f("prod_tasks") / bl
+            g["bl_hrs"] += hrs
+
+    def _row(wu, g):
+        hrs = g["prod_hrs"] + g["qc_hrs"]
+        fta = round(g["acc"] * 100 / g["qc"], 2) if g["qc"] > 0 else 0.0
+        return {
+            "work_unit":    wu,
+            "name":         wu_name(wu),
+            "fta_pct":      fta,
+            "fta_rag":      _fta_rag(fta),
+            "eff_vs_bl":    round(g["exp_hrs"] * 100 / g["bl_hrs"], 1) if g["bl_hrs"] > 0 else None,
+            "has_prod":     g["tasks"] > 0,
+            "coq_pct":      round(g["qc_hrs"] * 100 / hrs, 2) if hrs > 0 else 0.0,
+            "prod_tasks":   int(g["tasks"]),
+            "total_qc":     int(g["qc"]),
+            "sampling_pct": round(g["qc"] / g["tasks"] * 100, 1) if g["tasks"] > 0 else None,
+            "total_hrs":    round(hrs, 1),
+            "yield_pct":    None,
+        }
+
+    by_pt: dict[str, dict[str, dict]] = {}
+    overall: dict[str, dict] = {}
+    for r in result.get("rows", []):
+        pt = (r.get("pt") or "").lower()
+        wu = (r.get("wu") or "").lower()
+        _add(by_pt.setdefault(pt, {}).setdefault(wu, _new()), r, pt)
+        _add(overall.setdefault(wu, _new()), r, pt)
+
+    for entry in process_breakdown:
+        groups = by_pt.get(entry["process_type"].lower(), {})
+        entry["work_units"] = sorted((_row(wu, g) for wu, g in groups.items()),
+                                     key=lambda w: -w["total_hrs"])
+    summary = sorted((_row(wu, g) for wu, g in overall.items()), key=lambda w: -w["total_hrs"])
+    print(f"[analytics] Work-unit breakdown: {len(summary)} work units")
+    return summary
+
 
 def _build_client():
     import os
@@ -604,6 +717,7 @@ def _fallback(error: str) -> dict[str, Any]:
         "prod_hrs":          None,
         "qc_hrs":            None,
         "process_breakdown":  [],
+        "workunit_breakdown": [],
         "operator_breakdown": [],
         "scope_label":        "cached",
         "week_label":        "2026-08-23",
@@ -738,6 +852,9 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
     except Exception:
         pass  # supplementary, like the breakdown
 
+    workunit_breakdown = _load_workunit_breakdown(
+        client, combined_table, week_label, scope_filter, baselines, process_breakdown)
+
     planning_breakdown: list[dict] = []
     planning_missing: list[str] = []
     listed_ids = list(dict.fromkeys(p.strip().lower() for p in (skill.get("databricks_planning_ids") or []) if p.strip())) if skill else []
@@ -821,11 +938,17 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         yield_by_week = {w["week"][:10]: w["yield"] for w in yield_4w_list}
         for wk in metrics_4w:
             wk["yield"] = yield_by_week.get(wk["week"][:10])
-        # merge per-process-type yield into breakdown
+        # merge per-process-type and per-work-unit yield into the breakdowns
         yield_by_pt = yield_data.get("yield_by_pt", {})
+        yield_by_pt_wu = yield_data.get("yield_by_pt_wu", {})
         for bd_entry in process_breakdown:
             pt = bd_entry["process_type"].lower()
             bd_entry["yield_pct"] = yield_by_pt.get(pt)
+            for w in bd_entry.get("work_units", []):
+                w["yield_pct"] = yield_by_pt_wu.get((pt, w["work_unit"]))
+        yield_by_wu = yield_data.get("yield_by_wu", {})
+        for w in workunit_breakdown:
+            w["yield_pct"] = yield_by_wu.get(w["work_unit"])
     else:
         yield_current = None
         yield_rag_val = "GREEN"
@@ -855,6 +978,7 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         "qc_hrs":            computed["qc_hrs"],
         "process_breakdown":    process_breakdown,
         "unsampled_breakdown":  unsampled_breakdown,
+        "workunit_breakdown":   workunit_breakdown,
         "planning_breakdown":   planning_breakdown,
         "planning_missing":     planning_missing,
         "operator_breakdown":   operator_breakdown,

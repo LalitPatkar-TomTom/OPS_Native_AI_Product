@@ -325,6 +325,7 @@ def _run_uc4(skill: dict, user: str):
                     alert_on=direction,
                     operator_breakdown=(analytics.get("operator_breakdown")
                                         if skill.get("include_operator_breakdown") else None),
+                    analytics=analytics,
                 )
                 subj    = f"UC4 Alert {rag} — {metric_key.upper()} {current:.2f}% vs threshold {alert_val}% — {proj_name}"
                 content = f"UC4 {metric_key.upper()} Alert {rag}: {current:.2f}% (threshold {alert_val}%)"
