@@ -2,9 +2,15 @@
 Delivery — sends briefing output to the user.
 
 Priority order:
-  1. Outlook email  (win32com — uses your logged-in Outlook, zero config)
+  1. Email — EMAIL_TRANSPORT picks the route:
+       outlook (default)  win32com, your logged-in Outlook on Windows
+       graph              Microsoft Graph sendMail from the dedicated mailbox (MAIL_SENDER);
+                          falls back to Outlook if Graph fails and Outlook is available
   2. Teams webhook  (set TEAMS_WEBHOOK_URL in .env when ready)
   3. File only      (always saved regardless)
+
+Parallel run: EMAIL_PARALLEL_TO=<address> sends every email only to that address, without
+CCs, with the intended recipients in the subject — for comparing a new setup with the live one.
 
 The recipient email is read directly from the skill file —
 it is the filename itself (lalit.patkar@tomtom.com_skill.md → lalit.patkar@tomtom.com).
@@ -59,6 +65,95 @@ def _send_outlook(
     except Exception as exc:
         log.error(f"Outlook email failed: {exc}")
         return False
+
+
+# ── 1b. Microsoft Graph (dedicated mailbox — works anywhere, e.g. the Azure job) ──
+
+_graph_token: dict = {"value": "", "expires": 0.0}
+
+
+def _graph_access_token() -> str:
+    """Client-credentials token for Graph, cached until shortly before it expires."""
+    import time
+    import httpx
+    if _graph_token["value"] and time.time() < _graph_token["expires"] - 300:
+        return _graph_token["value"]
+    tenant = os.getenv("MAIL_TENANT_ID", "").strip()
+    r = httpx.post(
+        f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token",
+        data={"grant_type": "client_credentials",
+              "client_id": os.getenv("MAIL_CLIENT_ID", "").strip(),
+              "client_secret": os.getenv("MAIL_CLIENT_SECRET", "").strip(),
+              "scope": "https://graph.microsoft.com/.default"},
+        timeout=30)
+    if r.status_code != 200:
+        raise RuntimeError(f"token request failed: HTTP {r.status_code} {r.json().get('error', '')}")
+    body = r.json()
+    _graph_token.update(value=body["access_token"], expires=time.time() + int(body.get("expires_in", 3600)))
+    return _graph_token["value"]
+
+
+def _send_graph(
+    to_email: str,
+    subject: str,
+    html_body: str,
+    cc_emails: list[str] | None = None,
+    attachment_path: str | None = None,
+) -> bool:
+    """Send from MAIL_SENDER via Graph /users/{sender}/sendMail (copy kept in its Sent Items)."""
+    sender = os.getenv("MAIL_SENDER", "").strip()
+    if not (sender and os.getenv("MAIL_CLIENT_SECRET", "").strip()):
+        log.warning("Graph mail not configured (MAIL_SENDER / MAIL_CLIENT_SECRET) — skipped")
+        return False
+    try:
+        import base64
+        import httpx
+        message = {
+            "subject": subject,
+            "body": {"contentType": "HTML", "content": html_body},
+            "toRecipients": [{"emailAddress": {"address": to_email}}],
+            "ccRecipients": [{"emailAddress": {"address": c}} for c in (cc_emails or [])],
+        }
+        reply_to = os.getenv("MAIL_REPLY_TO", "").strip()
+        if reply_to:
+            message["replyTo"] = [{"emailAddress": {"address": reply_to}}]
+        if attachment_path:
+            data = Path(attachment_path).read_bytes()
+            message["attachments"] = [{
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": Path(attachment_path).name,
+                "contentBytes": base64.b64encode(data).decode("ascii"),
+            }]
+            log.info(f"Attachment added: {attachment_path}")
+        for attempt in (1, 2):
+            r = httpx.post(f"https://graph.microsoft.com/v1.0/users/{sender}/sendMail",
+                           headers={"Authorization": f"Bearer {_graph_access_token()}"},
+                           json={"message": message, "saveToSentItems": True}, timeout=60)
+            if r.status_code == 202:
+                cc_note = f" (CC: {', '.join(cc_emails)})" if cc_emails else ""
+                log.info(f"Email sent via Graph -> {to_email}{cc_note}")
+                return True
+            if r.status_code in (429, 500, 502, 503, 504) and attempt == 1:
+                import time
+                time.sleep(int(r.headers.get("Retry-After", "10")))
+                continue
+            err = r.json().get("error", {}) if r.content else {}
+            log.error(f"Graph email failed: HTTP {r.status_code} {err.get('code', '')}: {err.get('message', '')[:200]}")
+            return False
+    except Exception as exc:
+        log.error(f"Graph email failed: {exc}")
+    return False
+
+
+def _send_email(to_email, subject, html_body, cc_emails=None, attachment_path=None) -> tuple[bool, str]:
+    """Send by EMAIL_TRANSPORT; returns (sent_ok, transport used)."""
+    if os.getenv("EMAIL_TRANSPORT", "outlook").strip().lower() == "graph":
+        if _send_graph(to_email, subject, html_body, cc_emails, attachment_path):
+            return True, "graph"
+        if os.name != "nt":
+            return False, "graph"
+        log.warning("Falling back to Outlook for this email")
+    return _send_outlook(to_email, subject, html_body, cc_emails, attachment_path), "outlook"
 
 
 # ── 2. Teams webhook (secondary — set TEAMS_WEBHOOK_URL in .env) ──────────────
@@ -140,6 +235,10 @@ def deliver(
         recipient = _override
         log.info(f"TEST MODE: redirecting email to {_override}")
 
+    # Parallel run: everything goes to one address only, no CCs (the real list goes in the subject)
+    _parallel_to = os.getenv("EMAIL_PARALLEL_TO", "").strip()
+    intended_to = None
+
     # Use pre-built HTML if provided (UC3 weekly, UC4 alert); else auto-build from data
     if not html_body and jira is not None and analytics is not None:
         try:
@@ -161,7 +260,13 @@ def deliver(
     if recipient and "@" in recipient:
         merged_cc = list(dict.fromkeys((cc_recipients or []) + GLOBAL_CC))
         body_to_send = html_body if html_body else content
-        results["email"] = _send_outlook(
+        if _parallel_to:
+            intended_to = recipient
+            cc_note = f"; cc {', '.join(merged_cc)}" if merged_cc else ""
+            subject = f"[AZURE PARALLEL → {recipient}{cc_note}] {subject}"
+            recipient, merged_cc = _parallel_to, []
+            log.info(f"PARALLEL RUN: email for {intended_to} sent to {_parallel_to} only")
+        results["email"], transport = _send_email(
             recipient, subject, body_to_send,
             cc_emails=merged_cc,
             attachment_path=attachment_path,
@@ -171,6 +276,7 @@ def deliver(
         audit_log.log_delivery(
             profile_owner=skill.get("user", ""), to_email=recipient, cc_emails=merged_cc,
             subject=subject, has_attachment=bool(attachment_path), sent_ok=results["email"],
+            transport=transport, intended_to=intended_to,
         )
     else:
         log.warning(f"No valid email in skill['user']: {recipient!r}")

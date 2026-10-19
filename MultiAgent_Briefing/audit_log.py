@@ -18,7 +18,9 @@ from pathlib import Path
 
 log = logging.getLogger("audit_log")
 
-_DB_PATH = Path(__file__).parent / "output" / "trigger_audit.db"
+from config import OUTPUT_DIR  # noqa: E402
+
+_DB_PATH = OUTPUT_DIR / "trigger_audit.db"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS trigger_events (
@@ -83,7 +85,7 @@ CREATE TABLE IF NOT EXISTS email_deliveries (
     recipient_count INTEGER,
     subject         TEXT,
     has_attachment  INTEGER DEFAULT 0,
-    sent_ok         INTEGER,                   -- 1 = accepted by Outlook
+    sent_ok         INTEGER,                   -- 1 = accepted by Outlook / Graph
     is_test         INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_ed_ts  ON email_deliveries(ts);
@@ -99,10 +101,14 @@ _MIGRATIONS = {
         ("sla_breach_tickets", "TEXT"),     # JSON [{"key": "OM-1", "hours": 80.5}, ...]
         ("sla_warning_tickets", "TEXT"),
     ],
+    "email_deliveries": [
+        ("transport", "TEXT"),              # outlook / graph
+        ("intended_to", "TEXT"),            # real owner when a parallel run redirected the email
+    ],
 }
 
 # Backups of the audit DB (consistent snapshots) — inside OneDrive, outside output/
-BACKUP_DIR = Path(__file__).resolve().parent.parent / "analytics_backups"
+BACKUP_DIR = Path(os.getenv("OPS_BACKUP_DIR") or Path(__file__).resolve().parent.parent / "analytics_backups")
 _BACKUP_KEEP = 30
 
 # Current run / use case, set by fire_all_now and trigger_engine so that
@@ -113,7 +119,8 @@ _CTX: dict = {"run_id": None, "uc_id": None, "trigger_source": None, "is_test": 
 def _env_is_test() -> bool:
     """Runs with test switches must not count towards business value."""
     return any(os.getenv(k, "").strip() for k in
-               ("TEST_RECIPIENT_OVERRIDE", "FORCE_UC4_ALERT", "PREVIEW_MODE", "OPS_AUDIT_TEST"))
+               ("TEST_RECIPIENT_OVERRIDE", "EMAIL_PARALLEL_TO", "FORCE_UC4_ALERT", "PREVIEW_MODE",
+                "OPS_AUDIT_TEST"))
 
 
 @contextmanager
@@ -183,18 +190,20 @@ def set_uc(uc_id: str | None) -> None:
 
 
 def log_delivery(*, profile_owner: str, to_email: str, cc_emails: list[str] | None,
-                 subject: str, has_attachment: bool, sent_ok: bool) -> None:
-    """Called by delivery.deliver() for every email handed to Outlook."""
+                 subject: str, has_attachment: bool, sent_ok: bool,
+                 transport: str | None = None, intended_to: str | None = None) -> None:
+    """Called by delivery.deliver() for every email handed to Outlook or Graph."""
     cc = list(cc_emails or [])
     try:
         with _conn() as con:
             con.execute(
                 "INSERT INTO email_deliveries (ts, run_id, uc_id, profile_owner, to_email, cc_emails,"
-                " recipient_count, subject, has_attachment, sent_ok, is_test)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                " recipient_count, subject, has_attachment, sent_ok, is_test, transport, intended_to)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (_now(), _CTX.get("run_id"), _CTX.get("uc_id"), profile_owner, to_email,
                  json.dumps(cc), 1 + len(cc), subject, int(bool(has_attachment)),
-                 int(bool(sent_ok)), int(_CTX.get("is_test") or _env_is_test())))
+                 int(bool(sent_ok)), int(_CTX.get("is_test") or _env_is_test()),
+                 transport, intended_to))
     except Exception as exc:
         log.warning(f"[audit_log] delivery log failed for {profile_owner}: {exc}")
 

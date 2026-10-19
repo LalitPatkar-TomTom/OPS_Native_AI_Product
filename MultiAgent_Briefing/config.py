@@ -17,11 +17,13 @@ REPO_ROOT = BASE_DIR.parent
 # ── Skill profiles ─────────────────────────────────────────────────────────────
 # Directory containing all personal *_skill.md files (one per user).
 # The trigger engine and orchestrator scan this directory — no hardcoded user.
-SKILLS_DIR = REPO_ROOT / "AI Architecture" / "skills" / "Personal Skills"
+# OPS_SKILLS_DIR overrides it (Azure job: the opshub-skills share mounted directly).
+SKILLS_DIR = Path(os.getenv("OPS_SKILLS_DIR") or REPO_ROOT / "AI Architecture" / "skills" / "Personal Skills")
 
 # ── Output ─────────────────────────────────────────────────────────────────────
-OUTPUT_DIR = BASE_DIR / "output"
-OUTPUT_DIR.mkdir(exist_ok=True)
+# OPS_OUTPUT_DIR overrides it (Azure job: a working folder inside the container).
+OUTPUT_DIR = Path(os.getenv("OPS_OUTPUT_DIR") or BASE_DIR / "output")
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Jira / Confluence ──────────────────────────────────────────────────────────
 JIRA_BASE_URL           = os.getenv("JIRA_BASE_URL", "https://tomtom.atlassian.net")
