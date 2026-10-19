@@ -24,7 +24,7 @@ for l in lines:
     if m:
         cur_uc = m.group(1)
         fires[day][cur_uc] += 1
-    m = re.search(r"Email sent via Outlook -> (\S+)(?: \(CC: (.*)\))?", l)
+    m = re.search(r"Email sent via (?:Outlook|Graph) -> (\S+)(?: \(CC: (.*)\))?", l)
     if m:
         emails[day][cur_uc or "?"] += 1
         recips[day].add(m.group(1).lower())

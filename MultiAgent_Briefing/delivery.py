@@ -9,6 +9,7 @@ Priority order:
   2. Teams webhook  (set TEAMS_WEBHOOK_URL in .env when ready)
   3. File only      (always saved regardless)
 
+EMAIL_CC=off sends to the profile owner only (no global or profile CCs).
 Parallel run: EMAIL_PARALLEL_TO=<address> sends every email only to that address, without
 CCs, with the intended recipients in the subject — for comparing a new setup with the live one.
 
@@ -259,10 +260,13 @@ def deliver(
     # 1. Outlook email (HTML preferred, plain text fallback)
     if recipient and "@" in recipient:
         merged_cc = list(dict.fromkeys((cc_recipients or []) + GLOBAL_CC))
+        # EMAIL_CC=off: owner only, no global or profile CCs (the Azure job)
+        if os.getenv("EMAIL_CC", "on").strip().lower() == "off":
+            merged_cc = []
         body_to_send = html_body if html_body else content
         if _parallel_to:
             intended_to = recipient
-            cc_note = f"; cc {', '.join(merged_cc)}" if merged_cc else ""
+            cc_note = f"; cc {', '.join(merged_cc)}" if merged_cc else "; no cc"
             subject = f"[AZURE PARALLEL → {recipient}{cc_note}] {subject}"
             recipient, merged_cc = _parallel_to, []
             log.info(f"PARALLEL RUN: email for {intended_to} sent to {_parallel_to} only")

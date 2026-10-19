@@ -31,7 +31,8 @@ MAIL = {"EMAIL_TRANSPORT": "graph",
         "MAIL_TENANT_ID": "374f8026-7b54-4a3a-b87d-328fa26ec10d",
         "MAIL_CLIENT_ID": "098df35d-6e3d-4e40-ba22-2fe69543c01c",   # ops-hub-easyauth (option 2)
         "MAIL_SENDER": "opsai@tomtom.com",
-        "MAIL_REPLY_TO": "lalit.patkar@tomtom.com"}
+        "MAIL_REPLY_TO": "lalit.patkar@tomtom.com",
+        "EMAIL_CC": "off"}                     # live from Azure: owner only, nobody in CC
 
 # .env keys that stay on the laptop (test switches, laptop-only sync, unrelated apps)
 SKIP = re.compile(r"^(TEST_RECIPIENT_OVERRIDE|PREVIEW_MODE|FORCE_UC4_ALERT|OPS_AUDIT_TEST|SKILLS_SYNC_.*"
