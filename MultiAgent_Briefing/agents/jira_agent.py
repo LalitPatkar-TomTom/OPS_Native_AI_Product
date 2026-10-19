@@ -176,8 +176,8 @@ def run(skill: dict | None = None) -> dict[str, Any]:
         ticket = {
             "key":         issue["key"],
             "summary":     f.get("summary", ""),
-            "status":      f.get("status", {}).get("name", ""),
-            "priority":    f.get("priority", {}).get("name", ""),
+            "status":      (f.get("status")    or {}).get("name", ""),   # null in some projects
+            "priority":    (f.get("priority")  or {}).get("name", ""),
             "assignee":    (f.get("assignee")  or {}).get("displayName", "Unassigned"),
             "reporter":    (f.get("reporter")  or {}).get("displayName", "Unknown"),
             "updated":     updated_str,
