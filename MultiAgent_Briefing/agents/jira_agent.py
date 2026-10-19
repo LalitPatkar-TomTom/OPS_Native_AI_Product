@@ -12,6 +12,7 @@ Keywords are derived from the skill profile:
   - databricks_process_types  e.g. ["orbis-dir-turnrestriction"] → searched as-is
 """
 import base64
+import logging
 import re
 import sys
 from datetime import datetime, timezone
@@ -26,6 +27,9 @@ from config import (
     JIRA_BASE_URL, JIRA_PROJECT, JIRA_EMAIL, JIRA_API_TOKEN,
     SLA_WARNING_HOURS, SLA_ESCALATION_HOURS,
 )
+from agents import atlassian_mcp
+
+log = logging.getLogger("jira_agent")
 
 
 def _auth_header() -> dict:
@@ -150,19 +154,30 @@ def run(skill: dict | None = None) -> dict[str, Any]:
                        "updated", "created", "issuetype", "labels", "components"],
     }
 
-    try:
-        headers = {**_auth_header(), "Content-Type": "application/json"}
-        resp = httpx.post(
-            f"{JIRA_BASE_URL}/rest/api/3/search/jql",
-            json=body,
-            headers=headers,
-            timeout=20,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as exc:
-        result["error"] = str(exc)
-        return result
+    # Atlassian MCP first (org policy); the direct REST call stays as the fallback
+    data = None
+    result["via"] = "REST"
+    if atlassian_mcp.enabled():
+        try:
+            data = atlassian_mcp.search_jira(jql, body["fields"], body["maxResults"])
+            result["via"] = "MCP"
+        except Exception as exc:
+            log.warning("Jira via MCP failed (%s) — falling back to REST", exc)
+
+    if data is None:
+        try:
+            headers = {**_auth_header(), "Content-Type": "application/json"}
+            resp = httpx.post(
+                f"{JIRA_BASE_URL}/rest/api/3/search/jql",
+                json=body,
+                headers=headers,
+                timeout=20,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            result["error"] = str(exc)
+            return result
 
     issues = data.get("issues", [])
     result["total_open"] = len(issues)

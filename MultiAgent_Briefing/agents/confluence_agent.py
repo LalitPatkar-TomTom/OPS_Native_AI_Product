@@ -23,6 +23,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN
+from agents import atlassian_mcp
 
 log = logging.getLogger("confluence_agent")
 
@@ -114,21 +115,33 @@ def _fetch_page(page_id: str) -> dict[str, Any]:
         result["error"] = "JIRA_API_TOKEN not set — Confluence fetch skipped"
         return result
 
-    try:
-        url    = f"{CONFLUENCE_API}/content/{page_id}"
-        params = {"expand": "body.storage,version,space,history.lastUpdated"}
-        resp   = httpx.get(url, headers=_auth_header(), params=params, timeout=20)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as exc:
-        result["error"] = str(exc)
-        return result
+    # Atlassian MCP first (org policy); the direct REST call stays as the fallback
+    data = None
+    result["via"] = "REST"
+    if atlassian_mcp.enabled():
+        try:
+            data = atlassian_mcp.get_confluence_page(page_id)
+            result["via"] = "MCP"
+        except Exception as exc:
+            log.warning("Confluence page %s via MCP failed (%s) — falling back to REST", page_id, exc)
+
+    if data is None:
+        try:
+            url    = f"{CONFLUENCE_API}/content/{page_id}"
+            params = {"expand": "body.storage,version,space,history.lastUpdated"}
+            resp   = httpx.get(url, headers=_auth_header(), params=params, timeout=20)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            result["error"] = str(exc)
+            return result
 
     # Metadata
     result["page_title"] = data.get("title", "")
     space_key = (data.get("space") or {}).get("key", "")
     result["page_url"] = (
-        f"{CONFLUENCE_BASE}/wiki/spaces/{space_key}/pages/{page_id}"
+        f"{CONFLUENCE_BASE}/wiki/spaces/{space_key}/pages/{page_id}" if space_key
+        else data.get("_page_url") or f"{CONFLUENCE_BASE}/wiki/pages/viewpage.action?pageId={page_id}"
     )
 
     # Version / last update
