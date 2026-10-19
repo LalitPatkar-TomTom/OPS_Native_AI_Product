@@ -20,3 +20,6 @@ AI Architecture/skills/uploads/
 AI Architecture/skills/tokens/
 AI Architecture/skills/Personal Skills.backup_*/
 MultiAgent_Briefing/*.v1_backup_*.py
+
+# Business analytics data snapshots (per-user metrics)
+business_analytics/*.json
