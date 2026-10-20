@@ -8,6 +8,18 @@ WORK="${OPS_OUTPUT_DIR:-/work/output}"
 mkdir -p "$DATA/logs" "$DATA/backups" "$WORK"
 START_DOW=$(date +%u)    # 1 = Monday (TZ is Asia/Kolkata in the image)
 START_HOUR=$(date +%H)
+
+# one run at a time: two runs would each save their own copy of the analytics DB.
+# A lock older than the job's 3.5 h limit belongs to a run that was killed, so it is ignored.
+LOCK="$DATA/RUN_LOCK"
+if [ -f "$LOCK" ] && [ $(( $(date +%s) - $(stat -c %Y "$LOCK") )) -lt 12900 ]; then
+    echo "STOP: the previous run is still active ($(cat "$LOCK")) — this slot is skipped"
+    echo "$(date '+%Y-%m-%d %H:%M:%S')  [ERROR   ]  Run skipped: the previous run is still active ($(cat "$LOCK"))" > "$WORK/fire_all_now.log"
+    cd /app/MultiAgent_Briefing && python /app/azure/run_report.py "$WORK/fire_all_now.log" 3 0
+    exit 3
+fi
+echo "${CONTAINER_APP_JOB_EXECUTION_NAME:-run} started $(date '+%Y-%m-%d %H:%M')" > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT
 export OPS_BACKUP_DIR="$DATA/backups"
 
 if [ -f "$DATA/trigger_audit.db" ]; then

@@ -87,7 +87,7 @@ def main() -> None:
             "environmentId": ENV_ID,
             "configuration": {
                 "triggerType": "Schedule",
-                "replicaTimeout": 3600,
+                "replicaTimeout": 12600,         # 3.5 h: room for more users, still below the 4 h slot gap
                 "replicaRetryLimit": 0,          # no automatic retry: a retry could send emails twice
                 "scheduleTriggerConfig": {"cronExpression": CRON, "parallelism": 1, "replicaCompletionCount": 1},
                 "secrets": secrets,
