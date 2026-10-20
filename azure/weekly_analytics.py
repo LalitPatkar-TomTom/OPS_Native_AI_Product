@@ -1,4 +1,5 @@
-"""Weekly OPS Native AI & OPS Hub analytics (Word) — every Monday after the 09:00 run, from opsai@tomtom.com.
+"""Weekly OPS Native AI & OPS Hub analytics (Word) — every Monday after the 09:00 run, from opsai@tomtom.com,
+To the four report readers, CC Peter Clarys, Seema Nayyar and Saurav Nanda.
 
 Covers the previous Monday–Sunday, compared with the week before and the total since the pilot start.
 Read-only on all data. Sources (Azure share, mounted at /data/config):
@@ -32,7 +33,8 @@ from docx.oxml.ns import qn  # noqa: E402
 from docx.shared import Cm, Pt, RGBColor  # noqa: E402
 
 RECIPIENTS = ["Ketki.Avachat@tomtom.com", "Vrushali.Kashikar@tomtom.com",
-              "pratish.deshpande@tomtom.com", "lalit.patkar@tomtom.com"]
+              "pratish.deshpande@tomtom.com", "lalit.patkar@tomtom.com"]          # To
+CC = ["Peter.Clarys@tomtom.com", "Seema.Nayyar2@tomtom.com", "Saurav.Nanda@tomtom.com"]
 IST = timezone(timedelta(hours=5, minutes=30))
 PILOT_START = date(2026, 10, 1)
 
@@ -121,6 +123,7 @@ def period_stats(d: dict, start: date, end: date) -> dict:
         "emails": len(sent), "emails_tried": len(em), "by_uc": by_uc,
         "people": len({e["to_email"].lower() for e in sent if e["to_email"]}),
         "profiles": len({e["user_email"].lower() for e in ev if e["user_email"]}),
+        "triggers": len(ev), "triggers_by_uc": Counter(e["uc_id"] for e in ev),
         "checks": sum(1 for e in ev if e["uc_id"] == "UC4"),
         "alerts": len(alerts), "alerts_by_metric": Counter(a["metric_key"] for a in alerts),
         "held_back": sum(1 for e in ev if e["uc_id"] == "UC4" and e["status"] == "suppressed"),
@@ -253,6 +256,8 @@ def build(d: dict, week_start: date, out: Path, source: str) -> tuple[Path, dict
 
     doc.add_heading("Key numbers", 2)
     rows = [
+        ("Triggers run (all use cases)", W["triggers"], P["triggers"], fmt_change(W["triggers"], P["triggers"]), T["triggers"]),
+        ("Profiles served", W["profiles"], P["profiles"], fmt_change(W["profiles"], P["profiles"]), T["profiles"]),
         ("Emails delivered", W["emails"], P["emails"], fmt_change(W["emails"], P["emails"]), T["emails"]),
         ("Delivery success", f"{W['emails']}/{W['emails_tried']}", f"{P['emails']}/{P['emails_tried']}", "", f"{T['emails']}/{T['emails_tried']}"),
         ("People who received emails", W["people"], P["people"], fmt_change(W["people"], P["people"]), T["people"]),
@@ -336,7 +341,8 @@ def main() -> None:
     to = a.to or ";".join(RECIPIENTS)
     html = (f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:13px">'
             f"<p>Hello,</p><p>Attached is the weekly OPS Native AI &amp; OPS Hub analytics for <b>{s['rng']}</b>.</p>"
-            f"<ul><li>{W['emails']} emails delivered to {W['people']} people ({W['by_uc'].get('UC1', 0)} briefings, "
+            f"<ul><li>{W['triggers']} triggers run for {W['profiles']} profiles</li>"
+            f"<li>{W['emails']} emails delivered to {W['people']} people ({W['by_uc'].get('UC1', 0)} briefings, "
             f"{W['by_uc'].get('UC4', 0)} metric alerts, {W['by_uc'].get('UC2', 0)} SLA follow-ups, "
             f"{W['by_uc'].get('UC3', 0)} weekly reports)</li>"
             f"<li>{W['alerts']} metric breaches alerted, {W['held_back']} repeat alerts held back</li>"
@@ -344,8 +350,9 @@ def main() -> None:
             f"<li>About {W['hours_total']:.0f} hours of manual work avoided (estimate)</li>"
             f"<li>{W['runs']} of {W['slots_planned']} scheduled runs done</li></ul>"
             f'<p style="color:#888;font-size:11px">Sent automatically every Monday by OPS Native AI from opsai@tomtom.com.</p></div>')
-    ok = _send_graph(to, f"OPS Native AI & OPS Hub — Weekly Analytics {s['rng']}", html, None, str(path))
-    print(f"weekly analytics {'sent to ' + to if ok else 'NOT sent'}")
+    cc = None if a.to else CC                  # a test (--to) goes to that address only
+    ok = _send_graph(to, f"OPS Native AI & OPS Hub — Weekly Analytics {s['rng']}", html, cc, str(path))
+    print(f"weekly analytics {'sent to ' + to + (' cc ' + ', '.join(cc) if cc else '') if ok else 'NOT sent'}")
 
 
 if __name__ == "__main__":
