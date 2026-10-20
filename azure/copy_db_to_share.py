@@ -119,9 +119,14 @@ def main() -> None:
     if share_has_db:
         old = tmp / "azure_parallel.db"
         az("storage", "file", "download", "--share-name", SHARE, "--path", DB, "--dest", str(old), *auth, "-o", "none")
-        az("storage", "directory", "create", "--share-name", SHARE, "--name", f"{DIR}/backups", *auth, "-o", "none")
-        az("storage", "file", "upload", "--share-name", SHARE, "--source", str(old), "--path", backup, *auth, "-o", "none")
-        print(f"kept Azure parallel DB as {backup} (rows {counts(old)})")
+        if sha256(old) == laptop_sha:
+            # an earlier attempt already uploaded this laptop copy; its parallel backup was made then
+            share_has_db = False
+            print("Azure DB is already this laptop copy (earlier attempt) — no second backup")
+        else:
+            az("storage", "directory", "create", "--share-name", SHARE, "--name", f"{DIR}/backups", *auth, "-o", "none")
+            az("storage", "file", "upload", "--share-name", SHARE, "--source", str(old), "--path", backup, *auth, "-o", "none")
+            print(f"kept Azure parallel DB as {backup} (rows {counts(old)})")
 
     # 6. upload and verify
     az("storage", "file", "upload", "--share-name", SHARE, "--source", str(snap), "--path", DB, *auth, "-o", "none")
@@ -139,15 +144,33 @@ def main() -> None:
     deployed = LAPTOP_DB.parents[3]
     files += sorted(deployed.glob("OPS_NativeAI_OPSHub_Business_Value_Report_*.*"))
     files += sorted((LAPTOP_DB.parents[2] / "business_analytics").glob("ba_data*.json"))
-    for p in files:
-        (hist / p.name).write_bytes(p.read_bytes())
     dest = f"{DIR}/laptop-history"
     az("storage", "directory", "create", "--share-name", SHARE, "--name", dest, *auth, "-o", "none")
-    az("storage", "file", "upload-batch", "--destination", SHARE, "--destination-path", dest,
-       "--source", str(hist), *auth, "-o", "none")
-    listed = az("storage", "file", "list", "--share-name", SHARE, "--path", dest, *auth,
-                "--query", "length(@)", "-o", "tsv")
-    if int(listed or 0) < len(files):
+
+    def remote_sizes() -> dict:
+        # sizes in Python: a JMESPath like length(@) breaks the Windows command shell
+        return {f["name"]: (f.get("properties") or {}).get("contentLength")
+                for f in json.loads(az("storage", "file", "list", "--share-name", SHARE, "--path", dest,
+                                       *auth, "-o", "json") or "[]")}
+
+    # delta only: upload files that are missing on the share or have a different size
+    have = remote_sizes()
+    delta = [p for p in files if have.get(p.name) != p.stat().st_size]
+    print(f"laptop history: {len(files)} files, {len(files) - len(delta)} already on the share, uploading {len(delta)}")
+    if len(delta) > 20:
+        for p in delta:
+            (hist / p.name).write_bytes(p.read_bytes())
+        az("storage", "file", "upload-batch", "--destination", SHARE, "--destination-path", dest,
+           "--source", str(hist), *auth, "-o", "none")
+    else:
+        for p in delta:
+            az("storage", "file", "upload", "--share-name", SHARE, "--source", str(p), "--path", f"{dest}/{p.name}",
+               *auth, "-o", "none")
+    have = remote_sizes()
+    missing = [p.name for p in files if have.get(p.name) != p.stat().st_size]
+    listed = len(files) - len(missing)
+    if missing:
+        print("not on the share (or a different size):", ", ".join(missing[:10]))
         sys.exit(f"STOP: only {listed} of {len(files)} history files arrived in {dest}. Marker NOT written; run again.")
     print(f"laptop history uploaded: {len(files)} files ({sum(p.stat().st_size for p in files):,} bytes) -> {SHARE}/{dest}")
 
