@@ -69,6 +69,9 @@ def load(db_path: Path, hub_dir: Path) -> dict:
                     "sla_breach_tickets, sla_warning_tickets FROM trigger_events WHERE is_test = 0"),
         "runs": q("SELECT slot_date_ist, slot_ist, delay_min, errors, trigger_source FROM trigger_runs WHERE is_test = 0"),
         "alerts": q("SELECT user_email, metric_key, alert_date FROM uc4_alert_state"),
+        # emails and runs before the DB tables started (1–13 Oct), moved from the laptop log at the switch-over
+        "history": q("SELECT day_ist, uc_id, count FROM history_log_daily")
+        if con.execute("SELECT 1 FROM sqlite_master WHERE name = 'history_log_daily'").fetchone() else [],
     }
     con.close()
     chats = []
@@ -113,6 +116,13 @@ def period_stats(d: dict, start: date, end: date) -> dict:
     chats = [c for c in d["chats"] if c.get("ts") and inside(c["ts"])]
     sent = [e for e in em if e["sent_ok"]]
     by_uc = Counter(e["uc_id"] for e in sent)
+    hist = [h for h in d.get("history", []) if start.isoformat() <= h["day_ist"] <= end.isoformat()]
+    hist_emails = Counter()
+    for h in hist:
+        if h["uc_id"] != "RUN":
+            hist_emails[h["uc_id"]] += h["count"]
+    by_uc.update(hist_emails)
+    hist_runs = sum(h["count"] for h in hist if h["uc_id"] == "RUN")
     uc2 = [e for e in ev if e["uc_id"] == "UC2"]
     flagged = set().union(*[tickets(e) for e in uc2]) if uc2 else set()
     days = (end - start).days + 1
@@ -120,7 +130,8 @@ def period_stats(d: dict, start: date, end: date) -> dict:
     hours = {uc: by_uc.get(uc, 0) * MINUTES[uc] / 60 for uc in ("UC1", "UC2", "UC3", "UC4")}
     hours["chat"] = len(chats) * MINUTES["chat"] / 60
     return {
-        "emails": len(sent), "emails_tried": len(em), "by_uc": by_uc,
+        "emails": len(sent) + sum(hist_emails.values()), "emails_tried": len(em) + sum(hist_emails.values()),
+        "by_uc": by_uc,
         "people": len({e["to_email"].lower() for e in sent if e["to_email"]}),
         "profiles": len({e["user_email"].lower() for e in ev if e["user_email"]}),
         "triggers": len(ev), "triggers_by_uc": Counter(e["uc_id"] for e in ev),
@@ -128,7 +139,7 @@ def period_stats(d: dict, start: date, end: date) -> dict:
         "alerts": len(alerts), "alerts_by_metric": Counter(a["metric_key"] for a in alerts),
         "held_back": sum(1 for e in ev if e["uc_id"] == "UC4" and e["status"] == "suppressed"),
         "sla_checks": len(uc2), "tickets_flagged": len(flagged),
-        "runs": len(slots), "slots_planned": 4 * days,
+        "runs": len(slots) + hist_runs, "slots_planned": 4 * days,
         "late_runs": sum(1 for r in runs if (r["delay_min"] or 0) > 30),
         "run_errors": sum(r["errors"] or 0 for r in runs),
         "chats": len(chats), "chat_users": len({c.get("email", "").lower() for c in chats if c.get("email")}),
@@ -304,6 +315,8 @@ def build(d: dict, week_start: date, out: Path, source: str) -> tuple[Path, dict
 
     doc.add_heading("About these numbers", 2)
     for t in (f"Source: {source}. Test sends are excluded. Days are IST.",
+              "Pilot totals include 1–13 Oct emails and runs counted from the laptop run log (before the analytics "
+              "database recorded them); per-recipient detail and alert checks exist from 9–13 Oct onwards.",
               "Hours saved use the same per-item assumptions as the 19 Oct business value report; they are estimates "
               "to be validated with users (OSI-023).",
               "OPS Hub questions come from the OPS Hub usage log; Status Report volumes are not in it yet.",

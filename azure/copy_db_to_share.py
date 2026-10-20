@@ -98,6 +98,11 @@ def main() -> None:
     dst.close(); src.close()
     if ok != "ok":
         sys.exit(f"STOP: laptop DB integrity check failed: {ok}")
+    # emails and runs of 1–13 Oct exist only in the laptop run log: add them as table history_log_daily
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from history_import import import_history
+    h = import_history(snap, LAPTOP_DB.parent / "task_scheduler.log")
+    print(f"pilot history from the run log added: {h['emails']} emails, {h['runs']} runs ({h['days'][0]} – {h['days'][-1]})")
     laptop_counts, laptop_sha = counts(snap), sha256(snap)
     print(f"laptop snapshot: {snap.stat().st_size:,} bytes, integrity ok, rows {laptop_counts}")
 
@@ -130,6 +135,10 @@ def main() -> None:
     hist = tmp / "laptop-history"
     hist.mkdir()
     files = [p for p in LAPTOP_DB.parent.iterdir() if p.is_file() and not p.name.startswith("trigger_audit.db")]
+    # plus the 19 Oct business value report and the data it was built from
+    deployed = LAPTOP_DB.parents[3]
+    files += sorted(deployed.glob("OPS_NativeAI_OPSHub_Business_Value_Report_*.*"))
+    files += sorted((LAPTOP_DB.parents[2] / "business_analytics").glob("ba_data*.json"))
     for p in files:
         (hist / p.name).write_bytes(p.read_bytes())
     dest = f"{DIR}/laptop-history"
