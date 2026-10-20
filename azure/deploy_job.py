@@ -33,7 +33,9 @@ MAIL = {"EMAIL_TRANSPORT": "graph",
         "MAIL_SENDER": "opsai@tomtom.com",
         "MAIL_REPLY_TO": "lalit.patkar@tomtom.com",
         "EMAIL_CC": "off",                     # live from Azure: owner only, nobody in CC
-        "RUN_REPORT_TO": "lalit.patkar@tomtom.com"}  # short report after every run (azure/run_report.py)
+        "RUN_REPORT_TO": "lalit.patkar@tomtom.com",  # short report after every run (azure/run_report.py)
+        # profiles are read straight from the OPS Hub share (what users save in OPS Hub), not the image copy
+        "OPS_SKILLS_DIR": "/data/skills/Personal Skills"}
 
 # .env keys that stay on the laptop (test switches, laptop-only sync, unrelated apps)
 SKIP = re.compile(r"^(TEST_RECIPIENT_OVERRIDE|PREVIEW_MODE|FORCE_UC4_ALERT|OPS_AUDIT_TEST|SKILLS_SYNC_.*"
