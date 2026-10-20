@@ -6,6 +6,8 @@ set -u
 DATA="${OPS_DATA_DIR:-/data/config/native-ai}"
 WORK="${OPS_OUTPUT_DIR:-/work/output}"
 mkdir -p "$DATA/logs" "$DATA/backups" "$WORK"
+START_DOW=$(date +%u)    # 1 = Monday (TZ is Asia/Kolkata in the image)
+START_HOUR=$(date +%H)
 export OPS_BACKUP_DIR="$DATA/backups"
 
 if [ -f "$DATA/trigger_audit.db" ]; then
@@ -45,5 +47,10 @@ find "$WORK" -maxdepth 1 -type f ! -name 'trigger_audit.db*' ! -name 'fire_all_n
 
 [ -f "$WORK/fire_all_now.log" ] && cat "$WORK/fire_all_now.log" >> "$DATA/logs/fire_all_now.log"
 python /app/azure/run_report.py "$WORK/fire_all_now.log" "$rc" "$db_saved"
+
+# weekly analytics (Word) for the four report readers: Mondays, after the 09:00 run, from the saved DB
+if { [ "$START_DOW" = 1 ] && [ "$START_HOUR" = 09 ]; } && [ "$db_saved" = 1 ]; then
+    python /app/azure/weekly_analytics.py
+fi
 echo "run finished with exit code $rc"
 exit $rc

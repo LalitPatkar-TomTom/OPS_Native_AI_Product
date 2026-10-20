@@ -112,7 +112,8 @@ def _send_graph(
         message = {
             "subject": subject,
             "body": {"contentType": "HTML", "content": html_body},
-            "toRecipients": [{"emailAddress": {"address": to_email}}],
+            # one address, or several separated by ";" (e.g. the weekly analytics report)
+            "toRecipients": [{"emailAddress": {"address": a.strip()}} for a in to_email.split(";") if a.strip()],
             "ccRecipients": [{"emailAddress": {"address": c}} for c in (cc_emails or [])],
         }
         reply_to = os.getenv("MAIL_REPLY_TO", "").strip()
