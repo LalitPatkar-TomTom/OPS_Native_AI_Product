@@ -11,6 +11,10 @@ export OPS_BACKUP_DIR="$DATA/backups"
 if [ -f "$DATA/trigger_audit.db" ]; then
     cp "$DATA/trigger_audit.db" "$WORK/trigger_audit.db"
     echo "analytics DB loaded from the share"
+elif [ -f "$DATA/MIGRATED_FROM_LAPTOP.json" ]; then
+    # after the switch-over the share DB is the only history; never send without it
+    echo "STOP: the analytics DB is missing from the share although it was migrated — no emails sent"
+    exit 1
 else
     echo "no analytics DB on the share yet — starting a new one"
 fi
@@ -20,18 +24,26 @@ python /app/azure/sync_skills_mount.py || echo "skills sync failed — using the
 python fire_all_now.py "$@"
 rc=$?
 
-python - "$WORK/trigger_audit.db" "$DATA/trigger_audit.db" <<'EOF'
+db_saved=0
+python - "$WORK/trigger_audit.db" "$DATA/trigger_audit.db" <<'EOF' && db_saved=1
 import os, sqlite3, sys
 src, dst = sys.argv[1], sys.argv[2]
-if os.path.exists(src):
-    tmp = dst + ".tmp"
-    s, d = sqlite3.connect(src), sqlite3.connect(tmp)
-    s.backup(d)
-    d.close(); s.close()
-    os.replace(tmp, dst)
-    print("analytics DB saved to the share")
+if not os.path.exists(src):
+    sys.exit(1)
+tmp = dst + ".tmp"
+s, d = sqlite3.connect(src), sqlite3.connect(tmp)
+s.backup(d)
+d.close(); s.close()
+os.replace(tmp, dst)
+print("analytics DB saved to the share")
 EOF
+[ "$db_saved" = 1 ] || echo "WARNING: analytics DB NOT saved to the share"
+
+# keep what the run produced (briefings, UC3 reports, snapshots) next to the history, as the laptop did
+mkdir -p "$DATA/output"
+find "$WORK" -maxdepth 1 -type f ! -name 'trigger_audit.db*' ! -name 'fire_all_now.log' -exec cp -p {} "$DATA/output/" \;
 
 [ -f "$WORK/fire_all_now.log" ] && cat "$WORK/fire_all_now.log" >> "$DATA/logs/fire_all_now.log"
+python /app/azure/run_report.py "$WORK/fire_all_now.log" "$rc" "$db_saved"
 echo "run finished with exit code $rc"
 exit $rc
