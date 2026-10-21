@@ -6,8 +6,8 @@ Run by the Azure job after fire_all_now, before the analytics DB is saved:
     python profile_check.py --seed          # record all current profiles as checked, send nothing
 
 A profile is new or changed when its sha256 differs from table profile_checks in trigger_audit.db.
-Each profile version gets one email: a thank-you, what works, what to update, and what the owner
-should check personally. The very first run seeds the existing profiles silently.
+Each profile version gets one email: a thank-you, what works, suggested updates and what the owner
+should check personally. It is for information only: it never stops or changes the owner's triggers. The very first run seeds the existing profiles silently.
 """
 import argparse
 import hashlib
@@ -179,7 +179,7 @@ def compose(skill: dict, res: dict, updated: bool) -> tuple[str, str]:
     first = html.escape(skill.get("user_first_name") or "there")
     n = len(res["fix"])
     subject = ("Your OPS Native AI profile is live" + (" – thank you for the update" if updated else "")
-               + (f" – {n} thing{'s' if n != 1 else ''} to update" if n else " – all checks passed"))
+               + (f" – {n} suggested update{'s' if n != 1 else ''}" if n else " – all checks passed"))
     li = lambda items: "".join(f"<li>{x}</li>" for x in items)
     body = [f"<p>Hi {first},</p>",
             "<p>Thank you for " + ("updating your" if updated else "onboarding to") + " <b>OPS Native AI</b>! "
@@ -187,15 +187,18 @@ def compose(skill: dict, res: dict, updated: bool) -> tuple[str, str]:
     if res["ok"]:
         body.append(f"<p style='margin-bottom:4px'><b>✅ Working</b></p><ul style='margin-top:0'>{li(res['ok'])}</ul>")
     if res["fix"]:
-        body.append(f"<p style='margin-bottom:4px'><b>⚠️ Please update your profile</b></p>"
+        body.append(f"<p style='margin-bottom:4px'><b>⚠️ Suggested updates to your profile</b></p>"
+                    "<p style='margin:0 0 4px'>For your information: your briefings and alerts keep running as "
+                    "they are; these updates make them more accurate.</p>"
                     f"<ol style='margin-top:0'>{li(res['fix'])}</ol>")
     if res["manual"]:
         body.append(f"<p style='margin-bottom:4px'><b>🔍 Please check yourself</b></p>"
                     f"<ul style='margin-top:0'>{li(res['manual'])}</ul>")
-    body.append("<p><b>How to update:</b> open the onboarding page on OPS Hub, change what is needed and press "
+    body.append("<p><b>How to update (when you want to):</b> open the onboarding page on OPS Hub, change what is needed and press "
                 f"<i>Finish &amp; Submit</i>. The new profile is used from the next run:<br>"
                 f"<a href='{ONBOARDING_URL}'>{ONBOARDING_URL}</a></p>"
-                "<p>If anything is unclear, please reach out to the OPS Native AI team.</p><p>Thanks,<br>OPS Native AI team</p>")
+                "<p><i>This is an automated mail. If anything is unclear, please reach out to the OPS Native AI team.</i></p>"
+                "<p>Thanks,<br>OPS Native AI team</p>")
     return subject, ("<div style='font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1a1a1a;"
                      "line-height:1.5'>" + "".join(body) + "</div>")
 
