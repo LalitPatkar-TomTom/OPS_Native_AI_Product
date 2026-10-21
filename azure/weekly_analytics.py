@@ -34,6 +34,7 @@ from docx.shared import Cm, Pt, RGBColor  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import chat_value  # noqa: E402
+import report_value  # noqa: E402
 
 RECIPIENTS = ["Ketki.Avachat@tomtom.com", "Vrushali.Kashikar@tomtom.com",
               "pratish.deshpande@tomtom.com", "lalit.patkar@tomtom.com"]          # To
@@ -94,6 +95,14 @@ def load(db_path: Path, hub_dir: Path) -> dict:
             except ValueError:
                 pass
     data["feedback"] = feedback
+    reports = []
+    if (hub_dir / "report_log.jsonl").exists():
+        for line in (hub_dir / "report_log.jsonl").read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                reports.append(json.loads(line))
+            except ValueError:
+                pass
+    data["reports"] = reports
     users = []
     if (hub_dir / "opshub_audit.db").exists():
         shutil.copy2(hub_dir / "opshub_audit.db", tmp / "h.db")
@@ -127,6 +136,7 @@ def period_stats(d: dict, start: date, end: date) -> dict:
               and "test.user" not in (a["user_email"] or "")]
     chats = [c for c in d["chats"] if c.get("ts") and inside(c["ts"])]
     cv = chat_value.value(chats, d.get("feedback"))
+    rv = report_value.value([r for r in d.get("reports", []) if r.get("ts") and inside(r["ts"])])
     sent = [e for e in em if e["sent_ok"]]
     by_uc = Counter(e["uc_id"] for e in sent)
     hist = [h for h in d.get("history", []) if start.isoformat() <= h["day_ist"] <= end.isoformat()]
@@ -142,6 +152,7 @@ def period_stats(d: dict, start: date, end: date) -> dict:
     slots = {(r["slot_date_ist"], r["slot_ist"]) for r in runs}
     hours = {uc: by_uc.get(uc, 0) * MINUTES[uc] / 60 for uc in ("UC1", "UC2", "UC3", "UC4")}
     hours["chat"] = cv["minutes"] / 60               # per question, from the work each answer did
+    hours["reports"] = rv["minutes"] / 60            # per Status Report, by type, period and scope
     return {
         "emails": len(sent) + sum(hist_emails.values()), "emails_tried": len(em) + sum(hist_emails.values()),
         "by_uc": by_uc,
@@ -155,7 +166,7 @@ def period_stats(d: dict, start: date, end: date) -> dict:
         "runs": len(slots) + hist_runs, "slots_planned": 4 * days,
         "late_runs": sum(1 for r in runs if (r["delay_min"] or 0) > 30),
         "run_errors": sum(r["errors"] or 0 for r in runs),
-        "chats": cv["answered"], "chat_value": cv,
+        "chats": cv["answered"], "chat_value": cv, "report_value": rv, "reports": rv["reports"],
         "chat_users": len({c.get("email", "").lower() for c in chats if c.get("email") and c.get("ok") is not False}),
         "hours": hours, "hours_total": sum(hours.values()),
         "per_owner": Counter((e["profile_owner"] or e["to_email"] or "").lower() for e in sent),
@@ -187,6 +198,28 @@ def chat_value_section(doc, cv: dict, when: str) -> None:
         f"question text." + (f" Counted as 0: {', '.join(zero)}." if zero else ""))
 
 
+REPORT_NOTE = ("Status Reports are valued per report: weekly pulse 60 min, bi-weekly trend 90, monthly digest 180, "
+               "quarterly review and portfolio report 240, custom ranges by length; +30 min filled into the PM's "
+               "own template, +30 with Confluence or document context, +15 per extra process type / planning ID "
+               "(max +60). Regenerations count once (same person, scope and period on the same day); failed "
+               "reports count 0. Recorded from 21 Oct 2026.")
+
+
+def report_value_section(doc, rv: dict, when: str) -> None:
+    """Table of Status Reports by type with the time each type saved."""
+    doc.add_heading(f"OPS Hub Status Reports ({when})", 3)
+    rows = [(report_value.LABEL.get(t, t.replace("_", " ").title()), n, f"{rv['min_by_topic'][t] / 60:.1f} h")
+            for t, n in rv["by_topic"].most_common()]
+    rows.append(("Total", rv["reports"], f"{rv['minutes'] / 60:.1f} h"))
+    table(doc, ["Report type", "Reports", "Hours saved"], rows, widths=(8.0, 2.5, 3.0), num_cols=(1, 2))
+    extra = [f"{rv[k]} {t}" for k, t in (("regenerations", "regeneration(s) of the same report"),
+                                          ("failed", "failed")) if rv[k]]
+    doc.add_paragraph(
+        f"{rv['reports']} report(s) by {rv['users']} user(s); {rv['exported_or_published']} exported or published "
+        f"({rv['exports']} Word/PDF export(s), {rv['publishes']} Confluence publish(es))."
+        + (f" Not counted: {', '.join(extra)}." if extra else ""))
+
+
 def consolidated_value(doc, S: dict, when: str, unit: str = " h") -> None:
     """Email use cases (fixed minutes per email) + OPS Hub questions (valued per question) = total saving."""
     doc.add_heading(f"Consolidated time saved ({when})", 3)
@@ -197,11 +230,13 @@ def consolidated_value(doc, S: dict, when: str, unit: str = " h") -> None:
                  f"{emails_h:.1f}{unit}"))
     cv = S["chat_value"]
     rows.append(("OPS Hub questions answered", S["chats"], "by question (above)", f"{S['hours']['chat']:.1f}{unit}"))
+    rows.append(("OPS Hub Status Reports generated", S["reports"], "by report (above)", f"{S['hours']['reports']:.1f}{unit}"))
     rows.append(("Total time saved", "", "", f"{S['hours_total']:.1f}{unit}"))
     table(doc, ["Activity", "Items", "Minutes saved per item", "Hours"], rows,
           widths=(6.5, 2.0, 4.6, 2.4), num_cols=(1, 2, 3))
-    doc.add_paragraph(f"Total range {emails_h + cv['low'] / 60:.1f}–{emails_h + cv['high'] / 60:.1f} h "
-                      f"(the OPS Hub part is a range; email minutes are fixed assumptions).")
+    fixed = emails_h + S["hours"]["reports"]
+    doc.add_paragraph(f"Total range {fixed + cv['low'] / 60:.1f}–{fixed + cv['high'] / 60:.1f} h "
+                      f"(the OPS Hub questions part is a range; email and report minutes are fixed assumptions).")
 
 
 def fill_breakdowns(s: dict) -> None:
@@ -334,6 +369,7 @@ def build(d: dict, week_start: date, out: Path, source: str) -> tuple[Path, dict
         ("Jira tickets flagged for SLA", W["tickets_flagged"], P["tickets_flagged"], fmt_change(W["tickets_flagged"], P["tickets_flagged"]), T["tickets_flagged"]),
         ("Scheduled runs done / planned", f"{W['runs']}/{W['slots_planned']}", f"{P['runs']}/{P['slots_planned']}", "", f"{T['runs']}/{T['slots_planned']}"),
         ("OPS Hub questions answered", W["chats"], P["chats"], fmt_change(W["chats"], P["chats"]), T["chats"]),
+        ("OPS Hub Status Reports generated", W["reports"], P["reports"], fmt_change(W["reports"], P["reports"]), T["reports"]),
         ("OPS Hub users asking questions", W["chat_users"], P["chat_users"], "", T["chat_users"]),
         ("Estimated hours of manual work avoided", f"{W['hours_total']:.0f} h", f"{P['hours_total']:.0f} h", fmt_change(W["hours_total"], P["hours_total"]), f"{T['hours_total']:.0f} h"),
     ]
@@ -356,6 +392,7 @@ def build(d: dict, week_start: date, out: Path, source: str) -> tuple[Path, dict
 
     doc.add_heading("Estimated value this week", 2)
     chat_value_section(doc, W["chat_value"], "this week")
+    report_value_section(doc, W["report_value"], "this week")
     consolidated_value(doc, W, "this week")
 
     doc.add_heading("Reliability", 2)
@@ -369,8 +406,9 @@ def build(d: dict, week_start: date, out: Path, source: str) -> tuple[Path, dict
               "database recorded them); per-recipient detail and alert checks exist from 9–13 Oct onwards.",
               "Hours saved use the same per-item assumptions as the 19 Oct business value report; they are estimates "
               "to be validated with users (OSI-023).",
-              "OPS Hub questions come from the OPS Hub usage log; Status Report volumes are not in it yet.",
+              "OPS Hub questions come from the OPS Hub usage log; Status Reports from its report log.",
               CHAT_NOTE,
+              REPORT_NOTE,
               f"Generated {datetime.now(IST):%d %b %Y %H:%M} IST by the Azure job ops-native-ai-trigger."):
         doc.add_paragraph(t, style="List Bullet")
 

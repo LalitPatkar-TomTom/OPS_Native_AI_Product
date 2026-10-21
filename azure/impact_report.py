@@ -22,7 +22,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from weekly_analytics import (CHAT_NOTE, chat_value_section, consolidated_value, IST, METRIC, MINUTES, PILOT_START, UC_COLOR, UC_NAME, INK2, GRID, NAVY,  # noqa: E402
+from weekly_analytics import (CHAT_NOTE, REPORT_NOTE, chat_value_section, consolidated_value, report_value_section, IST, METRIC, MINUTES, PILOT_START, UC_COLOR, UC_NAME, INK2, GRID, NAVY,  # noqa: E402
                               ORANGE, AQUA, BLUE, chart_style, fill_breakdowns, ist_day, load, period_stats, table)
 import matplotlib.pyplot as plt  # noqa: E402  (Agg backend set by weekly_analytics)
 from docx import Document  # noqa: E402
@@ -137,7 +137,7 @@ def main() -> None:
     c2 = tmp / "c2.png"; fig.savefig(c2, dpi=200, bbox_inches="tight", facecolor="white"); plt.close(fig)
     # fig 3 value by activity
     acts = [(f"{UC_NAME[uc]} ({uc})", T["hours"][uc]) for uc in ("UC1", "UC4", "UC2", "UC3")] + \
-           [("OPS Hub questions answered", T["hours"]["chat"])]
+           [("OPS Hub questions answered", T["hours"]["chat"]), ("OPS Hub Status Reports", T["hours"]["reports"])]
     acts.sort(key=lambda x: x[1])
     fig, ax = plt.subplots(figsize=(7.2, 2.5))
     ax.barh([x[0] for x in acts], [x[1] for x in acts], color=BLUE, height=0.55)
@@ -193,6 +193,7 @@ def main() -> None:
         ("Repeat alerts held back", T["held_back"]),
         ("Jira tickets flagged for SLA", T["tickets_flagged"]),
         ("OPS Hub questions answered", T["chats"]),
+        ("OPS Hub Status Reports generated", T["reports"]),
         ("OPS Hub registered users", len(hub_users)),
         ("Scheduled runs done / planned", f"{T['runs']}/{T['slots_planned']}"),
         ("Estimated manual work avoided", f"{total_h:.0f} h  (≈{per_user_day * 60:.0f} min per user per working day)"),
@@ -228,6 +229,8 @@ def main() -> None:
     figure(c3, f"Figure 3 — Estimated manual work avoided by activity (total {total_h:.0f} h).")
     chat_value_section(doc, T["chat_value"], "pilot")
     para(CHAT_NOTE, size=8.5, italic=True, color=GREY)
+    report_value_section(doc, T["report_value"], "pilot")
+    para(REPORT_NOTE, size=8.5, italic=True, color=GREY)
     consolidated_value(doc, T, "pilot")
     para(f"Annualised = pilot rate over {len(workdays)} working days × 220 working days; 1 FTE = 1,650 h. "
          "Effort per item is an assumption to be validated with users (OSI-023).", size=8.5, italic=True, color=GREY)
