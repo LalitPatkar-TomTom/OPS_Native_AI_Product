@@ -250,7 +250,7 @@ def deliver(
                 _preview_note = (
                     "This is a preview of your daily operational briefing. Once implemented, "
                     "you will receive this automatically every morning. If you have any initial "
-                    "feedback or comments, please reply to Lalit Patkar."
+                    "feedback or comments, please reach out to the OPS Native AI team."
                 )
             html_body = build_html(jira, analytics, confluence, skill=skill,
                                    preview_note=_preview_note)

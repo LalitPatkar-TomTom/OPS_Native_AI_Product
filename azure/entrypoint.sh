@@ -37,6 +37,8 @@ cd /app/MultiAgent_Briefing
 python /app/azure/sync_skills_mount.py || echo "skills sync failed — using the profiles in the image"
 python fire_all_now.py "$@"
 rc=$?
+# thank-you / profile check email for new or updated profiles (09, 13, 17 IST); never fails the run
+python profile_check.py || echo "profile check failed"
 
 db_saved=0
 python - "$WORK/trigger_audit.db" "$DATA/trigger_audit.db" <<'EOF' && db_saved=1

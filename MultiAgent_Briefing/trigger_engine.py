@@ -101,6 +101,12 @@ def _run_uc2(skill: dict, user: str):
         audit_log.log_error("UC2", user, skill, str(exc))
         raise
 
+    if jira.get("error"):
+        # The Jira query itself failed (bad project key, invalid JQL, auth): not "no issues"
+        audit_log.log_error("UC2", user, skill, f"Jira query failed: {jira['error']}"[:500])
+        log.error(f"UC2  Jira query failed — SLA not checked  [{user}]: {str(jira['error'])[:200]}")
+        return
+
     breaches = jira.get("sla_breaches", [])
     warnings = jira.get("sla_warnings", [])
 
@@ -177,7 +183,7 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
             _preview_note = (
                 "This is a preview of your weekly operational report. Once live, "
                 "you will receive this every Friday at 16:00. If you have feedback, "
-                "please reply to Lalit Patkar."
+                "please reach out to the OPS Native AI team."
             )
         html = build_weekly(jira, ana, conf, skill=skill, preview_note=_preview_note)
 
