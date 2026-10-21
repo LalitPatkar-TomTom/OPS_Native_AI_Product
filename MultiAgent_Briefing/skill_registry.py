@@ -180,7 +180,9 @@ def _iter_metric_rows(text: str):
         if not s.startswith("|"):
             headers = None
             continue
-        cells = [c.strip() for c in s.strip("|").split("|")]
+        # A "\|" inside a cell is part of the value (process types such as
+        # area-conflictsolving-aa|ia|ap|bua|neighb), not a column separator.
+        cells = [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", s.strip("|"))]
         if headers is None:
             low = [c.lower() for c in cells]
             if any(c.startswith("metric") for c in low) and any("alert" in c for c in low):

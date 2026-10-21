@@ -70,6 +70,11 @@ def _keyword_variants(raw: str) -> list[str]:
     return [v for v in variants if v]
 
 
+def _jql_str(value: str) -> str:
+    """Escape a value for a double-quoted JQL string (a stray \ or " would break the query)."""
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
 def _build_jql(skill: dict | None) -> tuple[str, str]:
     """
     Build a JQL string scoped to tickets relevant to the user.
@@ -94,12 +99,12 @@ def _build_jql(skill: dict | None) -> tuple[str, str]:
 
     if feature:
         for variant in _keyword_variants(feature):
-            kw_clauses.append(f'text ~ "{variant}"')
+            kw_clauses.append(f'text ~ "{_jql_str(variant)}"')
 
     if isinstance(process_types, str):
         process_types = [process_types]
     for pt in process_types:
-        kw_clauses.append(f'text ~ "{pt}"')
+        kw_clauses.append(f'text ~ "{_jql_str(pt)}"')
 
     # ── Identity conditions (reporter or assignee) ─────────────────────────────
     id_clauses = [
