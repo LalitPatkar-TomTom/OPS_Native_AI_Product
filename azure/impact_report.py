@@ -22,7 +22,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from weekly_analytics import (CHAT_NOTE, chat_value_section, IST, METRIC, MINUTES, PILOT_START, UC_COLOR, UC_NAME, INK2, GRID, NAVY,  # noqa: E402
+from weekly_analytics import (CHAT_NOTE, chat_value_section, consolidated_value, IST, METRIC, MINUTES, PILOT_START, UC_COLOR, UC_NAME, INK2, GRID, NAVY,  # noqa: E402
                               ORANGE, AQUA, BLUE, chart_style, fill_breakdowns, ist_day, load, period_stats, table)
 import matplotlib.pyplot as plt  # noqa: E402  (Agg backend set by weekly_analytics)
 from docx import Document  # noqa: E402
@@ -226,14 +226,11 @@ def main() -> None:
 
     doc.add_heading("6. Productivity value (estimate)", 1)
     figure(c3, f"Figure 3 — Estimated manual work avoided by activity (total {total_h:.0f} h).")
-    table(doc, ["Activity", "Items", "Min / item (assumed)", "Hours"],
-          [(f"{UC_NAME[uc]} ({uc})", T["by_uc"].get(uc, 0), MINUTES[uc], f"{T['hours'][uc]:.1f}") for uc in ("UC1", "UC4", "UC2", "UC3")]
-          + [("OPS Hub questions answered", T["chats"], "by question", f"{T['hours']['chat']:.1f}"),
-             ("Total", "", "", f"{total_h:.1f}")], widths=(6.5, 2.2, 3.8, 2.4), num_cols=(1, 2, 3))
-    para(f"Annualised = pilot rate over {len(workdays)} working days × 220 working days; 1 FTE = 1,650 h. "
-         "Effort per item is an assumption to be validated with users (OSI-023).", size=8.5, italic=True, color=GREY)
     chat_value_section(doc, T["chat_value"], "pilot")
     para(CHAT_NOTE, size=8.5, italic=True, color=GREY)
+    consolidated_value(doc, T, "pilot")
+    para(f"Annualised = pilot rate over {len(workdays)} working days × 220 working days; 1 FTE = 1,650 h. "
+         "Effort per item is an assumption to be validated with users (OSI-023).", size=8.5, italic=True, color=GREY)
 
     doc.add_heading("7. Reliability", 1)
     figure(c4, f"Figure 4 — Runs completed per day against 4 planned slots ({T['runs']} of {T['slots_planned']}).")

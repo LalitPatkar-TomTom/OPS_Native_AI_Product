@@ -187,6 +187,23 @@ def chat_value_section(doc, cv: dict, when: str) -> None:
         f"question text." + (f" Counted as 0: {', '.join(zero)}." if zero else ""))
 
 
+def consolidated_value(doc, S: dict, when: str, unit: str = " h") -> None:
+    """Email use cases (fixed minutes per email) + OPS Hub questions (valued per question) = total saving."""
+    doc.add_heading(f"Consolidated time saved ({when})", 3)
+    emails_h = sum(S["hours"][uc] for uc in ("UC1", "UC2", "UC3", "UC4"))
+    rows = [(f"{UC_NAME[uc]} ({uc})", S["by_uc"].get(uc, 0), MINUTES[uc], f"{S['hours'][uc]:.1f}{unit}")
+            for uc in ("UC1", "UC4", "UC2", "UC3")]
+    rows.append(("Subtotal: OPS Native AI emails", sum(S["by_uc"].get(uc, 0) for uc in MINUTES), "",
+                 f"{emails_h:.1f}{unit}"))
+    cv = S["chat_value"]
+    rows.append(("OPS Hub questions answered", S["chats"], "by question (above)", f"{S['hours']['chat']:.1f}{unit}"))
+    rows.append(("Total time saved", "", "", f"{S['hours_total']:.1f}{unit}"))
+    table(doc, ["Activity", "Items", "Minutes saved per item", "Hours"], rows,
+          widths=(6.5, 2.0, 4.6, 2.4), num_cols=(1, 2, 3))
+    doc.add_paragraph(f"Total range {emails_h + cv['low'] / 60:.1f}–{emails_h + cv['high'] / 60:.1f} h "
+                      f"(the OPS Hub part is a range; email minutes are fixed assumptions).")
+
+
 def fill_breakdowns(s: dict) -> None:
     for e in s["_sent"]:
         s["per_owner_uc"][(e["profile_owner"] or e["to_email"] or "").lower()][e["uc_id"]] += 1
@@ -338,12 +355,8 @@ def build(d: dict, week_start: date, out: Path, source: str) -> tuple[Path, dict
           widths=(7.0, 1.9, 1.7, 1.6, 1.7, 1.6), num_cols=(1, 2, 3, 4, 5))
 
     doc.add_heading("Estimated value this week", 2)
-    vrows = [(f"{UC_NAME[uc]} ({uc})", W["by_uc"].get(uc, 0), MINUTES[uc], f"{W['hours'][uc]:.1f} h") for uc in ("UC1", "UC4", "UC2", "UC3")]
-    vrows.append(("OPS Hub questions answered", W["chats"], "by question, see below", f"{W['hours']['chat']:.1f} h"))
-    vrows.append(("Total", "", "", f"{W['hours_total']:.1f} h"))
-    table(doc, ["Activity", "Items", "Minutes saved per item (assumption)", "Hours"], vrows,
-          widths=(6.5, 2.0, 4.6, 2.4), num_cols=(1, 2, 3))
     chat_value_section(doc, W["chat_value"], "this week")
+    consolidated_value(doc, W, "this week")
 
     doc.add_heading("Reliability", 2)
     late = f", {W['late_runs']} more than 30 min late" if W["late_runs"] else ""
