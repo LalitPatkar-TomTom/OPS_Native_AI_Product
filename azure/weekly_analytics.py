@@ -32,6 +32,9 @@ from docx.oxml import OxmlElement  # noqa: E402
 from docx.oxml.ns import qn  # noqa: E402
 from docx.shared import Cm, Pt, RGBColor  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import chat_value  # noqa: E402
+
 RECIPIENTS = ["Ketki.Avachat@tomtom.com", "Vrushali.Kashikar@tomtom.com",
               "pratish.deshpande@tomtom.com", "lalit.patkar@tomtom.com"]          # To
 CC = ["Peter.Clarys@tomtom.com", "Seema.Nayyar2@tomtom.com", "Saurav.Nanda@tomtom.com"]
@@ -44,8 +47,9 @@ UC_COLOR = {"UC1": BLUE, "UC4": ORANGE, "UC2": AQUA, "UC3": YELLOW}
 INK2, GRID = "#52524e", "#e6e6e1"
 NAVY = RGBColor(0x1B, 0x2A, 0x4A)
 METRIC = {"coq": "CoQ", "copq": "CoPQ", "efficiency": "Efficiency", "yield": "Yield", "fta": "FTA"}
-# minutes of manual work avoided per item — the same assumptions as the 19 Oct business value report
-MINUTES = {"UC1": 20, "UC4": 15, "UC2": 10, "UC3": 90, "chat": 10}
+# minutes of manual work avoided per item — the same assumptions as the 19 Oct business value report.
+# OPS Hub questions are valued one by one from the work each answer did (chat_value.py).
+MINUTES = {"UC1": 20, "UC4": 15, "UC2": 10, "UC3": 90}
 
 
 def ist_day(ts: str) -> date:
@@ -82,6 +86,14 @@ def load(db_path: Path, hub_dir: Path) -> dict:
             except ValueError:
                 pass
     data["chats"] = chats
+    feedback = []
+    if (hub_dir / "feedback.jsonl").exists():
+        for line in (hub_dir / "feedback.jsonl").read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                feedback.append(json.loads(line))
+            except ValueError:
+                pass
+    data["feedback"] = feedback
     users = []
     if (hub_dir / "opshub_audit.db").exists():
         shutil.copy2(hub_dir / "opshub_audit.db", tmp / "h.db")
@@ -114,6 +126,7 @@ def period_stats(d: dict, start: date, end: date) -> dict:
     alerts = [a for a in d["alerts"] if start.isoformat() <= a["alert_date"] <= end.isoformat()
               and "test.user" not in (a["user_email"] or "")]
     chats = [c for c in d["chats"] if c.get("ts") and inside(c["ts"])]
+    cv = chat_value.value(chats, d.get("feedback"))
     sent = [e for e in em if e["sent_ok"]]
     by_uc = Counter(e["uc_id"] for e in sent)
     hist = [h for h in d.get("history", []) if start.isoformat() <= h["day_ist"] <= end.isoformat()]
@@ -128,7 +141,7 @@ def period_stats(d: dict, start: date, end: date) -> dict:
     days = (end - start).days + 1
     slots = {(r["slot_date_ist"], r["slot_ist"]) for r in runs}
     hours = {uc: by_uc.get(uc, 0) * MINUTES[uc] / 60 for uc in ("UC1", "UC2", "UC3", "UC4")}
-    hours["chat"] = len(chats) * MINUTES["chat"] / 60
+    hours["chat"] = cv["minutes"] / 60               # per question, from the work each answer did
     return {
         "emails": len(sent) + sum(hist_emails.values()), "emails_tried": len(em) + sum(hist_emails.values()),
         "by_uc": by_uc,
@@ -142,13 +155,36 @@ def period_stats(d: dict, start: date, end: date) -> dict:
         "runs": len(slots) + hist_runs, "slots_planned": 4 * days,
         "late_runs": sum(1 for r in runs if (r["delay_min"] or 0) > 30),
         "run_errors": sum(r["errors"] or 0 for r in runs),
-        "chats": len(chats), "chat_users": len({c.get("email", "").lower() for c in chats if c.get("email")}),
+        "chats": cv["answered"], "chat_value": cv,
+        "chat_users": len({c.get("email", "").lower() for c in chats if c.get("email") and c.get("ok") is not False}),
         "hours": hours, "hours_total": sum(hours.values()),
         "per_owner": Counter((e["profile_owner"] or e["to_email"] or "").lower() for e in sent),
         "per_owner_uc": defaultdict(Counter),
         "by_day_uc": defaultdict(Counter),
         "_sent": sent,
     }
+
+
+CHAT_NOTE = ("OPS Hub time saved is valued per question from the work the answer did (data queries, Jira / "
+             "Confluence lookups, reasoning), net of the time spent waiting for and reading the answer. Analysis "
+             "answers with actions, risks or insights count at least 1 hour. Failed answers, repeats within 30 min "
+             "and answers rated 👎 count 0. Questions before 21 Oct 2026 are estimated from the question text. "
+             "Minutes per type are starting values to be calibrated with users.")
+
+
+def chat_value_section(doc, cv: dict, when: str) -> None:
+    """Table of OPS Hub questions by type with the time each type saved."""
+    doc.add_heading(f"OPS Hub time saved by type of question ({when})", 3)
+    rows = [(chat_value.LABEL[c], cv["by_cat"][c], f"{chat_value.TABLE[c][0]}", f"{cv['min_by_cat'][c] / 60:.1f} h")
+            for c in chat_value.ORDER if cv["by_cat"].get(c)]
+    rows.append(("Total", sum(cv["by_cat"].values()), "", f"{cv['minutes'] / 60:.1f} h"))
+    table(doc, ["Type of question", "Questions", "Typical minutes", "Hours saved"], rows,
+          widths=(8.0, 2.2, 2.8, 2.5), num_cols=(1, 2, 3))
+    zero = [f"{cv[k]} {t}" for k, t in (("failed", "failed"), ("repeats", "repeated"), ("disliked", "rated 👎")) if cv[k]]
+    doc.add_paragraph(
+        f"Range {cv['low'] / 60:.1f}–{cv['high'] / 60:.1f} h. "
+        f"{cv['measured']} question(s) valued from the work the answer did, {cv['estimated']} estimated from the "
+        f"question text." + (f" Counted as 0: {', '.join(zero)}." if zero else ""))
 
 
 def fill_breakdowns(s: dict) -> None:
@@ -303,10 +339,11 @@ def build(d: dict, week_start: date, out: Path, source: str) -> tuple[Path, dict
 
     doc.add_heading("Estimated value this week", 2)
     vrows = [(f"{UC_NAME[uc]} ({uc})", W["by_uc"].get(uc, 0), MINUTES[uc], f"{W['hours'][uc]:.1f} h") for uc in ("UC1", "UC4", "UC2", "UC3")]
-    vrows.append(("OPS Hub questions answered", W["chats"], MINUTES["chat"], f"{W['hours']['chat']:.1f} h"))
+    vrows.append(("OPS Hub questions answered", W["chats"], "by question, see below", f"{W['hours']['chat']:.1f} h"))
     vrows.append(("Total", "", "", f"{W['hours_total']:.1f} h"))
     table(doc, ["Activity", "Items", "Minutes saved per item (assumption)", "Hours"], vrows,
           widths=(6.5, 2.0, 4.6, 2.4), num_cols=(1, 2, 3))
+    chat_value_section(doc, W["chat_value"], "this week")
 
     doc.add_heading("Reliability", 2)
     late = f", {W['late_runs']} more than 30 min late" if W["late_runs"] else ""
@@ -320,6 +357,7 @@ def build(d: dict, week_start: date, out: Path, source: str) -> tuple[Path, dict
               "Hours saved use the same per-item assumptions as the 19 Oct business value report; they are estimates "
               "to be validated with users (OSI-023).",
               "OPS Hub questions come from the OPS Hub usage log; Status Report volumes are not in it yet.",
+              CHAT_NOTE,
               f"Generated {datetime.now(IST):%d %b %Y %H:%M} IST by the Azure job ops-native-ai-trigger."):
         doc.add_paragraph(t, style="List Bullet")
 
