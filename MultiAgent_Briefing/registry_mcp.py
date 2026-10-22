@@ -36,6 +36,10 @@ ALLOWED = {
 
 
 def atlassian_auth_header():
+    """Authorization header for the Atlassian MCP: MCP_AUTH, else Basic from ATL_EMAIL/ATL_TOKEN.
+
+    Raises RuntimeError when neither is configured.
+    """
     if os.environ.get("MCP_AUTH"):
         return os.environ["MCP_AUTH"].strip()
     email, token = os.environ.get("ATL_EMAIL", "").strip(), os.environ.get("ATL_TOKEN", "").strip()
@@ -90,9 +94,14 @@ class RegistryTools:
         return await self._stack.__aexit__(*exc)
 
     def is_write(self, tool_name):
+        """True if the tool is configured as a write tool in ALLOWED."""
         return tool_name in self._write
 
     async def call(self, tool_name, args):
+        """Call an MCP tool and return its text, prefixed "ERROR: " on a tool error or an unknown tool.
+
+        Transport errors from the session are not caught.
+        """
         if tool_name not in self._owner:
             return f"ERROR: tool '{tool_name}' is not available"
         res = await self._owner[tool_name].call_tool(tool_name, args or {})
@@ -100,8 +109,10 @@ class RegistryTools:
         return ("ERROR: " if res.isError else "") + text
 
     def openai_tools(self):
+        """The discovered tools in OpenAI function-calling format."""
         return [{"type": "function", "function": {"name": t["name"], "description": t["description"],
                  "parameters": t["input_schema"]}} for t in self.tools]
 
     def anthropic_tools(self):
+        """The discovered tools (name, description, input_schema) in Anthropic tool format."""
         return list(self.tools)

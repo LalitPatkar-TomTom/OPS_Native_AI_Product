@@ -35,6 +35,7 @@ LAPTOP_DB = Path(__file__).resolve().parent.parent / "MultiAgent_Briefing" / "ou
 
 
 def az(*args: str, check: bool = True) -> str:
+    """Run an az CLI command and return stdout; with check, exit with the stderr tail on failure."""
     r = subprocess.run(["az", *args], capture_output=True, text=True, shell=(sys.platform == "win32"))
     if check and r.returncode != 0:
         # stderr of az never contains the key; trim it anyway
@@ -43,6 +44,7 @@ def az(*args: str, check: bool = True) -> str:
 
 
 def counts(path: Path) -> dict:
+    """Row count per table of a SQLite DB, opened read-only."""
     con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     try:
         tables = [t for (t,) in con.execute("SELECT name FROM sqlite_master WHERE type='table'")]
@@ -52,10 +54,16 @@ def counts(path: Path) -> dict:
 
 
 def sha256(path: Path) -> str:
+    """Hex SHA-256 of the file's bytes."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def main() -> None:
+    """One-time move of the laptop analytics DB to the Azure share (steps in the module docstring).
+
+    Without --go only the checks run; any failed check exits. With --go it uploads, verifies and
+    writes the marker last.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--go", action="store_true", help="really do it (without it: checks only)")
     a = ap.parse_args()
@@ -79,6 +87,7 @@ def main() -> None:
     auth = ["--account-name", ACCOUNT, "--account-key", key]
 
     def exists(path: str) -> bool:
+        """True if the path exists on the share."""
         return az("storage", "file", "exists", "--share-name", SHARE, "--path", path, *auth,
                   "--query", "exists", "-o", "tsv") == "true"
 
@@ -148,6 +157,7 @@ def main() -> None:
     az("storage", "directory", "create", "--share-name", SHARE, "--name", dest, *auth, "-o", "none")
 
     def remote_sizes() -> dict:
+        """File name -> size for the files in the laptop-history folder on the share."""
         # sizes in Python: a JMESPath like length(@) breaks the Windows command shell
         return {f["name"]: (f.get("properties") or {}).get("contentLength")
                 for f in json.loads(az("storage", "file", "list", "--share-name", SHARE, "--path", dest,

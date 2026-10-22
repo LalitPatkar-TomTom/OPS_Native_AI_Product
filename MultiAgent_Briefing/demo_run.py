@@ -54,6 +54,7 @@ class StepLog:
             })
 
     def render(self) -> Panel:
+        """Rich panel of the steps so far (coloured by status) with user, project and elapsed time."""
         elapsed = round(time.time() - self.start, 1)
 
         table = Table(box=None, show_header=False, padding=(0, 1), expand=True)
@@ -176,6 +177,11 @@ def _run_confluence(skill: dict, log: StepLog, results: dict):
 # ── UC1 ────────────────────────────────────────────────────────────────────────
 
 def run_uc1_demo(skill_file: Path | None = None):
+    """Interactive UC1 demo: Jira, analytics and Confluence agents in parallel, shown as a live step log.
+
+    Saves the briefing Markdown to OUTPUT_DIR and sends it via deliver(); exits when no profile
+    is found. Legacy, not used by the Azure job.
+    """
     _file = skill_file or next(SKILLS_DIR.glob("*_skill.md"), None)
     if not _file:
         console.print("[red]No skill file found.[/red]")
@@ -300,6 +306,11 @@ def run_uc1_demo(skill_file: Path | None = None):
 # ── UC2 ────────────────────────────────────────────────────────────────────────
 
 def run_uc2_demo(skill_file: Path | None = None):
+    """Interactive UC2 demo: runs the Jira agent and emails an SLA alert via deliver() if one is due.
+
+    Nothing is sent when all tickets are on track; exits when no profile is found.
+    Legacy, not used by the Azure job.
+    """
     _file = skill_file or next(SKILLS_DIR.glob("*_skill.md"), None)
     if not _file:
         console.print("[red]No skill file found.[/red]")
@@ -386,6 +397,11 @@ def run_uc2_demo(skill_file: Path | None = None):
 # ── UC4 ────────────────────────────────────────────────────────────────────────
 
 def run_uc4_demo(skill_file: Path | None = None):
+    """Interactive UC4 demo: runs the analytics agent and emails an FTA alert via deliver() if needed.
+
+    Nothing is sent when FTA meets the target; exits when no profile is found.
+    Legacy, not used by the Azure job.
+    """
     _file = skill_file or next(SKILLS_DIR.glob("*_skill.md"), None)
     if not _file:
         console.print("[red]No skill file found.[/red]")

@@ -61,6 +61,11 @@ def _list_remote(client: httpx.Client, base: str, sas: str) -> list[str]:
 
 
 def sync() -> dict:
+    """Copy profiles from the Azure Files share into SKILLS_DIR: add new ones, replace older local copies
+    after backing them up, never delete. Returns the stats dict.
+
+    Skipped when SKILLS_SYNC_URL/SAS are unset; per-file errors are logged, a listing failure raises.
+    """
     base = os.getenv("SKILLS_SYNC_URL", "")
     sas = os.getenv("SKILLS_SYNC_SAS", "").lstrip("?")
     if not base or not sas:

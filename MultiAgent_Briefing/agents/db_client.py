@@ -175,6 +175,11 @@ class DatabricksSQLClient:
     # ── Public API ────────────────────────────────────────────────────────────
 
     def execute_sql(self, sql: str, max_rows: int = 100, allowed_table: str = "") -> dict:
+        """Run a read-only query on the Databricks SQL warehouse; returns the formatted result (<= max_rows).
+
+        Raises DatabricksError for non-SELECT/WITH SQL, for a reference to another registered table
+        when allowed_table is set, or when the statement fails.
+        """
         self._assert_select_only(sql)
         if allowed_table:
             self._assert_table_scope(sql, allowed_table)
@@ -198,6 +203,7 @@ class DatabricksSQLClient:
 
     @staticmethod
     def schema_to_markdown(schema: list[dict]) -> str:
+        """Markdown table (column, type, comment) from a schema list; placeholder text when empty."""
         if not schema:
             return "(schema unavailable)"
         lines = ["| Column | Type | Comment |", "| --- | --- | --- |"]

@@ -71,6 +71,7 @@ def _emphasis(text: str, tags: str, mark: str) -> str:
                          re.DOTALL | re.IGNORECASE)
 
     def replace(match: re.Match) -> str:
+        """Wrap the trimmed inner text in `mark`, keeping leading/trailing whitespace outside the markers."""
         inner = match.group(1)
         core = inner.strip()
         if not core:
@@ -116,6 +117,7 @@ def storage_to_text(storage: str) -> str:
     # Headings become ATX headings. Inline marks inside them are kept because
     # the parser strips them itself when comparing names.
     def heading(match: re.Match) -> str:
+        """Render an <hN> match as an ATX Markdown heading, with inner tags stripped."""
         level = int(match.group(1))
         inner = _TAG.sub("", _inline_marks(match.group(2)))
         return f"\n\n{'#' * level} {inner.strip()}\n\n"
@@ -156,6 +158,10 @@ class _TableParser(HTMLParser):
         self._depth = 0
 
     def handle_starttag(self, tag, attrs):
+        """Open a table, row or cell buffer (only the outermost table starts a new table).
+
+        br, p and li inside a cell add a space.
+        """
         tag = tag.lower()
         if tag == "table":
             self._depth += 1
@@ -169,6 +175,7 @@ class _TableParser(HTMLParser):
             self._cell.append(" ")
 
     def handle_endtag(self, tag):
+        """Close the current cell, row (dropped when all cells are empty) or outermost table and store it."""
         tag = tag.lower()
         if tag in ("td", "th") and self._cell is not None:
             self._row.append(re.sub(r"\s+", " ", "".join(self._cell)).strip())
@@ -184,6 +191,7 @@ class _TableParser(HTMLParser):
             self._depth = max(0, self._depth - 1)
 
     def handle_data(self, data):
+        """Collect text while inside a table cell."""
         if self._cell is not None:
             self._cell.append(data)
 

@@ -32,12 +32,14 @@ results: list[tuple[str, str, str]] = []
 
 
 def check(name: str, ok: bool | None, detail: str = "", warn_only: bool = False) -> None:
+    """Record and print one result: PASS if ok, else WARN (warn_only or ok is None) or FAIL."""
     status = "PASS" if ok else ("WARN" if warn_only or ok is None else "FAIL")
     results.append((status, name, detail))
     print(f"  [{status}] {name}{' - ' + detail if detail else ''}")
 
 
 def az(*args: str):
+    """Run an az CLI command and return its parsed JSON output; raises RuntimeError with the stderr tail."""
     r = subprocess.run(["az", *args, "-o", "json"], capture_output=True, text=True, encoding="utf-8",
                        errors="replace", shell=(sys.platform == "win32"),
                        env={**os.environ, "PYTHONIOENCODING": "utf-8"})
@@ -47,6 +49,10 @@ def az(*args: str):
 
 
 def main() -> int:
+    """Check the deployed job (schedule, retry, image, env, secrets, mounts, recent runs) via az.
+
+    Writes a Markdown report to test_reports/; returns 1 if any check failed, else 0.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--image", help="expected image tag, e.g. v2026-10-22-1")
     ap.add_argument("--mode", choices=["live", "parallel"], default="live")

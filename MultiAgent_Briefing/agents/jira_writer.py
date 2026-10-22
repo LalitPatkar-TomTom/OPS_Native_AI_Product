@@ -42,6 +42,10 @@ MARKER = "cc-autosolve"
 
 
 def comment_marker(purpose: str, subject: str) -> str:
+    """Sign-off line added to our Jira comments so a later run can recognise its own work.
+
+    Legacy, not used by the Azure job.
+    """
     return f"Posted by the {MARKER} assistant - ref {purpose}/{subject}"
 
 
@@ -56,6 +60,7 @@ class Budget:
     attachments: int = 0
 
     def room_for(self, kind: str) -> bool:
+        """True if the cap for this write kind (create/comment/attach) is not reached; unknown kinds pass."""
         return {
             "create": self.creates < self.max_creates,
             "comment": self.comments < self.max_comments,
@@ -63,6 +68,7 @@ class Budget:
         }.get(kind, True)
 
     def spend(self, kind: str) -> None:
+        """Count one write of this kind against the budget; unknown kinds are not counted."""
         if kind == "create":
             self.creates += 1
         elif kind == "comment":
@@ -86,6 +92,7 @@ class WriterContext:
 
     def record(self, action: str, target: str, detail: str, done: bool,
                reason: str = "") -> dict:
+        """Log a guarded write as performed (done) or refused, and return the entry."""
         entry = {"action": action, "target": target, "detail": detail,
                  "done": done, "reason": reason}
         (self.performed if done else self.refused).append(entry)

@@ -56,6 +56,10 @@ def _has_table(con, name):
 
 
 def build(days: int, minutes: dict, include_test: bool, db_path: Path = DB_PATH) -> tuple[str, list[dict]]:
+    """Compute the value report for the last `days` days from the audit DB (opened read-only).
+
+    Returns (Markdown text, per user x UC rows); test runs are excluded unless include_test.
+    """
     con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     since = (datetime.utcnow() - timedelta(days=days)).isoformat()
@@ -227,6 +231,10 @@ def build(days: int, minutes: dict, include_test: bool, db_path: Path = DB_PATH)
 
 
 def main():
+    """CLI: build the value report, write value_report_<date>.md/.csv to OUTPUT_DIR and print it.
+
+    Not used by the Azure job.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--days", type=int, default=7)
     ap.add_argument("--minutes", help="e.g. UC1=15,UC2=10,UC3=60,UC4=15")

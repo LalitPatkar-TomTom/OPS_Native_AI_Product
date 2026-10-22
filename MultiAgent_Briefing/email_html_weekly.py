@@ -24,6 +24,7 @@ def _build_kpi_summary(analytics: dict, jira: dict, pm: set) -> str:
     cells = []
 
     def delta_str(curr: float, prev: float, higher_is_good: bool = True) -> str:
+        """Coloured signed difference curr - prev, shown as a percentage; green when it moves the good way."""
         d = curr - prev
         good = (d > 0) == higher_is_good
         sign = "+" if d >= 0 else ""
@@ -246,6 +247,10 @@ def build(
     skill: dict[str, Any] | None = None,
     preview_note: str | None = None,
 ) -> str:
+    """Render the UC3 Weekly Operational Report as an HTML email string.
+
+    Jira/Confluence text is HTML-escaped first; sections are numbered and empty ones are left out.
+    """
     jira         = _escape_jira(jira)              # untrusted Jira / Confluence text
     confluence   = _escape_confluence(confluence)
     _s           = skill or {}
@@ -276,6 +281,7 @@ def build(
     # Auto-number sections
     n = [0]
     def sec(title, body):
+        """Number and render a section; returns "" when body is empty."""
         if not body or not body.strip():
             return ""
         n[0] += 1

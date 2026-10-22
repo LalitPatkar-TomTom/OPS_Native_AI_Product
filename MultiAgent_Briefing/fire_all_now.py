@@ -113,6 +113,11 @@ def _dispatch(uc_id: str, skill: dict, skill_file: Path, user: str):
 
 
 def main():
+    """Job entry point: fire the UCs due in this IST slot (or --uc) for every profile in SKILLS_DIR.
+
+    Records the run in the audit DB (start, error count, daily backup) unless --dry-run;
+    exits 1 when no profiles are found. Per-user failures are counted, not raised.
+    """
     parser = argparse.ArgumentParser(description="OPS Native AI — batch trigger all users")
     parser.add_argument("--dry-run", action="store_true", help="Print what would run without executing")
     parser.add_argument("--uc", default=None, choices=["UC1","UC2","UC3","UC4"],

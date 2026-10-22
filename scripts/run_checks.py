@@ -18,10 +18,15 @@ REPORTS = ROOT / "test_reports"
 
 
 def git(*args: str) -> str:
+    """Run a git command in the repo and return its stdout (empty on failure)."""
     return subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True).stdout.strip()
 
 
 def main() -> int:
+    """Run pytest and the profile check, write a Markdown report to test_reports/ and print a summary.
+
+    Returns 0 if all tests passed, 1 otherwise, 2 if pytest is not installed.
+    """
     try:
         import pytest  # noqa: F401
     except ImportError:

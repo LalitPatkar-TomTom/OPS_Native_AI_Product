@@ -18,6 +18,10 @@ sys.path.insert(0, "/app/MultiAgent_Briefing")
 
 
 def main() -> None:
+    """Email a short run report (result, slot, emails, MCP, DB saved, problems) to RUN_REPORT_TO via Graph.
+
+    argv: run log path, exit code, db-saved flag (1/0). Does nothing when RUN_REPORT_TO is empty.
+    """
     log_path, rc, db_saved = Path(sys.argv[1]), int(sys.argv[2]), sys.argv[3] == "1"
     to = os.getenv("RUN_REPORT_TO", "").strip()
     if not to:
@@ -26,6 +30,7 @@ def main() -> None:
     plain = [l for l in lines if "SQL" not in l and "HTTP Request" not in l]
 
     def first(pattern):
+        """First regex match of pattern in the filtered log lines, or None."""
         return next((m for l in plain if (m := re.search(pattern, l))), None)
 
     slot = first(r"Serving slot (\S+ \S+) IST")

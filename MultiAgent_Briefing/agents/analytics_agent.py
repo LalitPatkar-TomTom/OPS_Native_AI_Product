@@ -137,6 +137,7 @@ _WU_NAMES = {
 
 
 def wu_name(wu: str | None) -> str:
+    """Display name for a work_unit value: case-insensitive lookup in _WU_NAMES, else title case."""
     key = (wu or "").strip().lower()
     return _WU_NAMES.get(key, key.title())
 

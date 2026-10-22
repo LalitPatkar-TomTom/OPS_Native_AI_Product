@@ -51,6 +51,10 @@ def _e(value) -> str:
 
 
 def status(text: str, colour: str = "neutral") -> str:
+    """Confluence storage-format status lozenge with the escaped text and given colour.
+
+    Legacy, not used by the Azure job.
+    """
     return (f'<ac:structured-macro ac:name="status" ac:schema-version="1">'
             f'<ac:parameter ac:name="title">{_e(text)}</ac:parameter>'
             f'<ac:parameter ac:name="colour">{colour}</ac:parameter>'
@@ -58,12 +62,20 @@ def status(text: str, colour: str = "neutral") -> str:
 
 
 def link(url: str, label: str) -> str:
+    """HTML link with escaped URL and label (label defaults to the URL); an en dash when url is empty.
+
+    Legacy, not used by the Azure job.
+    """
     if not url:
         return "&ndash;"
     return f'<a href="{_e(url)}">{_e(label or url)}</a>'
 
 
 def panel(kind: str, body_html: str) -> str:
+    """Wrap body HTML in a Confluence rich-text macro named `kind` (kind is not escaped).
+
+    Legacy, not used by the Azure job.
+    """
     return (f'<ac:structured-macro ac:name="{kind}" ac:schema-version="1">'
             f'<ac:rich-text-body>{body_html}</ac:rich-text-body>'
             f"</ac:structured-macro>")
@@ -79,6 +91,7 @@ class WriteOutcome:
     ran_as: str = ""
 
     def as_dict(self) -> dict:
+        """The outcome fields as a dict (the instance's own __dict__, not a copy)."""
         return vars(self)
 
 

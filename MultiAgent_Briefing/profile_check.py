@@ -76,6 +76,7 @@ def databricks_presence(process_types: list[str], planning_ids: list[str]) -> tu
     q = lambda v: "'" + v.lower().replace("'", "''") + "'"
 
     def present(col: str, values: list[str]) -> dict:
+        """Map each value found in the KPI table (last 120 days) to its done-task count (scoped SELECT)."""
         if not values:
             return {}
         sql = (f"SELECT LOWER({col}) AS v, SUM(COALESCE(Prod_Done_task_count, 0)) AS n FROM {table} "
@@ -176,6 +177,7 @@ def check(skill: dict) -> dict:
 
 # ── email ────────────────────────────────────────────────────────────────────
 def compose(skill: dict, res: dict, updated: bool) -> tuple[str, str]:
+    """Build the (subject, HTML body) of the profile-check email from check() results."""
     first = html.escape(skill.get("user_first_name") or "there")
     n = len(res["fix"])
     subject = ("Your OPS Native AI profile is live" + (" – thank you for the update" if updated else "")
@@ -205,6 +207,11 @@ def compose(skill: dict, res: dict, updated: bool) -> tuple[str, str]:
 
 # ── main ─────────────────────────────────────────────────────────────────────
 def main() -> int:
+    """Email owners of new or changed profiles (CC: CC) their check results; record sha256 in profile_checks.
+
+    Runs only in SEND_HOURS unless --to/--seed; the first run or --seed records without emailing.
+    --to sends every result to one address only and records nothing. Returns 0.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--to", help="test: send every result to this address only, no CC, record nothing")
     ap.add_argument("--seed", action="store_true", help="record current profiles as checked, send nothing")

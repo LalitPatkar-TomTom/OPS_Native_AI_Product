@@ -47,6 +47,7 @@ PLAIN = {"DATABRICKS_HOST", "DATABRICKS_SQL_WAREHOUSE_ID", "DATABRICKS_LLM_MODEL
 
 
 def az(*args: str) -> str:
+    """Run an az CLI command with TSV output and return stdout; exit with the stderr tail on failure."""
     r = subprocess.run(["az", *args, "-o", "tsv"], capture_output=True, text=True,
                        shell=(sys.platform == "win32"))
     if r.returncode != 0:
@@ -55,6 +56,11 @@ def az(*args: str) -> str:
 
 
 def main() -> None:
+    """Create or update the Container Apps job (image, schedule, env, secrets) with an az rest PUT.
+
+    Root .env values become secrets unless in PLAIN (SKIP keys dropped); --mode parallel adds
+    EMAIL_PARALLEL_TO. Exits on any az failure; prints secret names only.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--image", required=True, help="image tag in ACR, e.g. v2026-10-19")
     ap.add_argument("--mode", choices=["parallel", "live"], required=True)

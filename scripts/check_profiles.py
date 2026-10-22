@@ -16,6 +16,10 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def check_all(folder: Path) -> list[dict]:
+    """Check each *_skill.md in folder: parses, valid recipient, an active UC, Jira key, UC4 alert level.
+
+    Returns one row per profile (status OK/WARN/FAIL, issues). Sets OPS_OUTPUT_DIR to a temp dir if unset.
+    """
     os.environ.setdefault("OPS_OUTPUT_DIR", tempfile.mkdtemp(prefix="profile-check-"))
     sys.path.insert(0, str(ROOT / "MultiAgent_Briefing"))
     from delivery import is_valid_recipient

@@ -30,6 +30,10 @@ def _first_ist(con, sql) -> datetime | None:
 
 
 def import_history(db: Path, log: Path) -> dict:
+    """Rebuild table history_log_daily in db from the laptop run log (emails/runs before the tables).
+
+    Commits to db; returns the totals, the days covered and the cut-off timestamps.
+    """
     con = sqlite3.connect(db)
     emails_from = _first_ist(con, "SELECT MIN(ts) FROM email_deliveries WHERE is_test = 0")
     runs_from = _first_ist(con, "SELECT MIN(started_at) FROM trigger_runs WHERE is_test = 0")

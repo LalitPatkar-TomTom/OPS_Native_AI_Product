@@ -177,6 +177,7 @@ def build(
     sec_n = [0]
 
     def section(title):
+        """Add the next numbered section heading to the document."""
         sec_n[0] += 1
         _section_heading(doc, title, sec_n[0])
 

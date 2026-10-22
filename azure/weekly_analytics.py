@@ -62,6 +62,10 @@ def ist_day(ts: str) -> date:
 
 
 def load(db_path: Path, hub_dir: Path) -> dict:
+    """Load the non-test analytics rows (emails, events, runs, alerts, history) and OPS Hub logs and users.
+
+    Reads temp copies of the SQLite files (never over SMB in place); missing hub files give empty lists.
+    """
     tmp = Path(tempfile.mkdtemp())
     local = tmp / "a.db"                         # never read SQLite over SMB in place
     shutil.copy2(db_path, local)
@@ -115,6 +119,7 @@ def load(db_path: Path, hub_dir: Path) -> dict:
 
 
 def tickets(e: dict) -> set:
+    """Jira keys in an event's SLA breach and warning ticket lists; invalid JSON is ignored."""
     out = set()
     for col in ("sla_breach_tickets", "sla_warning_tickets"):
         try:
@@ -240,6 +245,7 @@ def consolidated_value(doc, S: dict, when: str, unit: str = " h") -> None:
 
 
 def fill_breakdowns(s: dict) -> None:
+    """Add per-owner and per-IST-day email counts by use case to the period stats s (in place)."""
     for e in s["_sent"]:
         s["per_owner_uc"][(e["profile_owner"] or e["to_email"] or "").lower()][e["uc_id"]] += 1
         s["by_day_uc"][ist_day(e["ts"])][e["uc_id"]] += 1
@@ -247,6 +253,7 @@ def fill_breakdowns(s: dict) -> None:
 
 # ── document helpers ─────────────────────────────────────────────────────────
 def shade(cell, hex_fill):
+    """Set the background fill (hex colour) of a Word table cell."""
     tcPr = cell._tc.get_or_add_tcPr()
     sh = OxmlElement("w:shd")
     sh.set(qn("w:val"), "clear"); sh.set(qn("w:color"), "auto"); sh.set(qn("w:fill"), hex_fill)
@@ -254,6 +261,7 @@ def shade(cell, hex_fill):
 
 
 def table(doc, headers, rows, widths=None, num_cols=()):
+    """Add a Word table with a navy header row and 9 pt cells; num_cols are right-aligned. Returns it."""
     t = doc.add_table(rows=1, cols=len(headers))
     t.style = "Table Grid"
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -279,6 +287,7 @@ def table(doc, headers, rows, widths=None, num_cols=()):
 
 
 def chart_style(ax, ylabel=""):
+    """Apply the report's plain chart style to a matplotlib axis (light y grid, no top/right spines)."""
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
     for s in ("left", "bottom"):
@@ -291,6 +300,7 @@ def chart_style(ax, ylabel=""):
 
 
 def fmt_change(now, before):
+    """Percentage change as e.g. "+12%"; "new" when before is 0 and now is not, else a dash."""
     if before == 0:
         return "new" if now else "–"
     pct = (now - before) / before * 100
@@ -298,6 +308,10 @@ def fmt_change(now, before):
 
 
 def build(d: dict, week_start: date, out: Path, source: str) -> tuple[Path, dict]:
+    """Build the weekly analytics Word report for the week from week_start and save it to out.
+
+    Compares with the week before and the pilot total; returns (out, {"W", "P", "T", "rng"}).
+    """
     week_end = week_start + timedelta(days=6)
     prev_start = week_start - timedelta(days=7)
     W = period_stats(d, week_start, week_end); fill_breakdowns(W)
@@ -417,6 +431,10 @@ def build(d: dict, week_start: date, out: Path, source: str) -> tuple[Path, dict
 
 
 def main() -> None:
+    """Build last week's (or --week-start) analytics report and email it via Graph to RECIPIENTS, CC CC.
+
+    --to sends only to that address (no CC); --no-send only builds it.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default=os.getenv("OPS_DATA_DIR", "/data/config/native-ai") + "/trigger_audit.db")
     ap.add_argument("--hub", default="/data/config")

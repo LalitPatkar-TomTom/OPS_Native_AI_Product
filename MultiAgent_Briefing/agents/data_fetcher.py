@@ -49,6 +49,7 @@ class PartitionSpec:
     numeric_groups: list[str] = field(default_factory=list)
 
     def compiled(self) -> re.Pattern:
+        """The partition pattern compiled as a regex (compiled again on every call)."""
         return re.compile(self.pattern)
 
 
@@ -103,7 +104,12 @@ class SourceConfig:
 
     @classmethod
     def from_dict(cls, cfg: dict, substitutions: dict[str, str]) -> "SourceConfig":
+        """Build a SourceConfig from a spec dict, replacing {name} placeholders in root and filter.equals.
+
+        Raises KeyError when a required key (root, partitions, members, filter, ...) is missing.
+        """
         def sub(value: Any) -> Any:
+            """Replace each {key} placeholder in a string with its substitution; non-strings pass through."""
             if isinstance(value, str):
                 for k, v in substitutions.items():
                     value = value.replace("{" + k + "}", str(v))
@@ -144,6 +150,7 @@ class Partition:
     series: str | None
 
     def sort_key(self, spec: PartitionSpec) -> tuple:
+        """Sort key from the spec's order_by groups; numeric groups compare as ints (non-digits as 0)."""
         out = []
         for name in spec.order_by:
             raw = self.groups.get(name) or ""
@@ -201,9 +208,11 @@ class FetchResult:
 
     @property
     def row_count(self) -> int:
+        """Number of rows in this extract (can be below the source total when the extract is capped)."""
         return len(self.rows)
 
     def count_per_partition(self) -> dict[str, int]:
+        """Total reported count per partition from self.counts; non-numeric counts are skipped."""
         out: dict[str, int] = {}
         for c in self.counts:
             try:
@@ -370,6 +379,10 @@ def fetch(cfg: SourceConfig) -> FetchResult:
 # Output
 # ==========================================================================
 def write_xlsx(result: FetchResult, out_path: Path, title: str) -> Path:
+    """Write a FetchResult to .xlsx: Summary sheet (counts, cap warning, notes) and a Data sheet of rows.
+
+    Creates the parent folder, overwrites out_path and returns it. Legacy, not used by the Azure job.
+    """
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
 

@@ -365,6 +365,7 @@ def _build_sprint(jira, jira_project=""):
         return f'<p style="{_F};font-size:13px;color:{_MUTED}">Jira unavailable: {err}</p>'
 
     def box(label, val, rag):
+        """One KPI tile (large value, label) coloured by its RAG status."""
         c, bg, bd = _rag(rag)
         return (
             f'<td style="padding-right:12px">'
@@ -701,6 +702,7 @@ def _build_workunits(analytics):
     th = (f'{_F};font-size:11px;font-weight:bold;color:{_WHITE};background:{_HDR};'
           f'padding:6px 8px;text-align:left;border-bottom:2px solid {_BORDER}')
     def td(i):
+        """Inline CSS for a table cell in row i (alternate rows striped)."""
         bg = _WHITE if i % 2 == 0 else _STRIPE
         return f'{_F};font-size:11px;color:{_TEXT};padding:6px 8px;background:{bg};border-bottom:1px solid {_BORDER}'
     tbl = (f'<p style="{_F};font-size:12px;font-weight:bold;color:{_TEXT};margin:0 0 6px">By work unit</p>'
@@ -727,9 +729,11 @@ def _build_planning(analytics):
     th = (f'{_F};font-size:11px;font-weight:bold;color:{_WHITE};background:{_HDR};'
           f'padding:6px 8px;text-align:left;border-bottom:2px solid {_BORDER}')
     def cell(i):
+        """Inline CSS for a table cell in row i (alternate rows striped)."""
         bg = _WHITE if i % 2 == 0 else _STRIPE
         return f'{_F};font-size:11px;color:{_TEXT};padding:6px 8px;background:{bg};border-bottom:1px solid {_BORDER}'
     def coloured(text, rag):
+        """Text in a bold span coloured by its RAG status (text is not escaped here)."""
         c, _, _ = _rag(rag)
         return f'<span style="color:{c};font-weight:600">{text}</span>'
     tbl = (f'<table width="100%" cellpadding="0" cellspacing="0" '
@@ -1138,6 +1142,11 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
           confluence: dict[str, Any] | None = None,
           skill: dict[str, Any] | None = None,
           preview_note: str | None = None) -> str:
+    """Render the UC1 Daily Operational Briefing as an HTML email string.
+
+    Jira/Confluence text is HTML-escaped first. Overall RAG comes from SLA breaches/warnings and the
+    FTA/efficiency RAG; sections are numbered and empty ones are left out.
+    """
     jira            = _escape_jira(jira)
     confluence      = _escape_confluence(confluence)
     _s              = skill or {}
@@ -1167,6 +1176,7 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
     # auto-numbering
     n = [0]
     def sec(title, content, accent="#1B2A4A"):
+        """Number and render a section; returns "" for empty content (accent is not used)."""
         if not content or not content.strip():
             return ""
         n[0] += 1

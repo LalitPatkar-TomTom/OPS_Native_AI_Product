@@ -34,6 +34,7 @@ LIGHT = RGBColor(0x8A, 0x8A, 0x84)
 
 
 def profiles_scope(skills: Path) -> dict:
+    """Count profiles and distinct Databricks process types and planning IDs in *_skill.md files."""
     files = sorted(p for p in skills.glob("*_skill.md") if "@" in p.name)
     pts, pids, jira = set(), set(), set()
     for p in files:
@@ -49,6 +50,7 @@ def profiles_scope(skills: Path) -> dict:
 
 
 def provenance(db: Path) -> list:
+    """(table, rows, first day, last day) for each analytics table, read from a temp copy of the DB."""
     tmp = Path(tempfile.mkdtemp()) / "p.db"
     tmp.write_bytes(db.read_bytes())
     con = sqlite3.connect(f"file:{tmp}?mode=ro", uri=True)
@@ -65,6 +67,10 @@ def provenance(db: Path) -> list:
 
 
 def main() -> None:
+    """Build the business impact Word report from the Azure data and email it to --to via Graph.
+
+    --no-send only builds it (to --out or a temp folder).
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="/data/config/native-ai/trigger_audit.db")
     ap.add_argument("--hub", default="/data/config")
@@ -163,6 +169,7 @@ def main() -> None:
         h.font.color.rgb = NAVY; h.font.bold = True
 
     def para(text, size=10, bold=False, color=None, italic=False, after=4):
+        """Add a paragraph with one formatted run and return it."""
         p = doc.add_paragraph(); r = p.add_run(text); r.font.size = Pt(size); r.bold = bold; r.italic = italic
         if color:
             r.font.color.rgb = color
@@ -170,6 +177,7 @@ def main() -> None:
         return p
 
     def figure(path, caption, width=16.5):
+        """Add a centred picture with an italic caption below it."""
         doc.add_picture(str(path), width=Cm(width))
         doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
         para(caption, size=8, italic=True, color=LIGHT, after=8).alignment = WD_ALIGN_PARAGRAPH.CENTER

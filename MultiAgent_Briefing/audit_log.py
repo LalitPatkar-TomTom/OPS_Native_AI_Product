@@ -192,6 +192,10 @@ def sent_today(uc_id: str, user: str) -> bool:
 
 
 def finish_run(errors: int = 0) -> None:
+    """Stamp finished_at and the error count on the current trigger_runs row.
+
+    No-op when no run was started; a DB error is logged as a warning, never raised.
+    """
     run_id = _CTX.get("run_id")
     if not run_id:
         return

@@ -67,6 +67,7 @@ def _pick_uc() -> str:
 
 
 def run(uc_id: str, skill_file: Path):
+    """Run UC1, UC2 or UC4 for one profile via the orchestrator and print the saved output path."""
     from orchestrator import run_uc1, run_uc2, run_uc4
 
     skill = load_skill(skill_file)
