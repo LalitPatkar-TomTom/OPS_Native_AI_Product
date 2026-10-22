@@ -1,0 +1,27 @@
+# Unit tests on every push and pull request. The tests are offline (no secrets needed):
+# no Jira, Confluence, Databricks or Graph mail calls.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Kolkata          # same as the job image
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies (same as the job image)
+        run: |
+          pip install -r azure/requirements-azure.txt
+          pip install -r requirements-dev.txt
+      - name: Run unit tests
+        run: python -m pytest -q
+      - name: Check the profiles in the repo
+        run: python scripts/check_profiles.py
