@@ -3,9 +3,42 @@ HTML email formatter for UC1 Daily Briefing.
 Clean single-column layout: proper tables, no multi-column cards.
 Outlook-safe: table-based layout, inline CSS only.
 """
+import html as _html
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlencode
+
+
+# ── Untrusted text ─────────────────────────────────────────────────────────────
+# Jira summaries, names and statuses, and Confluence titles are written by other people. They are
+# HTML-escaped once, at the entry of each builder, so no markup or link from Jira can reach an email
+# sent from the shared mailbox. _btn() unescapes them again for the plain-text Jira create link.
+_TICKET_TEXT = ("key", "summary", "status", "priority", "assignee", "reporter")
+
+
+def _escape_jira(jira: dict | None) -> dict:
+    """Copy of the Jira agent output with every ticket's text fields HTML-escaped."""
+    if not jira:
+        return jira or {}
+    out = dict(jira)
+    for k in ("open_tickets", "sla_breaches", "sla_warnings"):
+        if isinstance(jira.get(k), list):
+            out[k] = [{**t, **{f: _html.escape(str(t[f])) for f in _TICKET_TEXT if t.get(f) is not None}}
+                      if isinstance(t, dict) else t for t in jira[k]]
+    return out
+
+
+def _escape_confluence(confluence: dict | None) -> dict:
+    """Copy of the Confluence agent output with page titles and the error text HTML-escaped."""
+    if not confluence:
+        return confluence or {}
+    out = dict(confluence)
+    if isinstance(confluence.get("pages"), list):
+        out["pages"] = [{**p, "page_title": _html.escape(str(p.get("page_title", "(untitled)")))}
+                        if isinstance(p, dict) else p for p in confluence["pages"]]
+    if confluence.get("error"):
+        out["error"] = _html.escape(str(confluence["error"]))
+    return out
 
 # ── Palette ────────────────────────────────────────────────────────────────────
 _GREEN  = "#1E8449"; _GREEN_BG  = "#EAF7EF"; _GREEN_BD  = "#A9DFBF"
@@ -154,6 +187,7 @@ def _btn(summary: str, description: str, jira_project: str = "", priority: str =
     pk  = jira_project or _p
     iid = os.getenv("JIRA_ISSUE_TYPE_ID", "10016")
     pid = {"Highest":"1","High":"2","Medium":"3","Low":"4","Lowest":"5"}.get(priority, "3")
+    summary, description = _html.unescape(summary), _html.unescape(description)   # see _escape_jira
     if JIRA_PROJECT_NUMERIC_ID:
         url = (f"{JIRA_BASE_URL}/secure/CreateIssueDetails!init.jspa?"
                + urlencode({"pid": JIRA_PROJECT_NUMERIC_ID, "issuetype": iid,
@@ -933,6 +967,8 @@ def _build_actions(jira, analytics, jira_project="", project_name="",
     if p2: parts.append(f'{len(p2)} to monitor (P2)')
 
     html += (
+        # Human in the loop: the engine only recommends (P0/P1/P2 with Jira links); it never updates,
+        # closes or escalates a ticket itself. This sentence states that in every briefing.
         f'<p style="{_F};font-size:12px;color:{_MUTED};margin:4px 0 0;line-height:1.6">'
         f'<b>Summary:</b> {total} action{"s" if total != 1 else ""} — '
         + ', '.join(parts) +
@@ -1102,7 +1138,8 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
           confluence: dict[str, Any] | None = None,
           skill: dict[str, Any] | None = None,
           preview_note: str | None = None) -> str:
-    confluence      = confluence or {}
+    jira            = _escape_jira(jira)
+    confluence      = _escape_confluence(confluence)
     _s              = skill or {}
     project_name    = _s.get("project_name") or "Project"
     jira_project    = _s.get("jira_project") or ""
@@ -1450,6 +1487,7 @@ def build_sla_alert(
     """HTML email for UC2 Jira SLA alerts — same shell as the UC4 quality alert."""
     from config import SLA_WARNING_HOURS, SLA_ESCALATION_HOURS
 
+    jira         = _escape_jira(jira)
     _s           = skill or {}
     project_name = _s.get("project_name") or "Project"
     jira_project = _s.get("jira_project") or ""

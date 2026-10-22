@@ -15,6 +15,14 @@ logger = logging.getLogger(__name__)
 
 _DATABRICKS_SCOPE = "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default"
 
+# Statements that change data or objects: never allowed anywhere in a query
+_WRITE_VERBS = re.compile(r"\b(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE"
+                          r"|COPY|OPTIMIZE|VACUUM|REFRESH|MSCK|CALL)\b", re.I)
+# One pass over the SQL: 'string literal' (with '' or \' escapes), "quoted" / `quoted` identifier,
+# -- line comment, /* block comment */. Literals become '' and comments a space, so neither data
+# nor comments can hide or fake a keyword or a ';'.
+_TOKENS = re.compile(r"'(?:[^'\\]|\\.|'')*'|\"[^\"]*\"|`[^`]*`|--[^\n]*|/\*.*?\*/", re.S)
+
 
 class DatabricksError(Exception):
     pass
@@ -56,6 +64,15 @@ class DatabricksSQLClient:
             raise DatabricksError(
                 f"Only SELECT statements are permitted. Got: {first_word!r}"
             )
+        # Defence in depth (the Databricks identity must also be read-only): blank string
+        # literals and quoted identifiers so data such as 'create-task' cannot trip the check,
+        # then refuse a second statement or any write verb anywhere in the query.
+        code = _TOKENS.sub(lambda m: "''" if m.group(0)[0] in "'\"`" else " ", sql)
+        if ";" in code.rstrip().rstrip(";"):
+            raise DatabricksError("Only one SQL statement is permitted")
+        verb = _WRITE_VERBS.search(code)
+        if verb:
+            raise DatabricksError(f"Only SELECT statements are permitted. Found: {verb.group(0).upper()!r}")
 
     def _assert_table_scope(self, sql: str, allowed_table: str) -> None:
         sql_lower = sql.lower()

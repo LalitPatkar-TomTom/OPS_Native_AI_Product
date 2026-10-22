@@ -160,6 +160,11 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
     jira_project = skill.get("jira_project") or ""
     cc_list      = skill.get("cc_recipients") or []
 
+    if audit_log.sent_today("UC3", user):
+        audit_log.log_skipped("UC3", user, skill, reason="weekly report already sent today")
+        log.info(f"  UC3 [{user}] already sent today — skipped")
+        return
+
     log.info(f"▶ UC3  Weekly Report starting … [{user}]")
 
     # The weekly report always shows Yield, even when it isn't one of the
@@ -269,6 +274,13 @@ def _run_uc4(skill: dict, user: str):
         audit_log.log_error("UC4", user, skill, str(exc))
         raise
 
+    # No live Databricks data: the fallback values are placeholders, so evaluating them could
+    # send a false alert. Skip and record the reason instead.
+    if not analytics.get("live", True):
+        audit_log.log_error("UC4", user, skill, f"metrics unavailable: {analytics.get('error', '')}"[:300])
+        log.warning(f"UC4  metrics unavailable — no alert evaluated  [{user}]: {analytics.get('error', '')}")
+        return
+
     week  = analytics.get("week_label", "")
     bd    = analytics.get("process_breakdown", [])
     trend = analytics.get("fta_trend", "stable")
@@ -338,7 +350,7 @@ def _run_uc4(skill: dict, user: str):
                 out     = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_Alert.md"
                 out.write_text(content, encoding="utf-8")
                 res = deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None)
-                if not force:
+                if not force and res.get("email"):     # failed send: retry at the next slot
                     mark_alerted(user, metric_key)
                 audit_log.log_uc4(
                     user, skill, analytics,
@@ -389,13 +401,14 @@ def _make_job(uc_id: str, skill: dict, skill_file: Path):
     tz    = skill.get("timezone", "Asia/Kolkata")
     user  = skill.get("user", "unknown")
 
-    def job():
+    def job() -> bool:
+        """Run one use case for one user. Returns False when it raised (already logged)."""
         audit_log.set_uc(uc_id)
         is_p0 = uc_id == "UC4"   # FTA P1 can break quiet hours
         if not is_p0 and _in_quiet_hours(quiet, tz):
             audit_log.log_skipped(uc_id, user, skill, reason=f"quiet hours {quiet}")
             log.info(f"  {uc_id} [{user}] suppressed — quiet hours {quiet}")
-            return
+            return True
         try:
             if   uc_id == "UC1": _run_uc1(skill_file, user)
             elif uc_id == "UC2": _run_uc2(skill, user)
@@ -406,6 +419,8 @@ def _make_job(uc_id: str, skill: dict, skill_file: Path):
                 log.warning(f"  No handler for {uc_id}")
         except Exception as exc:
             log.error(f"  {uc_id} [{user}] raised: {exc}", exc_info=True)
+            return False
+        return True
 
     job.__name__ = f"job_{uc_id}_{user}"
     return job

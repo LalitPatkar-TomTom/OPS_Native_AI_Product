@@ -59,7 +59,10 @@ def main() -> None:
 
     mcp = (f"OK — {mcp_ready.group(1)} tools" if mcp_ready and not mcp_fallback
            else "FALLBACK to REST" if mcp_fallback else "not used this slot")
-    ok = rc == 0 and done and db_saved and not failed_mail and not mcp_fallback and \
+    # a use case can fail without stopping the run (the run goes on with the next user), so
+    # ERROR lines count against "OK" too; warnings are listed below but do not
+    errors_logged = [l for l in problems if re.search(r"\[(ERROR|CRITICAL) *\]|Traceback", l)]
+    ok = rc == 0 and done and db_saved and not failed_mail and not mcp_fallback and not errors_logged and \
         (db_rows is None or db_rows["emails"] == sent)
     when = slot.group(1) if slot else datetime.now().strftime("%Y-%m-%d %H:%M")
     mode = "parallel" if os.getenv("EMAIL_PARALLEL_TO", "").strip() else "live"

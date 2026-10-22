@@ -1,5 +1,8 @@
 """
-test_uc3_uc4.py — Test UC3 (Weekly Report) and UC4 (Quality Alert) for opted-in users.
+MANUAL CHECK, NOT A UNIT TEST: it calls the live services and can send email or change the
+analytics DB. Run it by hand only; the automated tests are in tests/.
+
+manual_uc3_uc4.py — Test UC3 (Weekly Report) and UC4 (Quality Alert) for opted-in users.
 
 Rules:
   - Only runs for users who have UC3 / UC4 marked ✅ Active in their skill file
@@ -9,7 +12,7 @@ Rules:
 
 Usage:
     cd MultiAgent_Briefing
-    python test_uc3_uc4.py
+    python manual_uc3_uc4.py
 """
 import os
 import sys

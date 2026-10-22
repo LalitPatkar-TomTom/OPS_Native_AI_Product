@@ -19,6 +19,7 @@ No hardcoding, no separate config.
 """
 import logging
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -27,6 +28,15 @@ log = logging.getLogger("delivery")
 
 # Always CC'd on every email regardless of skill file settings
 GLOBAL_CC = ["Ketki.Avachat@tomtom.com"]
+
+# Every recipient must be exactly one TomTom address. The owner comes from the profile filename and
+# Graph splits on ";", so without this check a crafted filename could add a second recipient.
+_TOMTOM_ADDRESS = re.compile(r"^[A-Za-z0-9._%+-]+@tomtom\.com$", re.I)
+
+
+def is_valid_recipient(address: str) -> bool:
+    """True for a single @tomtom.com address (no separators, no display name)."""
+    return bool(_TOMTOM_ADDRESS.match((address or "").strip()))
 
 
 # ── 1. Outlook email (primary — Windows, no config needed) ────────────────────
@@ -229,6 +239,13 @@ def deliver(
     """
     results   = {"file": True}
     recipient = skill.get("user", "")
+    if recipient and not is_valid_recipient(recipient):
+        log.error(f"Refusing to send: profile owner {recipient!r} is not a single @tomtom.com address")
+        recipient = ""                       # falls through to the "no valid email" branch below
+    bad_cc = [c for c in (cc_recipients or []) if not is_valid_recipient(c)]
+    if bad_cc:
+        log.warning(f"Dropping CC addresses that are not single @tomtom.com addresses: {bad_cc}")
+        cc_recipients = [c for c in cc_recipients if is_valid_recipient(c)]
 
     # Test mode: redirect all emails to a single address (set TEST_RECIPIENT_OVERRIDE in .env)
     _override = os.getenv("TEST_RECIPIENT_OVERRIDE", "").strip()

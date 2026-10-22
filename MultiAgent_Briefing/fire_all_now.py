@@ -107,7 +107,9 @@ def _dispatch(uc_id: str, skill: dict, skill_file: Path, user: str):
     attachment, audit log) and of the quiet-hours guard (UC4 may break it).
     """
     import trigger_engine
-    trigger_engine._make_job(uc_id, skill, skill_file)()
+    if trigger_engine._make_job(uc_id, skill, skill_file)() is False:
+        # the job logged the traceback; raising here makes the run's error count correct
+        raise RuntimeError(f"{uc_id} failed — see the error logged above")
 
 
 def main():

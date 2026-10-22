@@ -13,7 +13,7 @@ import os
 import sqlite3
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 log = logging.getLogger("audit_log")
@@ -170,6 +170,25 @@ def start_run(slot_date_ist: str, slot_ist: str, delay_min: int, ucs: list[str],
     except Exception as exc:
         log.warning(f"[audit_log] start_run failed: {exc}")
     return run_id
+
+
+def sent_today(uc_id: str, user: str) -> bool:
+    """True when a scheduled run already sent this use case to this user today (IST).
+
+    Keeps UC3 to one weekly report: the Friday 17:00 and 21:00 slots both select UC3, and the
+    21:00 slot is the catch-up when 17:00 did not send. Manual runs are never held back."""
+    if _CTX.get("trigger_source") != "scheduled":
+        return False
+    ist = timezone(timedelta(hours=5, minutes=30))
+    start_utc = datetime.now(ist).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    try:
+        with _conn() as con:
+            row = con.execute("SELECT 1 FROM trigger_events WHERE uc_id=? AND user_email=? AND status='sent'"
+                              " AND ts >= ? LIMIT 1", (uc_id, user, start_utc.isoformat())).fetchone()
+        return row is not None
+    except Exception as exc:
+        log.warning(f"[audit_log] sent_today check failed: {exc}")
+        return False                      # never block a report because the check failed
 
 
 def finish_run(errors: int = 0) -> None:

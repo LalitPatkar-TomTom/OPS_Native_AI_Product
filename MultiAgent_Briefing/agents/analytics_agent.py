@@ -183,6 +183,12 @@ GROUP BY planningid, LOWER(processType)
 
 # ── Scope filter builder ───────────────────────────────────────────────────────
 
+def _sql_str(value: str) -> str:
+    """Escape a profile value for use inside a SQL string literal ('' doubles a quote).
+    Process types and planning IDs come from user-edited profiles, so they are never trusted."""
+    return str(value).replace("'", "''")
+
+
 def _build_scope_filter(skill: dict | None) -> tuple[str, str, int]:
     """
     Build the SQL WHERE clause fragment and breakdown row limit for this skill's scope.
@@ -244,8 +250,8 @@ def _build_scope_filter(skill: dict | None) -> tuple[str, str, int]:
     if explicit:
         parts = []
         for name in explicit:
-            parts.append(f"LOWER(processType) LIKE '%{name.lower()}%'")
-            parts.append(f"LOWER(planningid) LIKE '%{name.lower()}%'")
+            parts.append(f"LOWER(processType) LIKE '%{_sql_str(name.lower())}%'")
+            parts.append(f"LOWER(planningid) LIKE '%{_sql_str(name.lower())}%'")
         clause = "AND (" + " OR ".join(parts) + ")"
         label  = f"LIKE any of {explicit[:3]}{'...' if len(explicit) > 3 else ''}"
         return clause, label, 8
@@ -546,7 +552,7 @@ def _build_yield_scope_filter(skill: dict | None, actual_pts: list[str]) -> str:
     # defined mode — use actual_pts derived from breakdown (or explicit config)
     pts = actual_pts or skill.get("databricks_process_types") or []
     if pts:
-        quoted = ", ".join(f"'{p.lower()}'" for p in pts)
+        quoted = ", ".join(f"'{_sql_str(p.lower())}'" for p in pts)
         return f"AND LOWER(process_type) IN ({quoted})"
     return ""
 
@@ -701,6 +707,8 @@ def _build_client():
 # ── Fallback ───────────────────────────────────────────────────────────────────
 
 def _fallback(error: str) -> dict[str, Any]:
+    """Placeholder metrics when Databricks has no data or is unreachable, marked live=False.
+    The numbers are NOT current data: UC4 never raises an alert on them (trigger_engine._run_uc4)."""
     return {
         "fta_current":       96.68,
         "fta_prev_week":     96.27,

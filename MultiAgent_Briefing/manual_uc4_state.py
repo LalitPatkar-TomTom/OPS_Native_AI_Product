@@ -1,4 +1,8 @@
-"""Quick test -- verifies UC4 alert state reads/writes to SQLite."""
+"""
+MANUAL CHECK, NOT A UNIT TEST: it calls the live services and can send email or change the
+analytics DB. Run it by hand only; the automated tests are in tests/.
+
+Quick test -- verifies UC4 alert state reads/writes to SQLite."""
 import sys
 import sqlite3
 from pathlib import Path

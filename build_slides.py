@@ -1,3 +1,5 @@
+"""One-off generator of OPS_NativeAI_Beta_User_Briefing.pptx (python build_slides.py).
+Not part of the engine and not copied into the job image."""
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 from pptx import Presentation

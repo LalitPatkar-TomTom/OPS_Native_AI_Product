@@ -1,10 +1,13 @@
 """
-test_all_profiles.py — Run UC1 briefing for every personal skill profile
+MANUAL CHECK, NOT A UNIT TEST: it calls the live services and can send email or change the
+analytics DB. Run it by hand only; the automated tests are in tests/.
+
+manual_all_profiles.py — Run UC1 briefing for every personal skill profile
 and deliver all emails to TEST_RECIPIENT_OVERRIDE (lalit.patkar@tomtom.com).
 
 Usage:
     cd MultiAgent_Briefing
-    python test_all_profiles.py
+    python manual_all_profiles.py
 
 All 8 emails land in Lalit's inbox, each subject prefixed with
 [TEST -> actual_recipient@tomtom.com] so you can see which profile it belongs to.
