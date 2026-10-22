@@ -54,6 +54,10 @@ These are checked by the tests in `tests/`.
   the sanity check. Reports go to `test_reports/`. See `TESTING.md`.
 - **Never start a manual run of the job to test it.** A manual run sends real emails.
 
-More detail: `SECURITY.md` covers the security model and open items, and `CHANGELOG.md` lists the changes.
+More detail:
+- `docs/ARCHITECTURE.md`: a scheduled run step by step, where data is stored, and fail-safe behaviour.
+- `docs/adr/`: the architecture decision records.
+- `SECURITY.md`: the security model and open items.
+- `CHANGELOG.md`: the list of changes.
 `AI Architecture/Onboarding_Server/` is the legacy laptop onboarding server. OPS Hub `/onboarding`
 replaced it; it is not in the image.
