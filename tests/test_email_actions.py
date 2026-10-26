@@ -14,8 +14,26 @@ AN = {"live": True, "week_label": "2026-10-26", "fta_current": 96.1, "fta_rag": 
 
 
 def test_period_label():
-    assert E.period_label("2026-10-19", today=date(2026, 10, 26)) == "Mon 19 Oct – Sun 25 Oct 2026"
-    assert E.period_label("2026-10-19", today=date(2026, 10, 21)).endswith("(week in progress)")
+    assert E.period_label("2026-10-19", today=date(2026, 10, 26), relative=False) == "Mon 19 Oct – Sun 25 Oct 2026"
+    assert E.period_label("2026-10-12", today=date(2026, 10, 26)) == "Mon 12 Oct – Sun 18 Oct 2026 (latest week with data)"
+
+
+def test_monday_shows_last_week_with_its_full_range():
+    for today, wk in ((date(2026, 10, 26), "2026-10-19"), (date(2026, 11, 2), "2026-10-26"), (date(2027, 1, 4), "2026-12-28")):
+        assert E.week_word(wk, today) == "last week"
+    assert E.period_label("2026-10-19", today=date(2026, 10, 26)) == "Mon 19 Oct – Sun 25 Oct 2026 (last week)"
+    assert E.period_label("2026-12-28", today=date(2027, 1, 4)) == "Mon 28 Dec – Sun 03 Jan 2027 (last week)"
+
+
+def test_other_days_show_this_week_from_monday_to_today():
+    assert E.period_label("2026-10-26", today=date(2026, 10, 27)) == "Mon 26 Oct – Tue 27 Oct 2026 (this week so far)"
+    assert E.period_label("2026-10-26", today=date(2026, 10, 28)) == "Mon 26 Oct – Wed 28 Oct 2026 (this week so far)"
+    assert E.period_label("2026-10-26", today=date(2026, 11, 1)) == "Mon 26 Oct – Sun 01 Nov 2026 (this week so far)"
+
+
+def test_reference_row_names_the_shown_week():
+    row = E._reference_row({**AN, "week_label": "2026-10-26"}, ["fta"])
+    assert row[0] == "Previous full week (reference)" and "Mon 19 Oct – Sun 25 Oct 2026:" in row[1]
 
 
 def test_previous_full_week_only_when_current_week_is_row_0():

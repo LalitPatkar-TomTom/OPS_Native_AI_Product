@@ -10,6 +10,7 @@ from email_html import (
     _rag, _badge, _dot, _arrow, _kv_table, _data_table, _section,
     _alert_row, _build_sprint, _build_confluence, _preview_banner,
     _build_exec_summary, _build_breakdown, _build_actions, _build_operator_breakdown, no_scope_notice,
+    period_label,
     _eff_str, _escape_jira, _escape_confluence, _GREEN, _GREEN_BG, _GREEN_BD,
     _AMBER, _AMBER_BG, _AMBER_BD,
     _RED, _RED_BG, _RED_BD,
@@ -265,7 +266,7 @@ def build(
     date_str   = now.strftime("%A, %d %B %Y")
     time_str   = now.strftime("%H:%M UTC")
     week       = analytics.get("week_label", "")
-    data_label = analytics.get("data_label") or (f"week of {week}" if week else "no scope in your profile")
+    data_label = period_label(week) if week else "no scope in your profile"
 
     overall = "GREEN"
     if jira.get("sla_breaches") or analytics.get("fta_rag") == "RED":
@@ -323,10 +324,10 @@ def build(
 
     {_build_kpi_summary(analytics, jira, pm)}
 
-    {sec(f"Work Unit &amp; Process-type Breakdown — Week {week}",
+    {sec(f"Work Unit &amp; Process-type Breakdown — {period_label(week)}",
          _build_breakdown(analytics, scope_mode)) if not analytics.get("no_scope") else ""}
 
-    {sec(f"Operator Breakdown — Week {week}",
+    {sec(f"Operator Breakdown — {period_label(week)}",
          _build_operator_breakdown(analytics)) if analytics.get("operator_breakdown") else ""}
 
     {sec(f"4-Week Trend — {project_name}",

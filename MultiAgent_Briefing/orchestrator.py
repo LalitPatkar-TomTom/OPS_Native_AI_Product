@@ -28,6 +28,7 @@ from config import OUTPUT_DIR, SKILLS_DIR, USE_CASES
 from agents import jira_agent, analytics_agent, briefing_agent, confluence_agent
 from skill_registry import load_skill, load_all_skills
 from delivery import deliver
+from email_html import period_label
 
 logging.basicConfig(
     level=logging.INFO,
@@ -171,7 +172,8 @@ def run_uc1(skill_file: Path | None = None) -> Path:
     fta   = analytics_result.get("fta_current", 0)
     proj_label = skill.get("project_name") or skill.get("jira_project") or "Project"
     subject = (f"[{rag}] UC1 Daily Briefing — {proj_label} | {slas} SLA breach(es)"
-               + ("" if analytics_result.get("no_scope") else f" | FTA {fta:.1f}%"))
+               + ("" if analytics_result.get("no_scope") else f" | FTA {fta:.1f}%")
+               + (f" | {period_label(analytics_result['week_label'])}" if analytics_result.get("week_label") else ""))
     cc_list = skill.get("cc_recipients") or []
     delivery_results = deliver(
         briefing_text, skill, subject=subject,
@@ -295,7 +297,7 @@ def run_uc4(skill_file: Path | None = None) -> Path | None:
     log.info(f"          FTA thresholds — target: {target}%  alert: {alert}%")
 
     from agents import analytics_agent
-    analytics = analytics_agent.run(skill)
+    analytics = analytics_agent.run(skill, "alert")
 
     fta    = analytics.get("fta_current", 0.0)
     trend  = analytics.get("fta_trend", "stable")

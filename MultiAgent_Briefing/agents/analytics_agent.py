@@ -35,6 +35,8 @@ def _compute_target(report_type: str) -> tuple[str, str]:
     daily  → Monday of the week that contains the previous business day.
              Monday run  → yesterday=Sunday → back to Friday → last week's Monday.
              Tue-Fri run → yesterday=weekday → this week's Monday.
+    alert  → Monday of the current week (UC4). The metrics query takes the latest week up to the
+             target that has a QC sample in scope, so this is this week when it has data, else last week.
     """
     today = date.today()
 
@@ -44,6 +46,9 @@ def _compute_target(report_type: str) -> tuple[str, str]:
             prev -= timedelta(days=1)
         monday = prev - timedelta(days=prev.weekday())
         label  = f"as of {prev.strftime('%d %b %Y')} (yesterday)"
+    elif report_type == "alert":
+        monday = today - timedelta(days=today.weekday())
+        label  = "this week, or last week while this week has no QC data"
     else:                                   # "weekly"
         monday = today - timedelta(days=today.weekday())
         label  = f"week of {monday.strftime('%d %b %Y')}"
@@ -746,7 +751,8 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
     Args:
         skill:       parsed skill profile dict from skill_registry.load_skill().
         report_type: "weekly" → current week's Monday; "daily" → Monday of the
-                     week containing the previous business day.
+                     week containing the previous business day; "alert" → current week,
+                     falling back to last week when this week has no QC data.
     """
     as_of = datetime.now(timezone.utc).isoformat()
 

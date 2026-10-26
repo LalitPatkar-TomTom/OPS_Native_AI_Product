@@ -95,11 +95,30 @@ def _arrow(trend: str) -> str:
     return {"improving": "&#8593;", "stable": "&#8594;", "declining": "&#8595;"}.get(trend, "&#8594;")
 
 
-def period_label(week_label: str, today: "date | None" = None) -> str:
-    """'2026-10-19' -> 'Mon 19 Oct – Sun 25 Oct 2026' (OSI-031: say exactly which days the numbers cover).
+def week_word(week_label: str, today: "date | None" = None) -> str:
+    """'this week', 'last week' or 'latest week with data' for the reported week, seen from today."""
+    from datetime import date as _date, timedelta as _td
+    try:
+        mon = _date.fromisoformat(str(week_label)[:10])
+    except ValueError:
+        return "this week"
+    today = today or _date.today()
+    this_mon = today - _td(days=today.weekday())
+    if mon >= this_mon:
+        return "this week"
+    return "last week" if mon == this_mon - _td(days=7) else "latest week with data"
 
-    The data is one calendar week; while that week is not over yet, say so.
-    Anything that is not a date comes back unchanged.
+
+def period_label(week_label: str, today: "date | None" = None, relative: bool = True,
+                 fallback_note: bool = False) -> str:
+    """Which days the numbers cover (OSI-031), decided with the user on 26 Oct.
+
+    The data is one row per calendar week. The daily emails report the week of the previous working day:
+      Monday         -> last week, full range:            'Mon 19 Oct – Sun 25 Oct 2026 (last week)'
+      Tuesday–Sunday -> this week from Monday to today:   'Mon 26 Oct – Tue 27 Oct 2026 (this week so far)'
+    The table has no day column, so "so far" ends at today, not at the last day loaded.
+    relative=False gives the full Mon–Sun dates only. fallback_note=True (UC4) says why an earlier week is
+    shown: alerts use this week and fall back only while it has no QC data. Non-dates come back unchanged.
     """
     from datetime import date as _date, timedelta as _td
     try:
@@ -107,10 +126,13 @@ def period_label(week_label: str, today: "date | None" = None) -> str:
     except ValueError:
         return str(week_label or "")
     sun = mon + _td(days=6)
-    text = f"{mon:%a %d %b} – {sun:%a %d %b %Y}"
-    if (today or _date.today()) <= sun:
-        text += " (week in progress)"
-    return text
+    if not relative:
+        return f"{mon:%a %d %b} – {sun:%a %d %b %Y}"
+    today = today or _date.today()
+    word = week_word(week_label, today)
+    if word == "this week":
+        return f"{mon:%a %d %b} – {min(today, sun):%a %d %b %Y} (this week so far)"
+    return f"{mon:%a %d %b} – {sun:%a %d %b %Y} ({word}{' · no QC data yet this week' if fallback_note else ''})"
 
 
 def previous_full_week(analytics: dict) -> dict | None:
@@ -147,11 +169,14 @@ def _reference_row(analytics: dict, metrics: list[str]) -> tuple | None:
     if not parts:
         return None
     cur_qc = ((analytics.get("metrics_4w") or [{}])[0]).get("qc_tasks")
-    text = (f"{period_label(prev['week'])}: " + " &nbsp;·&nbsp; ".join(parts)
+    text = (f"{period_label(prev['week'], relative=False)}: " + " &nbsp;·&nbsp; ".join(parts)
             + (f" &nbsp;<span style=\"{_F};font-size:11px;color:{_MUTED}\">({prev['qc_tasks']:,} QC&apos;d tasks)</span>"
                if prev.get("qc_tasks") else ""))
     if cur_qc is not None:
-        text += (f'<br><span style="{_F};font-size:11px;color:{_MUTED}">This week so far: {cur_qc:,} QC&apos;d tasks'
+        wk = analytics.get("week_label", "")
+        shown = ("This week so far" if week_word(wk) == "this week"
+                 else f"{week_word(wk).capitalize()} ({period_label(wk, relative=False)})")
+        text += (f'<br><span style="{_F};font-size:11px;color:{_MUTED}">{shown}: {cur_qc:,} QC&apos;d tasks'
                  + (" — a small sample, compare with the previous full week" if cur_qc < 50 else "") + "</span>")
     return ("Previous full week (reference)", text, _MUTED)
 
@@ -213,7 +238,9 @@ def _sample_note(analytics: dict, metric: str) -> str:
     if prev and field and prev.get(field) is not None:
         ref = f" The previous full week was {_REF_FIELDS[metric][2].format(prev[field])}."
     if cur_qc is not None and cur_qc < 50:
-        return f" Only {cur_qc:,} QC&apos;d tasks so far this week, so this can still move.{ref}"
+        if week_word(analytics.get("week_label", "")) == "this week":
+            return f" Only {cur_qc:,} QC&apos;d tasks so far this week, so this can still move.{ref}"
+        return f" Only {cur_qc:,} QC&apos;d tasks in that week, a small sample.{ref}"
     return ref
 
 
@@ -627,7 +654,7 @@ def _build_fta(analytics, jira_project=""):
     }.get(rag, "")
 
     rows = [
-        ("FTA this week",
+        (f"FTA {week_word(wk)}",
          f'{_dot(rag)} <span style="font-size:18px;font-weight:bold;color:{c}">{fta:.2f}%</span>'
          f' &nbsp; {_badge(rag)}', c),
         ("4-week trend",    trend_str, _TEXT),
@@ -790,7 +817,7 @@ def _build_breakdown(analytics, scope_mode="defined"):
     sc  = analytics.get("scope_label", "")
 
     if not bd:
-        return f'<p style="{_F};font-size:13px;color:{_MUTED}">No process data for this week.</p>'
+        return f'<p style="{_F};font-size:13px;color:{_MUTED}">No process data for this period.</p>'
 
     many = len(bd) > 15
 
@@ -979,7 +1006,7 @@ def _build_planning(analytics):
     tbl += '</table>'
     note = ''
     if missing:
-        note = (f'<p style="{_F};font-size:11px;color:{_MUTED};margin:6px 0 0"><b>No data this week:</b> '
+        note = (f'<p style="{_F};font-size:11px;color:{_MUTED};margin:6px 0 0"><b>No data in this period:</b> '
                 + ', '.join(f'<span style="font-family:Consolas,monospace">{m}</span>' for m in missing) + '</p>')
     return (tbl if pl else '') + note
 
@@ -993,7 +1020,7 @@ def _build_unsampled(analytics):
         f'<span style="font-family:Consolas,monospace">{u["process_type"]}</span> — '
         f'{u["prod_tasks"]:,} tasks, {u["total_hrs"]:.0f}h' for u in un)
     return (f'<p style="{_F};font-size:11px;color:{_MUTED};margin:6px 0 0">'
-            f'<b>Produced but not QC-sampled this week</b> (no FTA): {items}</p>')
+            f'<b>Produced but not QC-sampled in this period</b> (no FTA): {items}</p>')
 
 
 def _build_tickets(jira):
@@ -1663,7 +1690,7 @@ def build_alert(
     <div style="{_F};font-size:36px;font-weight:bold;color:{c};line-height:1">{value_str}</div>
     <div style="{_F};font-size:13px;color:{_TEXT};margin-top:6px">
       Threshold: <b>{thr_label}</b> &nbsp;·&nbsp; Trend: <b>{dir_note}</b>
-      &nbsp;·&nbsp; Data: <b>{period_label(week_label)}</b>
+      &nbsp;·&nbsp; Data: <b>{period_label(week_label, fallback_note=True)}</b>
     </div>
   </td></tr>
   </table>
@@ -1682,7 +1709,7 @@ def build_alert(
         ("Current",     f'<b style="color:{c}">{value_str}</b>',     c),
         ("Threshold",   thr_label,                                    _MUTED),
         ("Trend",       dir_note,                                     c if direction_bad else _GREEN),
-        ("Data period", period_label(week_label),                     _MUTED),
+        ("Data period", period_label(week_label, fallback_note=True), _MUTED),
         *([_reference_row(analytics, [metric])] if analytics and metric in _REF_FIELDS
           and _reference_row(analytics, [metric]) else []),
     ]), 1)}

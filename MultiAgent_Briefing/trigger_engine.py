@@ -220,7 +220,9 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
         except Exception as exc:
             log.warning(f"Word report generation failed — sending without attachment: {exc}")
 
-        subject = f"UC3 — Weekly Report: {proj_name} (week {week})"
+        from email_html import period_label
+        subject = (f"UC3 — Weekly Report: {proj_name} — "
+                   + (period_label(ana["week_label"]) if ana.get("week_label") else f"week {week}"))
         res = deliver(content, skill, subject=subject, html_body=html,
                       cc_recipients=cc_list or None, attachment_path=attachment_path)
 
@@ -257,7 +259,7 @@ def _run_uc4(skill: dict, user: str):
     from agents import analytics_agent
     from agents.uc4_state import already_alerted_today, mark_alerted
     from delivery import deliver
-    from email_html import build_alert
+    from email_html import build_alert, period_label
 
     force        = bool(os.getenv("FORCE_UC4_ALERT"))
     pm           = set(skill.get("primary_metrics") or ["fta", "efficiency", "coq"])
@@ -274,7 +276,7 @@ def _run_uc4(skill: dict, user: str):
         return
 
     try:
-        analytics = analytics_agent.run(skill, report_type="daily")
+        analytics = analytics_agent.run(skill, report_type="alert")
     except Exception as exc:
         audit_log.log_error("UC4", user, skill, str(exc))
         raise
@@ -350,7 +352,8 @@ def _run_uc4(skill: dict, user: str):
                                         if skill.get("include_operator_breakdown") else None),
                     analytics=analytics,
                 )
-                subj    = f"UC4 Alert {rag} — {metric_key.upper()} {current:.2f}% vs threshold {alert_val}% — {proj_name}"
+                subj    = (f"UC4 Alert {rag} — {metric_key.upper()} {current:.2f}% vs threshold {alert_val}% — {proj_name}"
+                           + (f" — {period_label(week, fallback_note=True)}" if week else ""))
                 content = f"UC4 {metric_key.upper()} Alert {rag}: {current:.2f}% (threshold {alert_val}%)"
                 out     = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_Alert.md"
                 out.write_text(content, encoding="utf-8")
