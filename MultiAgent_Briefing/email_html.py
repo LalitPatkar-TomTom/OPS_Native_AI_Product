@@ -461,10 +461,11 @@ def _build_kpi_row(analytics: dict, jira: dict, pm: set) -> str:
     cells = []
     neutral = _rag("NONE")
 
-    def metric(label, value_str, rag, key):
+    def metric(label, value_str, rag, key, note=""):
         tracked = key in pm or (key == "coq" and "copq" in pm)
-        c, bg, bd = _rag(rag) if tracked else neutral
-        sub = _badge(rag) if tracked else f'<span style="{_F};font-size:11px;color:{_MUTED}">no alert set</span>'
+        c, bg, bd = _rag(rag) if tracked and not note else neutral
+        sub = (f'<span style="{_F};font-size:11px;color:{_MUTED}">{note}</span>' if note
+               else _badge(rag) if tracked else f'<span style="{_F};font-size:11px;color:{_MUTED}">no alert set</span>')
         cells.append((label, f'<span style="{_F};font-size:22px;font-weight:bold;color:{c if tracked else _TEXT}">'
                              f'{value_str}</span>', sub, bg, bd))
 
@@ -473,7 +474,8 @@ def _build_kpi_row(analytics: dict, jira: dict, pm: set) -> str:
         metric("FTA", f'{analytics.get("fta_current", 0.0):.2f}%', analytics.get("fta_rag", "GREEN"), "fta")
         metric("Efficiency vs BL", _eff_str(ev), analytics.get("efficiency_rag", "GREEN"), "efficiency")
         metric("Cost of Quality", f'{analytics.get("coq_current", 0.0):.2f}%', analytics.get("coq_rag", "GREEN"), "coq")
-        metric("Yield", f"{yv:.2f}%" if yv is not None else "N/A", analytics.get("yield_rag", "GREEN"), "yield")
+        metric("Yield", f"{yv:.2f}%" if yv is not None else "N/A", analytics.get("yield_rag", "GREEN"), "yield",
+               note="Orbit SD work only" if yv is None and analytics.get("yield_note") else "")
         ph, qh = analytics.get("prod_hrs") or 0, analytics.get("qc_hrs") or 0
         cells.append(("Hours", f'<span style="{_F};font-size:22px;font-weight:bold;color:{_TEXT}">{ph + qh:,.0f}h</span>',
                       f'<span style="{_F};font-size:11px;color:{_MUTED}">production {ph:,.0f}h · QC {qh:,.0f}h</span>',
@@ -1296,11 +1298,14 @@ def _build_exec_summary(jira, analytics, pm, skill=None):
         yv  = analytics.get("yield_current")
         yr  = analytics.get("yield_rag", "GREEN")
         yc, _, _ = _rag(yr)
-        yv_str = f"{yv:.2f}%" if yv is not None else "N/A"
-        bullets.append(
-            f'<b>Yield:</b> <span style="color:{yc};font-weight:bold">{yv_str}</span>'
-            f' &nbsp;{_badge(yr)}'
-        )
+        if yv is None and analytics.get("yield_note"):
+            bullets.append(f'<b>Yield:</b> <span style="color:{_MUTED}">{analytics["yield_note"]}</span>')
+        else:
+            yv_str = f"{yv:.2f}%" if yv is not None else "N/A"
+            bullets.append(
+                f'<b>Yield:</b> <span style="color:{yc};font-weight:bold">{yv_str}</span>'
+                f' &nbsp;{_badge(yr)}'
+            )
 
     if flagged(bd):
         worst = min(flagged(bd), key=lambda p: p.get("fta_pct", 100))

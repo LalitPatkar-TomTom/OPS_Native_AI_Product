@@ -350,7 +350,8 @@ def _run_uc4(skill: dict, user: str):
             continue
 
         if current is None:
-            log.info(f"  UC4  {metric_key} — no data, skipping")
+            why = analytics.get("yield_note") if metric_key == "yield" else ""
+            log.info(f"  UC4  {metric_key} — no data, skipping" + (f" ({why})" if why else ""))
             continue
 
         thr       = ({"alert": overall_rules[0]["alert"], "target": overall_rules[0]["target"],

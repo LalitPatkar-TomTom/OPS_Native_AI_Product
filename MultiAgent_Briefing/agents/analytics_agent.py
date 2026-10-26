@@ -462,11 +462,33 @@ SELECT
 FROM {view}
 WHERE CAST(updated_at AS DATE) >= DATE_ADD(TO_DATE('{target_week}'), -21)
   AND CAST(updated_at AS DATE) <= DATE_ADD(TO_DATE('{target_week}'), 6)
-  AND LOWER(work_unit) IN ('occ', 'dpu hyderabad', 'dpu noida', 'dpu globallogic', 'others')
   {scope_filter}
 GROUP BY DATE_TRUNC('week', CAST(updated_at AS DATE))
 ORDER BY week_mon DESC
 LIMIT 4
+"""
+
+# Yield follows the same rules as FTA, Eff vs BL and CoQ: every work unit, no work-unit list (decided 26 Oct,
+# OSI-004). The one difference is the source: today only the Orbit SD view has Yield, so other work (e.g.
+# TTI / TMC) has none until Yield exists for every workflow (OSI-041).
+YIELD_SD_ONLY_NOTE = ("Yield is currently available for Orbit SD work only; the process types in your scope have "
+                      "no Yield data yet, so no Yield is shown or alerted.")
+
+_YIELD_BY_PID_SQL = """
+SELECT
+    LOWER(planning_id) AS pid,
+    SUM(CASE WHEN to_status IN ('Resolved', 'DB alternatively updated')
+             AND to_stage IN ('Resolution', 'Expert', 'Source Expert', 'OSM')
+             THEN prod_count ELSE 0 END) AS yield_num,
+    SUM(CASE WHEN COALESCE(n_rework_flag, 0) != 1
+             AND to_stage IN ('Resolution', 'Expert', 'Source Expert', 'OSM')
+             THEN prod_count ELSE 0 END) AS yield_den
+FROM {view}
+WHERE CAST(updated_at AS DATE) >= TO_DATE('{target_week}')
+  AND CAST(updated_at AS DATE) <= DATE_ADD(TO_DATE('{target_week}'), 6)
+  AND planning_id IS NOT NULL
+  {scope_filter}
+GROUP BY LOWER(planning_id)
 """
 
 _YIELD_BY_PT_WU_SQL = """
@@ -482,7 +504,6 @@ SELECT
 FROM {view}
 WHERE CAST(updated_at AS DATE) >= TO_DATE('{target_week}')
   AND CAST(updated_at AS DATE) <= DATE_ADD(TO_DATE('{target_week}'), 6)
-  AND LOWER(work_unit) IN ('occ', 'dpu hyderabad', 'dpu noida', 'dpu globallogic', 'others')
   {scope_filter}
 GROUP BY LOWER(process_type), COALESCE(LOWER(TRIM(work_unit)), '')
 """
@@ -634,10 +655,19 @@ def _load_yield(client, skill: dict | None, actual_pts: list[str], target_week: 
     except Exception as exc:
         print(f"[analytics] Yield (by PT / work unit) query failed: {exc}")
 
+    # ── Current week by planning ID (OSI-030 rows at Planning ID level) ───────
+    yield_by_pid: dict[str, float | None] = {}
+    try:
+        pid_sql = _YIELD_BY_PID_SQL.format(view=_YIELD_VIEW, target_week=target_week, scope_filter=scope_filter)
+        for r in client.execute_sql(pid_sql, max_rows=1000).get("rows", []):
+            yield_by_pid[(r.get("pid") or "").lower()] = pct(float(r.get("yield_num") or 0), float(r.get("yield_den") or 0))
+    except Exception as exc:
+        print(f"[analytics] Yield (by planning ID) query failed: {exc}")
+
     current = weekly[0]["yield"] if weekly else None
     print(f"[analytics] Yield loaded: current={current}  weeks={len(weekly)}")
     return {"yield_current": current, "yield_4w": weekly, "yield_by_pt": yield_by_pt,
-            "yield_by_wu": yield_by_wu, "yield_by_pt_wu": yield_by_pt_wu}
+            "yield_by_wu": yield_by_wu, "yield_by_pt_wu": yield_by_pt_wu, "yield_by_pid": yield_by_pid}
 
 
 # ── Databricks client factory ──────────────────────────────────────────────────
@@ -989,31 +1019,30 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
     else:
         operator_breakdown = []
 
-    # ── Yield (optional — only when skill has "yield" in primary_metrics) ────────
-    if "yield" in pri_metrics:
-        yield_data   = _load_yield(client, skill, actual_pts, target_week)
-        yield_current = yield_data["yield_current"]
-        yield_rag_val = _yield_rag(yield_current) if yield_current is not None else "GREEN"
-        yield_4w_list = yield_data["yield_4w"]
-        # merge yield into metrics_4w by matching week string
-        yield_by_week = {w["week"][:10]: w["yield"] for w in yield_4w_list}
-        for wk in metrics_4w:
-            wk["yield"] = yield_by_week.get(wk["week"][:10])
-        # merge per-process-type and per-work-unit yield into the breakdowns
-        yield_by_pt = yield_data.get("yield_by_pt", {})
-        yield_by_pt_wu = yield_data.get("yield_by_pt_wu", {})
-        for bd_entry in process_breakdown:
-            pt = bd_entry["process_type"].lower()
-            bd_entry["yield_pct"] = yield_by_pt.get(pt)
-            for w in bd_entry.get("work_units", []):
-                w["yield_pct"] = yield_by_pt_wu.get((pt, w["work_unit"]))
-        yield_by_wu = yield_data.get("yield_by_wu", {})
-        for w in workunit_breakdown:
-            w["yield_pct"] = yield_by_wu.get(w["work_unit"])
-    else:
-        yield_current = None
-        yield_rag_val = "GREEN"
-        yield_4w_list = []
+    # ── Yield: every scoped profile (the headline shows it since OSI-008); alerts only when the profile asks ──
+    yield_data   = _load_yield(client, skill, actual_pts, target_week)
+    yield_current = yield_data["yield_current"]
+    yield_rag_val = _yield_rag(yield_current) if yield_current is not None else "GREEN"
+    yield_4w_list = yield_data["yield_4w"]
+    # merge yield into metrics_4w by matching week string
+    yield_by_week = {w["week"][:10]: w["yield"] for w in yield_4w_list}
+    for wk in metrics_4w:
+        wk["yield"] = yield_by_week.get(wk["week"][:10])
+    # merge per-process-type and per-work-unit yield into the breakdowns
+    yield_by_pt = yield_data.get("yield_by_pt", {})
+    yield_by_pt_wu = yield_data.get("yield_by_pt_wu", {})
+    for bd_entry in process_breakdown:
+        pt = bd_entry["process_type"].lower()
+        bd_entry["yield_pct"] = yield_by_pt.get(pt)
+        for w in bd_entry.get("work_units", []):
+            w["yield_pct"] = yield_by_pt_wu.get((pt, w["work_unit"]))
+    yield_by_wu = yield_data.get("yield_by_wu", {})
+    for w in workunit_breakdown:
+        w["yield_pct"] = yield_by_wu.get(w["work_unit"])
+    yield_by_pid = yield_data.get("yield_by_pid", {})
+    for p_entry in planning_breakdown:
+        p_entry["yield_pct"] = yield_by_pid.get(str(p_entry.get("planning_id", "")).lower())
+    yield_note = YIELD_SD_ONLY_NOTE if yield_current is None else ""
 
     for rows in (process_breakdown, workunit_breakdown, planning_breakdown):
         _mark_small_samples(rows)
@@ -1036,6 +1065,7 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         "total_qc":          computed["total_qc"],
         "yield_current":     yield_current,
         "yield_rag":         yield_rag_val,
+        "yield_note":        yield_note,
         "yield_4w":          yield_4w_list,
         "copq_hrs":          computed["copq_hrs"],
         "copq_pct":          computed["copq_pct"],
