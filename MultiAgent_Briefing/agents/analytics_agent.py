@@ -798,6 +798,7 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
                 "efficiency_vs_bl": None,  # filled below after breakdown
                 "sampling_pct":     round(float(r.get("total_qc") or 0) / float(r.get("prod_tasks") or 1) * 100, 1)
                                     if float(r.get("prod_tasks") or 0) > 0 else None,
+                "qc_tasks":         int(float(r.get("total_qc") or 0)),   # sample size, shown with the reference week
             }
             for r in rows
         ]

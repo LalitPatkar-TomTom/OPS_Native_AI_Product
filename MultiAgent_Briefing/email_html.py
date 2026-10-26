@@ -113,6 +113,169 @@ def period_label(week_label: str, today: "date | None" = None) -> str:
     return text
 
 
+def previous_full_week(analytics: dict) -> dict | None:
+    """The week before the one reported, from metrics_4w (newest first), when the current week is row 0.
+
+    The daily emails report the week in progress; early in the week that is a small sample, so the
+    previous full week is shown next to it as a reference (decided 26 Oct, OSI-028/032/036).
+    """
+    m4 = (analytics or {}).get("metrics_4w") or []
+    wk = str((analytics or {}).get("week_label", ""))[:10]
+    if len(m4) < 2 or str(m4[0].get("week", ""))[:10] != wk:
+        return None
+    return m4[1]
+
+
+_REF_FIELDS = {  # metric -> (metrics_4w field, label, format)
+    "fta":        ("fta",              "FTA",        "{:.2f}%"),
+    "efficiency": ("efficiency_vs_bl", "Eff vs BL",  "{:.1f}%"),
+    "coq":        ("coq",              "CoQ",        "{:.2f}%"),
+    "yield":      ("yield",            "Yield",      "{:.2f}%"),
+}
+
+
+def _reference_row(analytics: dict, metrics: list[str]) -> tuple | None:
+    """('Previous full week', 'Mon 12 Oct – Sun 18 Oct 2026: FTA 97.64% · … (381 QC'd tasks) …', colour)."""
+    prev = previous_full_week(analytics)
+    if prev is None:
+        return None
+    parts = []
+    for m in metrics:
+        field, label, fmt = _REF_FIELDS[m]
+        if prev.get(field) is not None:
+            parts.append(f"{label} <b>{fmt.format(prev[field])}</b>")
+    if not parts:
+        return None
+    cur_qc = ((analytics.get("metrics_4w") or [{}])[0]).get("qc_tasks")
+    text = (f"{period_label(prev['week'])}: " + " &nbsp;·&nbsp; ".join(parts)
+            + (f" &nbsp;<span style=\"{_F};font-size:11px;color:{_MUTED}\">({prev['qc_tasks']:,} QC&apos;d tasks)</span>"
+               if prev.get("qc_tasks") else ""))
+    if cur_qc is not None:
+        text += (f'<br><span style="{_F};font-size:11px;color:{_MUTED}">This week so far: {cur_qc:,} QC&apos;d tasks'
+                 + (" — a small sample, compare with the previous full week" if cur_qc < 50 else "") + "</span>")
+    return ("Previous full week (reference)", text, _MUTED)
+
+
+# ── "Action needed": what to do, and why, from the data ─────────────────────────
+# Every item names the action and its likely root cause: which process type / work unit drives the miss,
+# how large the sample is, and how the previous full week compares. Shown at the top of UC1 and UC4.
+
+def _n(x) -> str:
+    return _html.escape(str(x or ""))
+
+
+def _worst_wu(p: dict, key: str, reverse: bool) -> str:
+    """' (mostly DPU Noida)' — the work unit that drives a process type's value, when there are several."""
+    wus = [w for w in p.get("work_units") or [] if w.get(key) is not None and (w.get("total_qc") or w.get("total_hrs"))]
+    if len(wus) < 2:
+        return ""
+    w = sorted(wus, key=lambda w: w[key], reverse=reverse)[0]
+    return f", mostly {_n(w.get('work_unit'))}"
+
+
+def _cause_fta(analytics: dict) -> str:
+    bd = [p for p in analytics.get("process_breakdown") or [] if (p.get("total_qc") or 0) > 0]
+    rej = sorted(bd, key=lambda p: p["total_qc"] * (100 - (p.get("fta_pct") or 100)), reverse=True)
+    top = [p for p in rej if (p.get("fta_pct") or 100) < 100][:2]
+    if not top:
+        return "No single process type stands out."
+    parts = [f"<b>{_n(p['process_type'])}</b> (FTA {p['fta_pct']:.2f}% on {p['total_qc']:,} QC&apos;d{_worst_wu(p, 'fta_pct', False)})"
+             for p in top]
+    return "Most rejections come from " + " and ".join(parts) + "."
+
+
+def _cause_eff(analytics: dict) -> str:
+    bd = [p for p in analytics.get("process_breakdown") or [] if p.get("eff_vs_bl") is not None and p.get("has_prod", True)]
+    low = sorted(bd, key=lambda p: p["eff_vs_bl"])[:2]
+    if not low:
+        return "No process type has a baseline to compare with."
+    parts = [f"<b>{_n(p['process_type'])}</b> ({p['eff_vs_bl']:.1f}% of baseline, {p.get('total_hrs') or 0:,.0f} h)" for p in low]
+    return "Lowest against baseline: " + " and ".join(parts) + "."
+
+
+def _cause_coq(analytics: dict) -> str:
+    bd = [p for p in analytics.get("process_breakdown") or [] if (p.get("total_hrs") or 0) > 0]
+    # biggest QC-hour share first: CoQ % x hours
+    hi = sorted(bd, key=lambda p: (p.get("coq_pct") or 0) * p["total_hrs"], reverse=True)[:2]
+    if not hi:
+        return "No process type stands out."
+    parts = [f"<b>{_n(p['process_type'])}</b> (CoQ {p.get('coq_pct') or 0:.1f}% of {p['total_hrs']:,.0f} h{_worst_wu(p, 'coq_pct', True)})" for p in hi]
+    return "Most QC hours go to " + " and ".join(parts) + "."
+
+
+def _sample_note(analytics: dict, metric: str) -> str:
+    """Small sample this week: say so, with the previous full week as the reference."""
+    m4 = analytics.get("metrics_4w") or [{}]
+    cur_qc = (m4[0] or {}).get("qc_tasks")
+    prev = previous_full_week(analytics)
+    field = _REF_FIELDS.get(metric, (None,))[0]
+    ref = ""
+    if prev and field and prev.get(field) is not None:
+        ref = f" The previous full week was {_REF_FIELDS[metric][2].format(prev[field])}."
+    if cur_qc is not None and cur_qc < 50:
+        return f" Only {cur_qc:,} QC&apos;d tasks so far this week, so this can still move.{ref}"
+    return ref
+
+
+def action_items(jira: dict, analytics: dict, pm: set, only: str | None = None) -> list[tuple[str, str, str]]:
+    """[(rag, action, why)] for everything that needs someone to act; `only` limits it to one metric (UC4)."""
+    items = []
+    jira = jira or {}
+    br = jira.get("sla_breaches") or []
+    if br and only is None:
+        oldest = max(br, key=lambda t: float(t.get("hours_stale") or 0))
+        esc = jira.get("sla_escalation_hours", 72)
+        items.append(("RED", f"Follow up on {len(br)} Jira ticket(s) past the SLA, oldest first",
+                      f"No update for more than {esc:g} h. Oldest: <b>{_n(oldest.get('key'))}</b> "
+                      f"({_n(oldest.get('assignee'))}, {float(oldest.get('hours_stale') or 0):,.0f} h without an update)."))
+    want = (lambda m: m == only) if only else (lambda m: m in pm or not pm)
+    fr = analytics.get("fta_rag", "GREEN")
+    if want("fta") and fr in ("RED", "AMBER") and analytics.get("live", True):
+        items.append((fr, f"Review the rejected tasks behind FTA {analytics.get('fta_current', 0):.2f}% with the QC lead "
+                          "and brief the editors on the top error types",
+                      _cause_fta(analytics) + _sample_note(analytics, "fta")))
+    er, ev = analytics.get("efficiency_rag", "GREEN"), analytics.get("efficiency_vs_bl")
+    if want("efficiency") and er in ("RED", "AMBER") and ev is not None:
+        items.append((er, f"Check the slowest process types for blockers (tools, data, new editors) — efficiency is "
+                          f"{ev:.1f}% of baseline",
+                      _cause_eff(analytics) + _sample_note(analytics, "efficiency")))
+    cr = analytics.get("coq_rag", "GREEN")
+    if (want("coq") or (only is None and "copq" in pm)) and cr not in ("GREEN", None):
+        items.append(("RED" if cr == "RED" else "AMBER",
+                      f"Find where QC and rework time goes — CoQ is {analytics.get('coq_current', 0):.2f}%; "
+                      "check for over-sampling or repeated rework",
+                      _cause_coq(analytics) + _sample_note(analytics, "coq")))
+    yr, yv = analytics.get("yield_rag", "GREEN"), analytics.get("yield_current")
+    if want("yield") and yr in ("RED", "AMBER") and yv is not None:
+        items.append((yr, f"Check first-pass completion — yield is {yv:.2f}%",
+                      "Yield counts tasks finished without going back to production." + _sample_note(analytics, "yield")))
+    return items
+
+
+def _build_action_box(jira: dict, analytics: dict, pm: set, only: str | None = None) -> str:
+    """The highlighted box; empty when nothing needs action."""
+    items = action_items(jira, analytics, pm, only)
+    if not items:
+        return ""
+    worst = "RED" if any(r == "RED" for r, _, _ in items) else "AMBER"
+    c, bg, bd = _rag(worst)
+    rows = "".join(
+        f'<tr><td style="padding:7px 0;border-top:1px solid {bd}">'
+        f'<div style="{_F};font-size:13px;color:{_TEXT};font-weight:bold">{_dot(r)} {i}. {a}</div>'
+        f'<div style="{_F};font-size:12px;color:{_TEXT};margin:3px 0 0 18px;line-height:1.5">'
+        f'<span style="color:{_MUTED};font-weight:bold">Why: </span>{w}</div></td></tr>'
+        for i, (r, a, w) in enumerate(items, 1))
+    return (f'<table width="100%" cellpadding="0" cellspacing="0" style="background:{bg};border:1px solid {bd};'
+            f'border-left:5px solid {c};border-radius:4px;margin:0 0 14px">'
+            f'<tr><td style="padding:10px 14px">'
+            f'<div style="{_F};font-size:14px;font-weight:bold;color:{c};margin-bottom:4px">'
+            f'&#9888; Recommended actions ({len(items)})</div>'
+            f'<table width="100%" cellpadding="0" cellspacing="0">{rows}</table>'
+            f'<div style="{_F};font-size:11px;color:{_MUTED};margin-top:6px">Root causes are worked out from this '
+            f'week&apos;s data by process type and work unit; details are in the sections below.</div>'
+            f'</td></tr></table>')
+
+
 def _eff_actual_vs_baseline(eff_raw: float | None, eff_vs_bl: float | None) -> str:
     """OSI-033: 'Actual 0.852 vs baseline 0.801 tasks/hr' — the % alone hid both numbers."""
     if not eff_raw or not eff_vs_bl:
@@ -450,6 +613,11 @@ def _build_fta(analytics, jira_project=""):
         ("4-week trend",    trend_str, _TEXT),
         ("Trend direction", f'{_arrow(tr)} {tr.capitalize()}', c),
         ("Data period",     period_label(wk), _MUTED),
+    ]
+    ref = _reference_row(analytics, ["fta"])
+    if ref:
+        rows.append(ref)
+    rows += [
         ("Source",          f'<span style="font-size:11px;color:{_MUTED}">{src}</span>', _MUTED),
     ]
     html = _kv_table(rows)
@@ -519,6 +687,10 @@ def _build_efficiency(analytics, pm=None):
                      f'Production <b>{ph:.0f}h</b> &nbsp;·&nbsp; '
                      f'QC <b>{qh:.0f}h</b> &nbsp;·&nbsp; Total <b>{total:.0f}h</b>', _TEXT))
     rows.append(("Data period", period_label(wk), _MUTED))
+    ref = _reference_row(analytics, [m for m in ("efficiency", "coq", "yield")
+                                     if m in _pm or (not _pm and m != "yield") or (m == "coq" and "copq" in _pm)])
+    if ref:
+        rows.append(ref)
     return _kv_table(rows)
 
 
@@ -1247,6 +1419,8 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
 
     {_build_exec_summary(jira, analytics, pm, _s)}
 
+    {_build_action_box(jira, analytics, set(pm or []))}
+
     {_build_kpi_row(analytics, jira, pm)}
 
     {sec(f"Work Unit &amp; Process-type Breakdown — {period_label(analytics.get('week_label',''))}",
@@ -1478,6 +1652,8 @@ def build_alert(
 
     {preview_html}
 
+    {_build_action_box({}, analytics, set(), only=metric) if analytics else ""}
+
     <!-- Key facts -->
     {_section("Alert Details", _kv_table([
         ("Metric",      metric_label,                                 _TEXT),
@@ -1485,6 +1661,8 @@ def build_alert(
         ("Threshold",   thr_label,                                    _MUTED),
         ("Trend",       dir_note,                                     c if direction_bad else _GREEN),
         ("Data period", period_label(week_label),                     _MUTED),
+        *([_reference_row(analytics, [metric])] if analytics and metric in _REF_FIELDS
+          and _reference_row(analytics, [metric]) else []),
     ]), 1)}
 
     <!-- Flagged process types -->
