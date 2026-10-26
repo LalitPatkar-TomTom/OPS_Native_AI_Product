@@ -201,6 +201,34 @@ def _col(row: dict[str, str], *names: str) -> str:
     return ""
 
 
+def _extract_metric_rules(text: str) -> list[dict]:
+    """Every alert row of the Metrics Profile table, with its Level and Scope (OSI-030).
+
+    [{"metric": "coq", "level": "process" | "planning", "scope": ["attr-update-tmcpath", ...] or [] for All,
+      "target": 3.0, "alert": 3.0, "direction": "rise"}, ...] — rows without a numeric alert level are left out.
+    """
+    skip = {"—", "-", "(all)", "all", ""}
+    rules = []
+    for row in _iter_metric_rows(text):
+        key = _normalize_metric_key(_col(row, "metric"))
+        alert_str = _col(row, "alert")
+        alert_val = _parse_pct(alert_str)
+        if key is None or alert_val is None:
+            continue
+        level = _col(row, "level").lower()
+        scope = row.get("scope", "")
+        rules.append({
+            "metric":    key,
+            "level":     "planning" if ("planning id" in level or "deliverable" in level) else "process",
+            "scope":     [x.strip() for x in scope.split(",") if x.strip().lower() not in skip]
+                         if scope.strip().lower() not in skip else [],
+            "target":    _parse_pct(_col(row, "target")),
+            "alert":     alert_val,
+            "direction": _parse_direction(alert_str, _col(row, "direction")),
+        })
+    return rules
+
+
 def _extract_metric_thresholds(text: str) -> dict[str, dict]:
     """
     Parse all rows from the Metrics Profile table.
@@ -627,6 +655,7 @@ def load_skill(skill_file: Path) -> dict[str, Any]:
         "briefing_time":             _extract_briefing_time(text),
         "alert_channel":             _extract_alert_channel(text),
         "metric_thresholds":         met_thr,
+        "metric_rules":              _extract_metric_rules(text),
         # backward-compat keys (UC4 reads these directly)
         "fta_thresholds":            met_thr.get("fta",        {"target": 95.0, "alert": 92.0}),
         "coq_thresholds":            met_thr.get("coq",        {"target": 7.0,  "alert": 10.0}),

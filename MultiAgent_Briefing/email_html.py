@@ -110,7 +110,7 @@ def week_word(week_label: str, today: "date | None" = None) -> str:
 
 
 def period_label(week_label: str, today: "date | None" = None, relative: bool = True,
-                 fallback_note: bool = False) -> str:
+                 fallback_note: "bool | str" = False) -> str:
     """Which days the numbers cover (OSI-031), decided with the user on 26 Oct.
 
     The data is one row per calendar week. The daily emails report the week of the previous working day:
@@ -132,7 +132,16 @@ def period_label(week_label: str, today: "date | None" = None, relative: bool = 
     word = week_word(week_label, today)
     if word == "this week":
         return f"{mon:%a %d %b} – {min(today, sun):%a %d %b %Y} (this week so far)"
-    return f"{mon:%a %d %b} – {sun:%a %d %b %Y} ({word}{' · no QC data yet this week' if fallback_note else ''})"
+    note = fallback_note if isinstance(fallback_note, str) else (" · no QC data yet this week" if fallback_note else "")
+    return f"{mon:%a %d %b} – {sun:%a %d %b %Y} ({word}{note})"
+
+
+def alert_week_note(analytics: dict | None) -> str:
+    """Why a UC4 alert shows last week: this week has no QC data yet, or too little to judge."""
+    ew = (analytics or {}).get("early_week")
+    if ew:
+        return f" · this week too early: {ew['qc']:,} QC&apos;d so far, alerts use it from {ew['needed']:,}"
+    return " · no QC data yet this week"
 
 
 def previous_full_week(analytics: dict) -> dict | None:
@@ -445,49 +454,35 @@ def _btn(summary: str, description: str, jira_project: str = "", priority: str =
 # ── KPI Summary row ────────────────────────────────────────────────────────────
 
 def _build_kpi_row(analytics: dict, jira: dict, pm: set) -> str:
-    """Single-row KPI summary table at the top — one cell per metric."""
+    """KPI summary at the top: the six headline KPIs (OSI-008) plus Jira SLA, four cells per row.
+
+    Metrics in the profile get their RAG badge; the others say "no alert set" (they never alert).
+    """
     cells = []
+    neutral = _rag("NONE")
 
-    if "fta" in pm:
-        fta  = analytics.get("fta_current", 0.0)
-        rag  = analytics.get("fta_rag", "GREEN")
-        c, bg, bd = _rag(rag)
-        cells.append((
-            "FTA",
-            f'<span style="{_F};font-size:22px;font-weight:bold;color:{c}">{fta:.2f}%</span>',
-            _badge(rag), bg, bd
-        ))
+    def metric(label, value_str, rag, key):
+        tracked = key in pm or (key == "coq" and "copq" in pm)
+        c, bg, bd = _rag(rag) if tracked else neutral
+        sub = _badge(rag) if tracked else f'<span style="{_F};font-size:11px;color:{_MUTED}">no alert set</span>'
+        cells.append((label, f'<span style="{_F};font-size:22px;font-weight:bold;color:{c if tracked else _TEXT}">'
+                             f'{value_str}</span>', sub, bg, bd))
 
-    if "efficiency" in pm:
-        ev  = analytics.get("efficiency_vs_bl")
-        rag = analytics.get("efficiency_rag", "GREEN")
-        c, bg, bd = _rag(rag)
-        cells.append((
-            "Efficiency vs BL",
-            f'<span style="{_F};font-size:22px;font-weight:bold;color:{c}">{_eff_str(ev)}</span>',
-            _badge(rag), bg, bd
-        ))
-
-    if "coq" in pm or "copq" in pm:
-        coq = analytics.get("coq_current", 0.0)
-        rag = analytics.get("coq_rag", "GREEN")
-        c, bg, bd = _rag(rag)
-        cells.append((
-            "Cost of Quality",
-            f'<span style="{_F};font-size:22px;font-weight:bold;color:{c}">{coq:.2f}%</span>',
-            _badge(rag), bg, bd
-        ))
-
-    if "yield" in pm:
-        yv  = analytics.get("yield_current")
-        rag = analytics.get("yield_rag", "GREEN")
-        c, bg, bd = _rag(rag)
-        yv_str = f"{yv:.2f}%" if yv is not None else "N/A"
-        cells.append((
-            "Yield",
-            f'<span style="{_F};font-size:22px;font-weight:bold;color:{c}">{yv_str}</span>',
-            _badge(rag), bg, bd
-        ))
+    if not analytics.get("no_scope"):
+        ev, yv = analytics.get("efficiency_vs_bl"), analytics.get("yield_current")
+        metric("FTA", f'{analytics.get("fta_current", 0.0):.2f}%', analytics.get("fta_rag", "GREEN"), "fta")
+        metric("Efficiency vs BL", _eff_str(ev), analytics.get("efficiency_rag", "GREEN"), "efficiency")
+        metric("Cost of Quality", f'{analytics.get("coq_current", 0.0):.2f}%', analytics.get("coq_rag", "GREEN"), "coq")
+        metric("Yield", f"{yv:.2f}%" if yv is not None else "N/A", analytics.get("yield_rag", "GREEN"), "yield")
+        ph, qh = analytics.get("prod_hrs") or 0, analytics.get("qc_hrs") or 0
+        cells.append(("Hours", f'<span style="{_F};font-size:22px;font-weight:bold;color:{_TEXT}">{ph + qh:,.0f}h</span>',
+                      f'<span style="{_F};font-size:11px;color:{_MUTED}">production {ph:,.0f}h · QC {qh:,.0f}h</span>',
+                      *neutral[1:]))
+        sp = analytics.get("sampling_pct")
+        cells.append(("Sampling", f'<span style="{_F};font-size:22px;font-weight:bold;color:{_TEXT}">'
+                                  f'{f"{sp:.1f}%" if sp is not None else "N/A"}</span>',
+                      f'<span style="{_F};font-size:11px;color:{_MUTED}">{analytics.get("total_qc") or 0:,} QC&apos;d of '
+                      f'{analytics.get("prod_tasks") or 0:,} tasks</span>', *neutral[1:]))
 
     br  = len(jira.get("sla_breaches", []))
     wa  = len(jira.get("sla_warnings", []))
@@ -500,32 +495,31 @@ def _build_kpi_row(analytics: dict, jira: dict, pm: set) -> str:
         bg, bd
     ))
 
-    if not cells:
-        return ""
-
-    col_w = 100 // len(cells)
-    tds = ""
-    for i, (label, big, sub, bg, bd) in enumerate(cells):
-        pad = "padding-left:8px" if i else ""
-        tds += (
-            f'<td width="{col_w}%" style="{pad}">'
-            f'<table width="100%" cellpadding="0" cellspacing="0" '
-            f'style="background:{bg};border:1px solid {bd};border-radius:4px">'
-            f'<tr><td style="padding:12px 14px">'
-            f'<div style="{_F};font-size:11px;color:{_MUTED};font-weight:bold;'
-            f'text-transform:uppercase;letter-spacing:0.4px;margin-bottom:5px">{label}</div>'
-            f'{big}'
-            f'<div style="margin-top:5px">{sub}</div>'
-            f'</td></tr></table>'
-            f'</td>'
-        )
+    rows = ""
+    for start in range(0, len(cells), 4):
+        chunk = cells[start:start + 4]
+        tds = ""
+        for i, (label, big, sub, bg, bd) in enumerate(chunk):
+            pad = "padding-left:8px" if i else ""
+            tds += (
+                f'<td width="25%" style="{pad};vertical-align:top">'
+                f'<table width="100%" cellpadding="0" cellspacing="0" '
+                f'style="background:{bg};border:1px solid {bd};border-radius:4px">'
+                f'<tr><td style="padding:12px 14px">'
+                f'<div style="{_F};font-size:11px;color:{_MUTED};font-weight:bold;'
+                f'text-transform:uppercase;letter-spacing:0.4px;margin-bottom:5px">{label}</div>'
+                f'{big}'
+                f'<div style="margin-top:5px">{sub}</div>'
+                f'</td></tr></table>'
+                f'</td>'
+            )
+        tds += '<td width="25%"></td>' * (4 - len(chunk)) if start else ""
+        rows += f'<tr>{tds}</tr>'
     return (
         f'<table width="100%" cellpadding="0" cellspacing="8" style="margin-bottom:18px">'
-        f'<tr>{tds}</tr></table>'
+        f'{rows}</table>'
     )
 
-
-# ── Section builders ───────────────────────────────────────────────────────────
 
 def _build_priority(jira, analytics, jira_project="", project_name="",
                     primary_metrics=None):
@@ -811,6 +805,16 @@ def _build_operator_breakdown(analytics):
     return html
 
 
+def _fta_order(p):
+    """Worst FTA first; rows too small to judge ("SMALL", < 10 QC'd) go last."""
+    return (p.get("fta_rag") == "SMALL", p.get("fta_pct", 100))
+
+
+def flagged(rows):
+    """Rows whose FTA is AMBER or RED (small samples are never flagged)."""
+    return [p for p in rows or [] if p.get("fta_rag") in ("AMBER", "RED")]
+
+
 def _build_breakdown(analytics, scope_mode="defined"):
     bd  = analytics.get("process_breakdown", [])
     wk  = analytics.get("week_label", "")
@@ -825,7 +829,7 @@ def _build_breakdown(analytics, scope_mode="defined"):
         display_groups = [("Top 10 by Volume", sorted(bd, key=lambda p: p.get("total_hrs", 0), reverse=True)[:10])]
         mode_note = f"Top 10 process types by volume (of {len(bd)} total)"
     elif many:
-        by_fta   = sorted(bd, key=lambda p: p.get("fta_pct", 100))
+        by_fta   = sorted(bd, key=_fta_order)
         bottom10 = by_fta[:10]
         top10    = list(reversed(by_fta[-10:]))
         display_groups = [
@@ -835,8 +839,10 @@ def _build_breakdown(analytics, scope_mode="defined"):
         mode_note = f"Top & bottom 10 of {len(bd)} total"
     else:
         # All configured process types, worst FTA first
-        display_groups = [("", sorted(bd, key=lambda p: p.get("fta_pct", 100)))]
+        display_groups = [("", sorted(bd, key=_fta_order))]
         mode_note = f"All {len(bd)} process type{'s' if len(bd) != 1 else ''} — sorted by FTA (worst first)"
+    if any(p.get("fta_rag") == "SMALL" for p in bd):
+        mode_note += " · grey FTA = fewer than 10 QC&apos;d tasks, not flagged"
 
     headers = ["Process Type", "FTA", "Eff vs BL", "CoQ", "Yield", "Sampling", "Tasks", "Hrs"]
     th = (f'{_F};font-size:11px;font-weight:bold;color:{_WHITE};background:{_HDR};'
@@ -1234,7 +1240,7 @@ def _build_actions(jira, analytics, jira_project="", project_name="",
 def _build_exec_summary(jira, analytics, pm, skill=None):
     """Bulleted executive summary — first thing the reader sees."""
     _s = skill or {}
-    project_name = _s.get("project_name") or "Project"
+    project_name = project_name_of(_s)
 
     br  = jira.get("sla_breaches", [])
     wa  = jira.get("sla_warnings", [])
@@ -1296,15 +1302,14 @@ def _build_exec_summary(jira, analytics, pm, skill=None):
             f' &nbsp;{_badge(yr)}'
         )
 
-    if bd:
-        worst = min(bd, key=lambda p: p.get("fta_pct", 100))
-        if worst.get("fta_rag") in ("AMBER", "RED"):
-            wc, _, _ = _rag(worst["fta_rag"])
-            bullets.append(
-                f'<b>Lowest FTA:</b> '
-                f'<span style="font-family:Consolas,monospace;font-size:11px">{worst["process_type"]}</span>'
-                f' at <span style="color:{wc};font-weight:bold">{worst["fta_pct"]:.2f}%</span>'
-            )
+    if flagged(bd):
+        worst = min(flagged(bd), key=lambda p: p.get("fta_pct", 100))
+        wc, _, _ = _rag(worst["fta_rag"])
+        bullets.append(
+            f'<b>Lowest FTA:</b> '
+            f'<span style="font-family:Consolas,monospace;font-size:11px">{worst["process_type"]}</span>'
+            f' at <span style="color:{wc};font-weight:bold">{worst["fta_pct"]:.2f}%</span>'
+        )
 
     if br:
         extra = f' + {len(wa)} warning{"s" if len(wa)>1 else ""}' if wa else ''
@@ -1390,6 +1395,21 @@ def _preview_banner(note: str) -> str:
 
 # ── Entry point ────────────────────────────────────────────────────────────────
 
+def project_name_of(skill: dict | None) -> str:
+    """Project name from the profile; without one, the Jira key (e.g. "OM") rather than the word "Project"."""
+    s = skill or {}
+    return s.get("project_name") or s.get("jira_project") or "Project"
+
+
+def overall_rag(jira: dict, analytics: dict) -> str:
+    """The UC1 "Overall" status; the subject uses the same one, so the two never disagree."""
+    if jira.get("sla_breaches") or analytics.get("fta_rag") == "RED" or analytics.get("efficiency_rag") == "RED":
+        return "RED"
+    if jira.get("sla_warnings") or analytics.get("fta_rag") == "AMBER" or analytics.get("efficiency_rag") == "AMBER":
+        return "AMBER"
+    return "GREEN"
+
+
 def build(jira: dict[str, Any], analytics: dict[str, Any],
           confluence: dict[str, Any] | None = None,
           skill: dict[str, Any] | None = None,
@@ -1402,10 +1422,11 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
     jira            = _escape_jira(jira)
     confluence      = _escape_confluence(confluence)
     _s              = skill or {}
-    project_name    = _s.get("project_name") or "Project"
+    project_name    = project_name_of(_s)
     jira_project    = _s.get("jira_project") or ""
     user_first_name = _s.get("user_first_name") or "you"
-    project_label   = f"{project_name} ({jira_project})" if jira_project else project_name
+    project_label   = (f"{project_name} ({jira_project})"
+                       if jira_project and jira_project != project_name else project_name)
     pm              = set(_s.get("primary_metrics") or ["fta", "efficiency", "coq"])
 
     now        = datetime.now(timezone.utc)
@@ -1413,11 +1434,7 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
     time_str   = now.strftime("%H:%M UTC")
     data_label = analytics.get("data_label", "")
 
-    overall = "GREEN"
-    if jira.get("sla_breaches") or analytics.get("fta_rag") == "RED" or analytics.get("efficiency_rag") == "RED":
-        overall = "RED"
-    elif jira.get("sla_warnings") or analytics.get("fta_rag") == "AMBER" or analytics.get("efficiency_rag") == "AMBER":
-        overall = "AMBER"
+    overall = overall_rag(jira, analytics)
     oc, obg, obd = _rag(overall)
     show_efficiency = bool(pm & {"efficiency", "coq", "copq", "yield"})
 
@@ -1545,7 +1562,7 @@ def build_alert(
 ) -> str:
     """Compact HTML email for UC4 real-time quality alerts."""
     _s           = skill or {}
-    project_name = _s.get("project_name") or "Project"
+    project_name = project_name_of(_s)
     jira_project = _s.get("jira_project") or ""
     user_name    = _s.get("user_first_name") or "you"
     proj_label   = f"{project_name} ({jira_project})" if jira_project else project_name
@@ -1690,7 +1707,7 @@ def build_alert(
     <div style="{_F};font-size:36px;font-weight:bold;color:{c};line-height:1">{value_str}</div>
     <div style="{_F};font-size:13px;color:{_TEXT};margin-top:6px">
       Threshold: <b>{thr_label}</b> &nbsp;·&nbsp; Trend: <b>{dir_note}</b>
-      &nbsp;·&nbsp; Data: <b>{period_label(week_label, fallback_note=True)}</b>
+      &nbsp;·&nbsp; Data: <b>{period_label(week_label, fallback_note=alert_week_note(analytics))}</b>
     </div>
   </td></tr>
   </table>
@@ -1709,7 +1726,7 @@ def build_alert(
         ("Current",     f'<b style="color:{c}">{value_str}</b>',     c),
         ("Threshold",   thr_label,                                    _MUTED),
         ("Trend",       dir_note,                                     c if direction_bad else _GREEN),
-        ("Data period", period_label(week_label, fallback_note=True), _MUTED),
+        ("Data period", period_label(week_label, fallback_note=alert_week_note(analytics)), _MUTED),
         *([_reference_row(analytics, [metric])] if analytics and metric in _REF_FIELDS
           and _reference_row(analytics, [metric]) else []),
     ]), 1)}
@@ -1762,7 +1779,7 @@ def build_sla_alert(
 
     jira         = _escape_jira(jira)
     _s           = skill or {}
-    project_name = _s.get("project_name") or "Project"
+    project_name = project_name_of(_s)
     jira_project = _s.get("jira_project") or ""
     user_name    = _s.get("user_first_name") or "you"
     proj_label   = f"{project_name} ({jira_project})" if jira_project else project_name

@@ -267,6 +267,32 @@ def _build_scope_filter(skill: dict | None) -> tuple[str, str, int]:
 
 # ── RAG helpers ────────────────────────────────────────────────────────────────
 
+# Alerts use this week only once it is big enough to judge (decided 26 Oct): early in the week CoQ read 64%
+# and efficiency 23–39% from a few hours of work. Otherwise they use last week, and the email says why.
+ALERT_MIN_QC        = 50     # QC'd tasks in scope this week
+ALERT_MIN_SHARE     = 0.20   # … and at least this share of last week's QC'd tasks
+
+
+def alert_week_too_early(this_qc: float, last_qc: float) -> int | None:
+    """QC'd tasks needed before alerts use this week, or None when this week already has enough."""
+    import math
+    need = max(ALERT_MIN_QC, math.ceil(ALERT_MIN_SHARE * (last_qc or 0)))
+    return need if (this_qc or 0) < need else None
+
+
+# A process type, work unit or planning ID with fewer QC'd tasks than this is shown but never flagged:
+# one rejected task out of one reads as FTA 0% (seen 26 Oct: orbis-update-lanesleads, 1 QC'd, P1 "Lowest FTA").
+MIN_QC_TO_FLAG = 10
+
+
+def _mark_small_samples(rows: list[dict]) -> None:
+    """Set fta_rag to "SMALL" on rows (and their work units) with too few QC'd tasks to judge."""
+    for r in rows or []:
+        if r.get("fta_rag") and (r.get("total_qc") or 0) < MIN_QC_TO_FLAG:
+            r["fta_rag"] = "SMALL"
+        _mark_small_samples(r.get("work_units") or [])
+
+
 def _fta_rag(fta: float) -> str:
     if fta >= FTA_TARGET: return "GREEN"
     if fta >= FTA_ALERT:  return "AMBER"
@@ -791,6 +817,16 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         if not rows:
             return _fallback(f"Metrics query returned no rows (scope: {scope_label})")
 
+        early_week = None
+        if report_type == "alert" and len(rows) > 1 and str(rows[0].get("week_start"))[:10] == target_week:
+            this_qc, last_qc = float(rows[0].get("total_qc") or 0), float(rows[1].get("total_qc") or 0)
+            need = alert_week_too_early(this_qc, last_qc)
+            if need is not None:
+                early_week = {"week": target_week, "qc": int(this_qc), "needed": need}
+                rows = rows[1:]
+                target_week = str(rows[0].get("week_start"))[:10]
+                print(f"[analytics] this week too early for alerts ({int(this_qc)} QC'd, needs {need}) — using {target_week}")
+
         current  = rows[0]
         previous = rows[1] if len(rows) > 1 else rows[0]
 
@@ -979,7 +1015,11 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         yield_rag_val = "GREEN"
         yield_4w_list = []
 
+    for rows in (process_breakdown, workunit_breakdown, planning_breakdown):
+        _mark_small_samples(rows)
+
     return {
+        "early_week":        early_week,
         "fta_current":       fta_current,
         "fta_prev_week":     fta_prev,
         "fta_trend":         _trend([r["fta"] for r in fta_4w]),

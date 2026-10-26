@@ -10,7 +10,7 @@ from email_html import (
     _rag, _badge, _dot, _arrow, _kv_table, _data_table, _section,
     _alert_row, _build_sprint, _build_confluence, _preview_banner,
     _build_exec_summary, _build_breakdown, _build_actions, _build_operator_breakdown, no_scope_notice,
-    period_label,
+    period_label, project_name_of,
     _eff_str, _escape_jira, _escape_confluence, _GREEN, _GREEN_BG, _GREEN_BD,
     _AMBER, _AMBER_BG, _AMBER_BD,
     _RED, _RED_BG, _RED_BD,
@@ -255,7 +255,7 @@ def build(
     jira         = _escape_jira(jira)              # untrusted Jira / Confluence text
     confluence   = _escape_confluence(confluence)
     _s           = skill or {}
-    project_name = _s.get("project_name") or "Project"
+    project_name = project_name_of(_s)
     jira_project = _s.get("jira_project") or ""
     user_name    = _s.get("user_first_name") or "you"
     proj_label   = f"{project_name} ({jira_project})" if jira_project else project_name

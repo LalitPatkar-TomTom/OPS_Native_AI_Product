@@ -259,7 +259,7 @@ def _run_uc4(skill: dict, user: str):
     from agents import analytics_agent
     from agents.uc4_state import already_alerted_today, mark_alerted
     from delivery import deliver
-    from email_html import build_alert, period_label
+    from email_html import alert_week_note, build_alert, period_label
 
     force        = bool(os.getenv("FORCE_UC4_ALERT"))
     pm           = set(skill.get("primary_metrics") or ["fta", "efficiency", "coq"])
@@ -290,6 +290,7 @@ def _run_uc4(skill: dict, user: str):
 
     week  = analytics.get("week_label", "")
     bd    = analytics.get("process_breakdown", [])
+    wk_note = alert_week_note(analytics).replace("&apos;", "'")   # subjects are plain text
     trend = analytics.get("fta_trend", "stable")
 
     # Map canonical metric key → (current_value, email_metric_id, email headline)
@@ -308,11 +309,52 @@ def _run_uc4(skill: dict, user: str):
             continue
 
         current, email_type, label = _METRIC_VALUES[metric_key]
+        overall_rules, scoped_rules = split_rules(skill, metric_key)
+
+        # OSI-030: alert levels set for named process types / planning IDs, checked on each of them
+        hits = scoped_breaches(analytics, scoped_rules, metric_key)
+        if hits:
+            skey = f"{metric_key}:scoped"
+            rise = hits[0][0]["direction"] == "rise"
+            worst = max(hits, key=lambda h: h[2]) if rise else min(hits, key=lambda h: h[2])
+            what = "planning ID" if worst[0]["level"] == "planning" else "process type"
+            names = [str(h[1].get("planning_id") or h[1].get("process_type")) for h in hits]
+            if force or not already_alerted_today(user, skey):
+                rows = [{**h[1], "process_type": n} for h, n in zip(hits, names)]
+                html = build_alert(
+                    metric=email_type, rag="RED", current_value=worst[2], threshold=worst[0]["alert"],
+                    direction="declining" if rise else "stable", week_label=week, process_breakdown=rows,
+                    skill=skill, label=f"{label} — {len(hits)} {what}{'s' if len(hits) > 1 else ''} past "
+                                       f"the level set for {'them' if len(hits) > 1 else 'it'}",
+                    alert_on=worst[0]["direction"], analytics=analytics,
+                )
+                subj = (f"UC4 Alert RED — {metric_key.upper()} {worst[2]:.2f}% vs threshold {worst[0]['alert']}% — "
+                        f"{', '.join(names[:2])}{' …' if len(names) > 2 else ''} — {proj_name}"
+                        + (f" — {period_label(week, fallback_note=wk_note)}" if week else ""))
+                content = f"UC4 {metric_key.upper()} scoped alert: " + "; ".join(
+                    f"{n} {h[2]:.2f}% (level {h[0]['alert']}%)" for h, n in zip(hits, names))
+                out = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_scoped_Alert.md"
+                out.write_text(content, encoding="utf-8")
+                res = deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None)
+                if not force and res.get("email"):
+                    mark_alerted(user, skey)
+                audit_log.log_uc4(user, skill, analytics, metric_key=metric_key, alert_value=worst[2],
+                                  threshold_value=worst[0]["alert"], direction=worst[0]["direction"],
+                                  status="sent" if res.get("email") else "send_failed")
+                alerts_sent += 1
+                log.warning(f"UC4  {metric_key.upper()} scoped — {len(hits)} {what}(s) past their level — alert sent  [{user}]")
+            else:
+                log.info(f"  UC4  {metric_key.upper()} scoped — suppressed (already alerted today)")
+        if scoped_rules and not overall_rules:
+            log.info(f"  UC4  {metric_key} — alert levels are set per {scoped_rules[0]['level']} only; no overall check")
+            continue
+
         if current is None:
             log.info(f"  UC4  {metric_key} — no data, skipping")
             continue
 
-        thr       = met_thr.get(metric_key, {})
+        thr       = ({"alert": overall_rules[0]["alert"], "target": overall_rules[0]["target"],
+                      "direction": overall_rules[0]["direction"]} if overall_rules else met_thr.get(metric_key, {}))
         alert_val = thr.get("alert")
         target    = thr.get("target")
         direction = thr.get("direction", "drop")
@@ -353,7 +395,7 @@ def _run_uc4(skill: dict, user: str):
                     analytics=analytics,
                 )
                 subj    = (f"UC4 Alert {rag} — {metric_key.upper()} {current:.2f}% vs threshold {alert_val}% — {proj_name}"
-                           + (f" — {period_label(week, fallback_note=True)}" if week else ""))
+                           + (f" — {period_label(week, fallback_note=wk_note)}" if week else ""))
                 content = f"UC4 {metric_key.upper()} Alert {rag}: {current:.2f}% (threshold {alert_val}%)"
                 out     = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_Alert.md"
                 out.write_text(content, encoding="utf-8")
@@ -395,6 +437,51 @@ def _run_uc4(skill: dict, user: str):
 
     if alerts_sent == 0 and not force:
         log.info(f"UC4  All metrics healthy — no alerts  [{user}]")
+
+
+_ROW_FIELD = {"fta": "fta_pct", "efficiency": "eff_vs_bl", "coq": "coq_pct", "copq": "coq_pct", "yield": "yield_pct"}
+
+
+def split_rules(skill: dict, metric_key: str) -> tuple[list[dict], list[dict]]:
+    """(overall rules, scoped rules) for one metric (OSI-030).
+
+    A row whose Scope is "All", empty or covers the whole profile scope is checked on the overall value, as
+    before. A row naming only some process types / planning IDs is checked on each of them.
+    """
+    whole = {"process":  {p.lower() for p in skill.get("databricks_process_types") or []},
+             "planning": {p.lower() for p in skill.get("databricks_planning_ids") or []}}
+    overall, scoped = [], []
+    for r in skill.get("metric_rules") or []:
+        if r["metric"] != metric_key:
+            continue
+        names = {n.lower() for n in r["scope"]}
+        (overall if not names or (whole[r["level"]] and names >= whole[r["level"]]) else scoped).append(r)
+    return overall, scoped
+
+
+def scoped_breaches(analytics: dict, rules: list[dict], metric_key: str) -> list[tuple[dict, dict, float]]:
+    """[(rule, breakdown row, value)] for each named process type / planning ID past its own alert level.
+
+    Names match exactly (case-insensitive); a profile name cut at "|" still matches the full process type.
+    Rows too small to judge (fewer than 10 QC'd tasks for FTA, no hours otherwise) are skipped.
+    """
+    field = _ROW_FIELD[metric_key]
+    found = []
+    for r in rules:
+        rows = (analytics.get("planning_breakdown") if r["level"] == "planning" else analytics.get("process_breakdown")) or []
+        key = "planning_id" if r["level"] == "planning" else "process_type"
+        names = {n.lower() for n in r["scope"]}
+        for row in rows:
+            name = str(row.get(key, "")).lower()
+            if name not in names and name.split("|")[0] not in names:
+                continue
+            v = row.get(field)
+            if v is None or (metric_key == "fta" and row.get("fta_rag") in ("SMALL", None)) \
+                    or (metric_key != "fta" and not (row.get("total_hrs") or 0)):
+                continue
+            if (v > r["alert"]) if r["direction"] == "rise" else (v < r["alert"]):
+                found.append((r, row, float(v)))
+    return found
 
 
 def _run_uc5(user: str):

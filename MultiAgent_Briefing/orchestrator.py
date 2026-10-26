@@ -28,7 +28,7 @@ from config import OUTPUT_DIR, SKILLS_DIR, USE_CASES
 from agents import jira_agent, analytics_agent, briefing_agent, confluence_agent
 from skill_registry import load_skill, load_all_skills
 from delivery import deliver
-from email_html import period_label
+from email_html import overall_rag, period_label
 
 logging.basicConfig(
     level=logging.INFO,
@@ -167,7 +167,7 @@ def run_uc1(skill_file: Path | None = None) -> Path:
 
     # Step 5 — Deliver (email + Teams if configured)
     log.info("Step 5/5  Delivering briefing …")
-    rag   = "AMBER" if jira_result.get("sla_breaches") else "GREEN"
+    rag   = overall_rag(jira_result, analytics_result)
     slas  = len(jira_result.get("sla_breaches", []))
     fta   = analytics_result.get("fta_current", 0)
     proj_label = skill.get("project_name") or skill.get("jira_project") or "Project"
