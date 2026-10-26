@@ -234,7 +234,7 @@ def run_uc2(skill_file: Path | None = None) -> Path | None:
         "",
     ]
     if breaches:
-        lines.append(f"## SLA BREACH — {len(breaches)} ticket(s) over 72h\n")
+        lines.append(f"## SLA BREACH — {len(breaches)} ticket(s) over {jira.get('sla_escalation_hours', 72):g}h without update\n")
         for t in breaches:
             lines.append(
                 f"- [{t['key']}]({t['url']}) — {t['summary']}  "
@@ -242,7 +242,7 @@ def run_uc2(skill_file: Path | None = None) -> Path | None:
             )
         lines.append(f"\n> Draft follow-up ready for {user_first}'s approval.")
     if warnings:
-        lines.append(f"\n## SLA WARNING — {len(warnings)} ticket(s) approaching 48h\n")
+        lines.append(f"\n## SLA WARNING — {len(warnings)} ticket(s) over {jira.get('sla_warning_hours', 48):g}h without update\n")
         for t in warnings:
             lines.append(
                 f"- [{t['key']}]({t['url']}) — {t['summary']}  "

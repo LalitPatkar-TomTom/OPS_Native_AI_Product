@@ -53,3 +53,19 @@ def test_load_skill_takes_owner_from_filename(tmp_path):
     assert s["user"] == "jane.doe@tomtom.com" and s["user_first_name"] == "Jane"
     with pytest.raises(FileNotFoundError):
         sr.load_skill(tmp_path / "missing@tomtom.com_skill.md")
+
+
+def test_sla_levels_come_only_from_threshold_lines():
+    """OSI-006: the profile's own lines decide, in hours or days; prose about SLAs does not."""
+    t = ("Gen ACI items have a hard 24-hour response SLA.\n"
+         "- **SLA — Warning threshold:** 300 hours without update\n"
+         "- **SLA — Escalation threshold:** 15 days without update\n")
+    assert sr._extract_sla_thresholds(t) == {"warning_hours": 300, "escalation_hours": 360}
+    assert sr._extract_sla_thresholds("Gen ACI items have a hard 24-hour response SLA.") == {"warning_hours": 48, "escalation_hours": 72}
+
+
+def test_jira_window_from_profile():
+    """OSI-003/025/037: empty means the default; a date or a duration can be set per profile."""
+    assert sr._extract_jira_window("") == {}
+    assert sr._extract_jira_window("**Jira created since:** 2026-01-01") == {"since": "2026-01-01"}
+    assert sr._extract_jira_window("**Jira created within:** 2 years") == {"days": 730}

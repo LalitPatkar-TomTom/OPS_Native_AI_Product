@@ -478,17 +478,50 @@ def _extract_cc_recipients(text: str) -> list[str]:
     return [e.strip() for e in re.split(r"[;,]", raw) if "@" in e.strip()]
 
 
-def _extract_sla_thresholds(text: str) -> dict[str, int]:
-    """Extract Jira SLA warning and escalation hours."""
-    warn = 48
-    esc  = 72
-    m_w = re.search(r"SLA.*?Warning.*?(\d+)\s*hours?", text, re.I)
-    m_e = re.search(r"SLA.*?Escalation.*?(\d+)\s*hours?", text, re.I)
+_DURATION = r"(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|days?|d)\b"
+
+
+def _hours(number: str, unit: str) -> float:
+    """'15', 'days' -> 360.0; '300', 'hours' -> 300.0 (OSI-006: profiles may give days)."""
+    h = float(number) * (24 if unit.lower().startswith("d") else 1)
+    return int(h) if h == int(h) else h
+
+
+def _extract_sla_thresholds(text: str) -> dict[str, float]:
+    """Jira SLA warning and escalation levels from the profile, in hours; 48 / 72 when not set.
+
+    Accepts hours or days, e.g. "SLA — Warning threshold: 300 hours" or "... : 15 days".
+    Only the profile's own threshold lines count: free text such as "a hard 24-hour response SLA"
+    must not become an alert level.
+    """
+    warn, esc = 48, 72
+    def line(kind: str) -> str:
+        return r"^\s*[-*]?\s*\**\s*(?:Jira\s+)?SLA\s*[—–-]*\s*" + kind + r"[^:\n]*:\**\s*" + _DURATION
+    m_w = re.search(line("Warning"), text, re.I | re.M)
+    m_e = re.search(line("(?:Escalation|Breach)"), text, re.I | re.M)
     if m_w:
-        warn = int(m_w.group(1))
+        warn = _hours(*m_w.groups())
     if m_e:
-        esc = int(m_e.group(1))
+        esc = _hours(*m_e.groups())
+    if esc < warn:                       # a typo must not make every warning a breach
+        esc = warn
     return {"warning_hours": warn, "escalation_hours": esc}
+
+
+def _extract_jira_window(text: str) -> dict[str, Any]:
+    """Which Jira tickets UC2 looks at, by created date (OSI-003). Empty = the default (last 12 months).
+
+    "**Jira created since:** 2026-01-01"  -> {"since": "2026-01-01"}
+    "**Jira created within:** 24 months"  -> {"days": 730}   (days / months / years)
+    """
+    m = re.search(r"\*\*Jira (?:tickets )?created (?:since|from):?\*\*:?\s*(\d{4}-\d{2}-\d{2})", text, re.I)
+    if m:
+        return {"since": m.group(1)}
+    m = re.search(r"\*\*Jira (?:tickets )?created within:?\*\*:?\s*(\d+)\s*(days?|months?|years?)", text, re.I)
+    if m:
+        n, unit = int(m.group(1)), m.group(2).lower()
+        return {"days": n * (365 if unit.startswith("y") else round(365 / 12) if unit.startswith("m") else 1)}
+    return {}
 
 
 # ── UC table parser ────────────────────────────────────────────────────────────
@@ -590,6 +623,7 @@ def load_skill(skill_file: Path) -> dict[str, Any]:
         "fta_thresholds":            met_thr.get("fta",        {"target": 95.0, "alert": 92.0}),
         "coq_thresholds":            met_thr.get("coq",        {"target": 7.0,  "alert": 10.0}),
         "sla_thresholds":            _extract_sla_thresholds(text),
+        "jira_window":               _extract_jira_window(text),
         "use_cases":                 _extract_use_cases(text),
         "primary_metrics":             pri_metrics,
         "include_operator_breakdown":  include_ops,

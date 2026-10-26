@@ -16,6 +16,11 @@ from urllib.parse import urlencode
 _TICKET_TEXT = ("key", "summary", "status", "priority", "assignee", "reporter")
 
 
+def _sla_word(status: str) -> str:
+    """Badge text. The status names carry 72H / 48H, but the hours now differ per profile (OSI-006)."""
+    return {"BREACH_72H": "BREACH", "WARNING_48H": "WARNING"}.get(status, status.replace("_", " "))
+
+
 def _escape_jira(jira: dict | None) -> dict:
     """Copy of the Jira agent output with every ticket's text fields HTML-escaped."""
     if not jira:
@@ -88,6 +93,31 @@ def _dot(rag: str) -> str:
 
 def _arrow(trend: str) -> str:
     return {"improving": "&#8593;", "stable": "&#8594;", "declining": "&#8595;"}.get(trend, "&#8594;")
+
+
+def period_label(week_label: str, today: "date | None" = None) -> str:
+    """'2026-10-19' -> 'Mon 19 Oct – Sun 25 Oct 2026' (OSI-031: say exactly which days the numbers cover).
+
+    The data is one calendar week; while that week is not over yet, say so.
+    Anything that is not a date comes back unchanged.
+    """
+    from datetime import date as _date, timedelta as _td
+    try:
+        mon = _date.fromisoformat(str(week_label)[:10])
+    except ValueError:
+        return str(week_label or "")
+    sun = mon + _td(days=6)
+    text = f"{mon:%a %d %b} – {sun:%a %d %b %Y}"
+    if (today or _date.today()) <= sun:
+        text += " (week in progress)"
+    return text
+
+
+def _eff_actual_vs_baseline(eff_raw: float | None, eff_vs_bl: float | None) -> str:
+    """OSI-033: 'Actual 0.852 vs baseline 0.801 tasks/hr' — the % alone hid both numbers."""
+    if not eff_raw or not eff_vs_bl:
+        return ""
+    return f"Actual {eff_raw:.3f} vs baseline {eff_raw * 100 / eff_vs_bl:.3f} tasks/hr"
 
 
 def _eff_str(eff_vs_bl: float | None) -> str:
@@ -419,7 +449,7 @@ def _build_fta(analytics, jira_project=""):
          f' &nbsp; {_badge(rag)}', c),
         ("4-week trend",    trend_str, _TEXT),
         ("Trend direction", f'{_arrow(tr)} {tr.capitalize()}', c),
-        ("Week",            wk, _MUTED),
+        ("Data period",     period_label(wk), _MUTED),
         ("Source",          f'<span style="font-size:11px;color:{_MUTED}">{src}</span>', _MUTED),
     ]
     html = _kv_table(rows)
@@ -458,7 +488,8 @@ def _build_efficiency(analytics, pm=None):
         "P2 Investigate 7–10%" if cq < 10 else
         "P1 Escalate &gt;10%"
     )
-    eff_sub = f'<br><span style="{_F};font-size:11px;color:{_MUTED}">Raw: {er:.4f} tasks/hr</span>' if er else ""
+    eff_sub = (f'<br><span style="{_F};font-size:11px;color:{_MUTED}">{_eff_actual_vs_baseline(er, ev)} '
+               f'(baseline = average of the process types in scope)</span>' if er and ev else "")
     copq_sub = ""
     if ch is not None:
         copq_sub = f' &nbsp;·&nbsp; CopQ: {ch:.1f}h rework ({cp:.2f}% of hrs)' if cp else f' &nbsp;·&nbsp; CopQ: {ch:.1f}h rework'
@@ -487,7 +518,7 @@ def _build_efficiency(analytics, pm=None):
         rows.append(("Hours breakdown",
                      f'Production <b>{ph:.0f}h</b> &nbsp;·&nbsp; '
                      f'QC <b>{qh:.0f}h</b> &nbsp;·&nbsp; Total <b>{total:.0f}h</b>', _TEXT))
-    rows.append(("Week", wk, _MUTED))
+    rows.append(("Data period", period_label(wk), _MUTED))
     return _kv_table(rows)
 
 
@@ -556,7 +587,7 @@ def _build_operator_breakdown(analytics):
 
     html += '</table>'
     html += (f'<p style="{_F};font-size:10px;color:{_MUTED};margin:5px 0 0">'
-             f'Operator-level metrics (Production_Editor) — Week: {wk} — '
+             f'Operator-level metrics (Production_Editor) — {period_label(wk)} — '
              f'Only operators with QC data shown. FTA = first-pass acceptance rate per operator.</p>')
     return html
 
@@ -624,7 +655,7 @@ def _build_breakdown(analytics, scope_mode="defined"):
             f'{mode_note}'
             + ' &nbsp;·&nbsp; &#8627; rows split a process type by work unit'
             + (f' &nbsp;·&nbsp; {sc}' if sc else '')
-            + (f' &nbsp;·&nbsp; Week: {wk}' if wk else '')
+            + (f' &nbsp;·&nbsp; {period_label(wk)}' if wk else '')
             + '</p>')
     return _build_workunits(analytics) + tbl + note + _build_unsampled(analytics)
 
@@ -788,7 +819,7 @@ def _build_tickets(jira):
             f'<span style="{_F};font-size:12px">{t["status"]}</span>',
             f'<span style="{_F};font-size:12px">{t["assignee"]}</span>',
             f'<span style="{_F};font-size:12px">{t["hours_stale"]}h</span>',
-            _badge(t["sla_status"], t["sla_status"].replace("_", " ")),
+            _badge(t["sla_status"], _sla_word(t["sla_status"])),
         ])
     return _data_table(headers, rows)
 
@@ -1025,6 +1056,8 @@ def _build_exec_summary(jira, analytics, pm, skill=None):
         bullets.append(
             f'<b>Efficiency vs Baseline:</b> <span style="color:{ec};font-weight:bold">'
             f'{_eff_str(ev)}</span> &nbsp;{_badge(erg)}'
+            + (f' <span style="color:{_MUTED};font-size:12px">— {_eff_actual_vs_baseline(analytics.get("efficiency_raw"), ev)}</span>'
+               if analytics.get("efficiency_raw") and ev else "")
         )
 
     if "coq" in pm or "copq" in pm:
@@ -1072,7 +1105,7 @@ def _build_exec_summary(jira, analytics, pm, skill=None):
         )
 
     if wk:
-        bullets.append(f'<b>Reporting Week:</b> {wk}')
+        bullets.append(f'<b>Data period:</b> {period_label(wk)}')
 
     bullets_html = "".join(
         f'<li style="{_F};font-size:12px;color:{_TEXT};padding:3px 0;line-height:1.6">{b}</li>'
@@ -1196,7 +1229,7 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
       <td style="background:{_HDR};padding:20px 22px 14px">
         <span style="{_F};font-size:18px;font-weight:bold;color:#fff">Daily Operational Briefing</span><br>
         <span style="{_F};font-size:12px;color:#8FA3C0;display:block;margin-top:3px">
-          {project_label} &nbsp;·&nbsp; {("Data: " + data_label + " &nbsp;·&nbsp; ") if data_label else ""}{date_str} &nbsp;·&nbsp; {time_str}
+          {project_label} &nbsp;·&nbsp; {("Data: " + (period_label(analytics.get("week_label", "")) if analytics.get("week_label") else data_label) + " &nbsp;·&nbsp; ") if (data_label or analytics.get("week_label")) else ""}{date_str} &nbsp;·&nbsp; {time_str}
         </span>
       </td>
       <td style="background:{_HDR};padding:20px 22px;text-align:right;white-space:nowrap;vertical-align:middle">
@@ -1216,14 +1249,14 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
 
     {_build_kpi_row(analytics, jira, pm)}
 
-    {sec(f"Work Unit &amp; Process-type Breakdown — Week {analytics.get('week_label','')}",
+    {sec(f"Work Unit &amp; Process-type Breakdown — {period_label(analytics.get('week_label',''))}",
          _build_breakdown(analytics, scope_mode))}
 
-    {sec(f"Planning ID Breakdown — Week {analytics.get('week_label','')}",
+    {sec(f"Planning ID Breakdown — {period_label(analytics.get('week_label',''))}",
          _build_planning(analytics))
      if analytics.get("planning_breakdown") or analytics.get("planning_missing") else ""}
 
-    {sec(f"Operator Breakdown — Week {analytics.get('week_label','')}",
+    {sec(f"Operator Breakdown — {period_label(analytics.get('week_label',''))}",
          _build_operator_breakdown(analytics))
      if analytics.get("operator_breakdown") else ""}
 
@@ -1434,7 +1467,7 @@ def build_alert(
     <div style="{_F};font-size:36px;font-weight:bold;color:{c};line-height:1">{value_str}</div>
     <div style="{_F};font-size:13px;color:{_TEXT};margin-top:6px">
       Threshold: <b>{thr_label}</b> &nbsp;·&nbsp; Trend: <b>{dir_note}</b>
-      &nbsp;·&nbsp; Week: <b>{week_label}</b>
+      &nbsp;·&nbsp; Data: <b>{period_label(week_label)}</b>
     </div>
   </td></tr>
   </table>
@@ -1451,7 +1484,7 @@ def build_alert(
         ("Current",     f'<b style="color:{c}">{value_str}</b>',     c),
         ("Threshold",   thr_label,                                    _MUTED),
         ("Trend",       dir_note,                                     c if direction_bad else _GREEN),
-        ("Data week",   week_label,                                   _MUTED),
+        ("Data period", period_label(week_label),                     _MUTED),
     ]), 1)}
 
     <!-- Flagged process types -->
@@ -1496,6 +1529,9 @@ def build_sla_alert(
 ) -> str:
     """HTML email for UC2 Jira SLA alerts — same shell as the UC4 quality alert."""
     from config import SLA_WARNING_HOURS, SLA_ESCALATION_HOURS
+    warn_h = f"{(jira or {}).get('sla_warning_hours', SLA_WARNING_HOURS):g}"          # this profile's levels (OSI-006)
+    esc_h  = f"{(jira or {}).get('sla_escalation_hours', SLA_ESCALATION_HOURS):g}"
+    window = (jira or {}).get("created_window") or "created in the last 12 months"
 
     jira         = _escape_jira(jira)
     _s           = skill or {}
@@ -1518,22 +1554,26 @@ def build_sla_alert(
             f'<span style="{_F};font-size:12px">{t.get("status", "")}</span>',
             f'<span style="{_F};font-size:12px">{t.get("assignee", "")}</span>',
             f'<span style="{_F};font-size:12px;font-weight:bold">{t.get("hours_stale", "")}h</span>',
-            _badge(t.get("sla_status", ""), t.get("sla_status", "").replace("_", " ")),
+            _badge(t.get("sla_status", ""), _sla_word(t.get("sla_status", ""))),
         ] for t in sorted(tickets, key=lambda t: -float(t.get("hours_stale") or 0))]
         return _data_table(["Ticket", "Summary", "Status", "Owner", "Silent", "SLA"], rows)
 
     sections, n = [], 1
     sections.append(_section("Summary", _kv_table([
-        ("SLA breaches",  f'<b style="color:{_RED}">{len(breaches)}</b> ticket(s) silent &gt; {SLA_ESCALATION_HOURS}h', _RED),
-        ("SLA warnings",  f'<b style="color:{_AMBER}">{len(warnings)}</b> ticket(s) silent &gt; {SLA_WARNING_HOURS}h', _AMBER),
+        ("SLA breaches",  f'<b style="color:{_RED}">{len(breaches)}</b> ticket(s) silent &gt; {esc_h}h', _RED),
+        ("SLA warnings",  f'<b style="color:{_AMBER}">{len(warnings)}</b> ticket(s) silent &gt; {warn_h}h', _AMBER),
         ("Open tickets",  str(jira.get("total_open", len(breaches) + len(warnings))), _TEXT),
         ("Source",        jira.get("source") or "Jira", _MUTED),
+        # OSI-034: say how the SLA is measured
+        ("SLA rule",      f"Open tickets {window}. A ticket is flagged when it has had no update for "
+                          f"{warn_h} h (warning) or {esc_h} h (breach), counted in calendar hours since its last "
+                          f"update. Your profile can set other levels, in hours or days.", _MUTED),
     ]), n)); n += 1
     if breaches:
-        sections.append(_section(f"SLA Breaches — over {SLA_ESCALATION_HOURS}h without update",
+        sections.append(_section(f"SLA Breaches — over {esc_h}h without update",
                                  _ticket_table(breaches), n)); n += 1
     if warnings:
-        sections.append(_section(f"SLA Warnings — over {SLA_WARNING_HOURS}h without update",
+        sections.append(_section(f"SLA Warnings — over {warn_h}h without update",
                                  _ticket_table(warnings), n)); n += 1
     sections.append(_section("Suggested Action", f'''
       <div style="{_F};font-size:13px;color:{_TEXT};line-height:1.6">

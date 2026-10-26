@@ -21,6 +21,11 @@ def _rag_emoji(rag: str) -> str:
     return mapping.get(rag, "⚪")
 
 
+def _sla_h(jira: dict) -> tuple[str, str]:
+    """The warning / breach hours used for this profile, as text (OSI-006)."""
+    return (f"{jira.get('sla_warning_hours', 48):g}", f"{jira.get('sla_escalation_hours', 72):g}")
+
+
 def _overall_rag(jira: dict, analytics: dict) -> str:
     has_breach  = len(jira.get("sla_breaches", [])) > 0
     has_warning = len(jira.get("sla_warnings", [])) > 0
@@ -131,7 +136,7 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
     else:
         if breaches:
             lines += [
-                f"**{_rag_emoji('BREACH_72H')} SLA BREACH — {len(breaches)} ticket(s) exceed 72h without update ({jira_project})**",
+                f"**{_rag_emoji('BREACH_72H')} SLA BREACH — {len(breaches)} ticket(s) exceed {_sla_h(jira)[1]}h without update ({jira_project})**",
                 "",
             ]
             for t in breaches:
@@ -149,7 +154,7 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
             ]
         if warnings:
             lines += [
-                f"**{_rag_emoji('WARNING_48H')} SLA WARNING — {len(warnings)} ticket(s) approaching 48h ({jira_project})**",
+                f"**{_rag_emoji('WARNING_48H')} SLA WARNING — {len(warnings)} ticket(s) over {_sla_h(jira)[0]}h without update ({jira_project})**",
                 "",
             ]
             for t in warnings:
@@ -201,8 +206,8 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
     else:
         lines += [
             f"- **Open tickets:** {jira.get('total_open', 0)}",
-            f"  - {_rag_emoji('BREACH_72H')} SLA Breach (72h+): {len(breaches)}",
-            f"  - {_rag_emoji('WARNING_48H')} SLA Warning (48-72h): {len(warnings)}",
+            f"  - {_rag_emoji('BREACH_72H')} SLA Breach ({_sla_h(jira)[1]}h+): {len(breaches)}",
+            f"  - {_rag_emoji('WARNING_48H')} SLA Warning ({_sla_h(jira)[0]}-{_sla_h(jira)[1]}h): {len(warnings)}",
             f"  - {_rag_emoji('OK')} On track: {ok_count}",
             f"- Source: _{jira_src}_ · as of {jira.get('as_of', '')[:16]} UTC",
             "",
@@ -460,7 +465,7 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
         for t in warnings:
             lines.append(
                 f"{action_num}. **Flag to {t['assignee']}** re [{t['key']}]({t['url']}) "
-                f"— {t['hours_stale']}h without update, approaching 48h SLA. _(review recommended)_"
+                f"— {t['hours_stale']}h without update, past the {_sla_h(jira)[0]}h SLA warning level. _(review recommended)_"
             )
             action_num += 1
     if fta_rag != "GREEN":

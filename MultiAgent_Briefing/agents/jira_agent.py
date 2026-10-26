@@ -44,10 +44,34 @@ def _hours_since(updated_str: str) -> float:
     return (now - dt).total_seconds() / 3600
 
 
-def _sla_status(hours: float) -> str:
-    if hours >= SLA_ESCALATION_HOURS: return "BREACH_72H"
-    if hours >= SLA_WARNING_HOURS:    return "WARNING_48H"
+# OSI-003: without a window the query returned every open ticket ever created (some from 2021).
+DEFAULT_JIRA_WINDOW_DAYS = 365
+
+
+def sla_levels(skill: dict | None) -> tuple[float, float]:
+    """(warning, escalation) hours from the profile (OSI-006); the config defaults when not set."""
+    t = (skill or {}).get("sla_thresholds") or {}
+    return (t.get("warning_hours") or SLA_WARNING_HOURS, t.get("escalation_hours") or SLA_ESCALATION_HOURS)
+
+
+def _sla_status(hours: float, warn: float = SLA_WARNING_HOURS, esc: float = SLA_ESCALATION_HOURS) -> str:
+    # The status names stay BREACH_72H / WARNING_48H (used across the emails and analytics);
+    # the hours behind them now come from each profile.
+    if hours >= esc:  return "BREACH_72H"
+    if hours >= warn: return "WARNING_48H"
     return "OK"
+
+
+def created_window(skill: dict | None) -> tuple[str, str]:
+    """(JQL clause, plain-English label) for the created-date window of UC2."""
+    w = (skill or {}).get("jira_window") or {}
+    if w.get("since"):
+        return f'AND created >= "{w["since"]}" ', f'created since {w["since"]}'
+    days = int(w.get("days") or DEFAULT_JIRA_WINDOW_DAYS)
+    label = (f"created in the last {round(days / 365)} year(s)" if days % 365 == 0 and days > 365 else
+             f"created in the last {round(days * 12 / 365)} months" if days >= 60 else
+             f"created in the last {days} days")
+    return f"AND created >= -{days}d ", label
 
 
 def _keyword_variants(raw: str) -> list[str]:
@@ -116,9 +140,11 @@ def _build_jql(skill: dict | None) -> tuple[str, str]:
     scope_expr  = " OR ".join(all_clauses)
     label       = f"project:{project_key} | feature:{feature or 'none'} | reporter/assignee:{user_email}"
 
+    window_clause, _ = created_window(_skill)
     jql = (
         f"project = {project_key} "
         f"AND statusCategory != Done "
+        f"{window_clause}"
         f"AND ({scope_expr}) "
         f"ORDER BY updated ASC"
     )
@@ -137,7 +163,11 @@ def run(skill: dict | None = None) -> dict[str, Any]:
     jql, jql_label = _build_jql(skill)
 
     jira_project = (skill or {}).get("jira_project") or JIRA_PROJECT
+    warn_h, esc_h = sla_levels(skill)
     result: dict[str, Any] = {
+        "sla_warning_hours":    warn_h,
+        "sla_escalation_hours": esc_h,
+        "created_window":       created_window(skill)[1],
         "open_tickets": [],
         "sla_breaches": [],
         "sla_warnings": [],
@@ -191,7 +221,7 @@ def run(skill: dict | None = None) -> dict[str, Any]:
         f           = issue["fields"]
         updated_str = f.get("updated", "")
         hours_stale = _hours_since(updated_str) if updated_str else 9999
-        sla         = _sla_status(hours_stale)
+        sla         = _sla_status(hours_stale, warn_h, esc_h)
 
         ticket = {
             "key":         issue["key"],
