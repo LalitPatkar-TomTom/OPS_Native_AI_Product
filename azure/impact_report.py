@@ -241,7 +241,7 @@ def main() -> None:
     para(REPORT_NOTE, size=8.5, italic=True, color=GREY)
     consolidated_value(doc, T, "pilot")
     para(f"Annualised = pilot rate over {len(workdays)} working days × 220 working days; 1 FTE = 1,650 h. "
-         "Effort per item is an assumption to be validated with users (OSI-023).", size=8.5, italic=True, color=GREY)
+         "Minutes per email come from real-user feedback (OSI-023); OPS Hub and Status Report minutes are estimates.", size=8.5, italic=True, color=GREY)
 
     doc.add_heading("7. Reliability", 1)
     figure(c4, f"Figure 4 — Runs completed per day against 4 planned slots ({T['runs']} of {T['slots_planned']}).")

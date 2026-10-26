@@ -35,7 +35,7 @@ UC_NAMES = {
     "UC4": "Quality & Metric Early Warning",
 }
 # Minutes a user would spend producing the same information manually (assumptions)
-DEFAULT_MINUTES = {"UC1": 15, "UC2": 10, "UC3": 60, "UC4": 15}
+DEFAULT_MINUTES = {"UC1": 25, "UC2": 25, "UC3": 60, "UC4": 25}   # real-user feedback, 26 Oct (OSI-023)
 ON_TIME_MIN = 30
 
 

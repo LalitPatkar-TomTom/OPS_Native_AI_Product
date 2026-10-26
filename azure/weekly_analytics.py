@@ -48,9 +48,10 @@ UC_COLOR = {"UC1": BLUE, "UC4": ORANGE, "UC2": AQUA, "UC3": YELLOW}
 INK2, GRID = "#52524e", "#e6e6e1"
 NAVY = RGBColor(0x1B, 0x2A, 0x4A)
 METRIC = {"coq": "CoQ", "copq": "CoPQ", "efficiency": "Efficiency", "yield": "Yield", "fta": "FTA"}
-# minutes of manual work avoided per item — the same assumptions as the 19 Oct business value report.
-# OPS Hub questions are valued one by one from the work each answer did (chat_value.py).
-MINUTES = {"UC1": 20, "UC4": 15, "UC2": 10, "UC3": 90}
+# minutes of manual work avoided per email, from real-user feedback (26 Oct, OSI-023): 25 for the emails that give
+# key metrics and SLAs, 60 for the weekly report (report preparation). Before: 20 / 10 / 90 / 15 (assumed).
+# OPS Hub questions are still valued one by one from the work each answer did (chat_value.py).
+MINUTES = {"UC1": 25, "UC4": 25, "UC2": 25, "UC3": 60}
 
 
 def ist_day(ts: str) -> date:
@@ -241,7 +242,7 @@ def consolidated_value(doc, S: dict, when: str, unit: str = " h") -> None:
           widths=(6.5, 2.0, 4.6, 2.4), num_cols=(1, 2, 3))
     fixed = emails_h + S["hours"]["reports"]
     doc.add_paragraph(f"Total range {fixed + cv['low'] / 60:.1f}–{fixed + cv['high'] / 60:.1f} h "
-                      f"(the OPS Hub questions part is a range; email and report minutes are fixed assumptions).")
+                      f"(the OPS Hub questions part is a range; email minutes come from real-user feedback, report minutes are fixed assumptions).")
 
 
 def fill_breakdowns(s: dict) -> None:
