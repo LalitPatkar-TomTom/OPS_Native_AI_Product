@@ -195,6 +195,7 @@ def _reference_row(analytics: dict, metrics: list[str]) -> tuple | None:
 # how large the sample is, and how the previous full week compares. Shown at the top of UC1 and UC4.
 
 def _n(x) -> str:
+    """Text made safe for the email HTML (None becomes "")."""
     return _html.escape(str(x or ""))
 
 
@@ -208,6 +209,7 @@ def _worst_wu(p: dict, key: str, reverse: bool) -> str:
 
 
 def _cause_fta(analytics: dict) -> str:
+    """Why FTA is low: the two process types with the most rejections, and the work unit behind them."""
     bd = [p for p in analytics.get("process_breakdown") or [] if (p.get("total_qc") or 0) > 0]
     rej = sorted(bd, key=lambda p: p["total_qc"] * (100 - (p.get("fta_pct") or 100)), reverse=True)
     top = [p for p in rej if (p.get("fta_pct") or 100) < 100][:2]
@@ -219,6 +221,7 @@ def _cause_fta(analytics: dict) -> str:
 
 
 def _cause_eff(analytics: dict) -> str:
+    """Why efficiency is low: the two process types furthest below their baseline."""
     bd = [p for p in analytics.get("process_breakdown") or [] if p.get("eff_vs_bl") is not None and p.get("has_prod", True)]
     low = sorted(bd, key=lambda p: p["eff_vs_bl"])[:2]
     if not low:
@@ -228,6 +231,7 @@ def _cause_eff(analytics: dict) -> str:
 
 
 def _cause_coq(analytics: dict) -> str:
+    """Why CoQ is high: the two process types with the largest share of QC hours."""
     bd = [p for p in analytics.get("process_breakdown") or [] if (p.get("total_hrs") or 0) > 0]
     # biggest QC-hour share first: CoQ % x hours
     hi = sorted(bd, key=lambda p: (p.get("coq_pct") or 0) * p["total_hrs"], reverse=True)[:2]
@@ -630,6 +634,7 @@ def _build_sprint(jira, jira_project=""):
 
 
 def _build_fta(analytics, jira_project=""):
+    """The FTA section: this period's value and RAG, the 4-week trend, the data period and the reference week."""
     fta = analytics.get("fta_current",  0.0)
     rag = analytics.get("fta_rag",      "GREEN")
     t4w = analytics.get("fta_4w",       [])
@@ -674,6 +679,7 @@ def _build_fta(analytics, jira_project=""):
 
 
 def _build_efficiency(analytics, pm=None):
+    """The Efficiency & CoQ section: Eff vs baseline (actual vs baseline tasks/hr), CoQ, CoPQ and yield as listed in the profile."""
     ev  = analytics.get("efficiency_vs_bl")
     er  = analytics.get("efficiency_raw")
     erg = analytics.get("efficiency_rag", "GREEN")
@@ -741,6 +747,7 @@ _LEVEL_TEXT = {"fta": "FTA", "efficiency": "Eff vs BL", "coq": "CoQ", "yield": "
 
 
 def _pct_or_dash(v) -> str:
+    """"12.3%", or "—" when there is no value."""
     return "—" if v is None else "{:.1f}%".format(v)
 
 
@@ -812,6 +819,7 @@ def flagged(rows):
 
 
 def _build_breakdown(analytics, scope_mode="defined"):
+    """The process-type table (split by work unit), worst FTA first; small samples greyed and listed last."""
     bd  = analytics.get("process_breakdown", [])
     wk  = analytics.get("week_label", "")
     sc  = analytics.get("scope_label", "")
@@ -1026,6 +1034,7 @@ def _build_unsampled(analytics):
 
 
 def _build_tickets(jira):
+    """The open Jira tickets table with stale hours and SLA status."""
     ts = jira.get("open_tickets", [])
     if not ts:
         return f'<p style="{_F};font-size:13px;color:{_MUTED}">No open tickets in scope.</p>'

@@ -85,6 +85,7 @@ def _run_uc1(skill_file: Path, user: str):
 
 
 def _run_uc2(skill: dict, user: str):
+    """UC2: Jira SLA follow-up for one profile — email the open tickets past the profile's levels."""
     from agents import jira_agent
     from delivery import deliver
 

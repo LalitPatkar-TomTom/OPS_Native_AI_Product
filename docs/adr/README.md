@@ -12,3 +12,4 @@ it. The decisions about the chat app (sign-in, MCP, LLM hosting) are in the OPSH
 | [004](004-profiles-as-configuration.md) | A personal SKILL.md profile per user is the configuration | Accepted |
 | [005](005-sqlite-analytics.md) | Analytics in SQLite, copied in and out of the share for each run | Accepted, revisit before scale-out |
 | [006](006-time-saved-criteria.md) | Time saved as fixed minutes per item, agreed and versioned | Accepted |
+| [007](007-reported-week.md) | Which week each email reports, and when alerts trust this week | Accepted |

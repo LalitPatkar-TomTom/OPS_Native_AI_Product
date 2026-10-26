@@ -1,6 +1,44 @@
 # Changelog: OPS Native AI
 
-## Unreleased: architecture review hardening (22 Oct 2026)
+## v2026-10-26-1 … -8: beta feedback (26 Oct 2026)
+
+**Jira (UC1, UC2)**
+- **Created-date window:** only tickets created in the last 12 months by default; a profile can set
+  `**Jira created since:**` or `**Jira created within:**` (OSI-003, 025, 037).
+- **SLA levels per profile,** in hours or days, read only from the "SLA — Warning/Escalation" lines
+  (OSI-006); the UC2 email explains the rule (OSI-034).
+
+**Which week, and how sure**
+- **Date ranges everywhere,** in subjects too, and the week rule in ADR-007: Monday = last week;
+  Tuesday–Sunday = this week so far, with the previous full week as reference (OSI-031).
+- **Alerts trust this week** only from 50 QC'd tasks and 20% of last week's volume; before that they
+  use last week and say why.
+- **Small samples are never flagged:** fewer than 10 QC'd tasks are shown greyed and listed last (the
+  "Lowest FTA 0.00%" from one task is gone).
+
+**Content**
+- **Recommended actions** with the likely root cause at the top of UC1 and every UC4 alert
+  (OSI-027/035/040, first step).
+- **No scope in the profile:** no quality or efficiency figures, a note asking for the scope; Jira is
+  unchanged; UC4 skipped.
+- **Six headline KPIs** for everyone: FTA, Eff vs BL, CoQ, Yield, Hours, Sampling; only the profile's
+  metrics have a RAG badge and alert (OSI-008).
+- **Alert levels per process type / planning ID** from the Metrics Profile's Scope column, exact names;
+  whole-scope rows work as before (OSI-030).
+- **Yield like the other metrics:** every work unit (DPU RMSI included), per planning ID, and a note
+  when the scope has no Yield (only Orbit SD has it today; OSI-004, OSI-041).
+- **Operators past an alert level,** with all six KPIs, for Operational Leads and Level = Operator
+  profiles, in UC1, UC3 and UC4 (OSI-009). Operators are shown by name; HR check open.
+- **Subject status = body status;** the Jira key instead of "Project (OM)".
+
+**Analytics**
+- **Minutes per email from real-user feedback:** UC1/UC2/UC4 25, UC3 60 (ADR-006, OSI-023).
+
+**Release flow**
+- `azure/release.sh` waits for the job to finish provisioning before the sanity check.
+- Tests: 113 (from 73).
+
+## v2026-10-22-1: architecture review hardening (22 Oct 2026)
 
 **Safety**
 - **Recipient check:** an email is sent only when the owner is exactly one `@tomtom.com` address.

@@ -57,6 +57,7 @@ def sla_levels(skill: dict | None) -> tuple[float, float]:
 def _sla_status(hours: float, warn: float = SLA_WARNING_HOURS, esc: float = SLA_ESCALATION_HOURS) -> str:
     # The status names stay BREACH_72H / WARNING_48H (used across the emails and analytics);
     # the hours behind them now come from each profile.
+    """BREACH_72H / WARNING_48H / OK for a ticket's hours without an update, by the profile's levels."""
     if hours >= esc:  return "BREACH_72H"
     if hours >= warn: return "WARNING_48H"
     return "OK"
