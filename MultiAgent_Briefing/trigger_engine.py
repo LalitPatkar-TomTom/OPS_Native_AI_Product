@@ -192,7 +192,7 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
             )
         html = build_weekly(jira, ana, conf, skill=skill, preview_note=_preview_note)
 
-        week = ana.get("week_label", datetime.now().strftime("%Y-%m-%d"))
+        week = ana.get("week_label") or datetime.now().strftime("%Y-%m-%d")
         content = (
             f"UC3 — Weekly Report: {proj_name}\n"
             f"Week: {week}  |  FTA: {ana.get('fta_current', 0):.2f}%"
@@ -267,6 +267,11 @@ def _run_uc4(skill: dict, user: str):
     cc_list      = skill.get("cc_recipients") or []
 
     log.info(f"UC4  Quality poll [{user}]  metrics={sorted(pm)}")
+    if skill.get("no_databricks_scope"):
+        # no process types / planning IDs: the values would be company-wide, so no alert is evaluated
+        audit_log.log_skipped("UC4", user, skill, reason="no process types or planning IDs in the profile")
+        log.info(f"UC4  skipped — no process types or planning IDs in the profile  [{user}]")
+        return
 
     try:
         analytics = analytics_agent.run(skill, report_type="daily")

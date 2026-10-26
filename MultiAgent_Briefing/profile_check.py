@@ -143,9 +143,14 @@ def check(skill: dict) -> dict:
             if missing:
                 fix.append("<b>Planning IDs not found in Databricks</b>: "
                            + ", ".join(f"<i>{html.escape(p)}</i>" for p in missing) + ".")
-        if not pts and not pids:
-            fix.append("<b>No process types or planning IDs</b>: briefings and alerts use all data instead of "
-                       "your own projects. Add the planning IDs (or process types) you are responsible for.")
+        if not pts and not pids and (skill.get("scope_mode") or "defined") == "defined" and not skill.get("databricks_feature"):
+            fix.append("<b>No process types or planning IDs</b>: your emails will show no FTA, efficiency, CoQ or "
+                       "yield, and no metric alerts are sent, until you add the planning IDs and/or process types "
+                       "you are responsible for. Jira follow-ups are not affected.")
+        elif not pts and not pids:
+            ok.append("Scope: " + ("all process types, as chosen in your profile" if skill.get("scope_mode") == "all"
+                                   else f"process types matching <i>{html.escape(str(skill.get('scope_mode')))}</i>")
+                      + ".")
 
     # Metric alerts (UC4)
     th = skill.get("metric_thresholds") or {}

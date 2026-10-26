@@ -276,6 +276,26 @@ def _build_action_box(jira: dict, analytics: dict, pm: set, only: str | None = N
             f'</td></tr></table>')
 
 
+ONBOARDING_URL = "https://tomtom-ops-hub.bravewave-803863cf.westeurope.azurecontainerapps.io/onboarding"
+
+
+def no_scope_notice(skill: dict | None) -> str:
+    """Shown instead of all quality/efficiency figures when the profile has no Databricks scope."""
+    if not (skill or {}).get("no_databricks_scope"):
+        return ""
+    c, bg, bd = _rag("AMBER")
+    return (f'<table width="100%" cellpadding="0" cellspacing="0" style="background:{bg};border:1px solid {bd};'
+            f'border-left:5px solid {c};border-radius:4px;margin:0 0 14px"><tr><td style="padding:10px 14px">'
+            f'<div style="{_F};font-size:14px;font-weight:bold;color:{c}">&#9888; Add your scope to see quality '
+            f'and efficiency</div>'
+            f'<div style="{_F};font-size:13px;color:{_TEXT};margin-top:4px;line-height:1.55">Your profile has no '
+            f'<b>process types</b> or <b>planning IDs</b>, so FTA, efficiency, CoQ, yield and the breakdowns are '
+            f'not shown: they would cover all of Maps Operations, not your work. Jira is not affected. '
+            f'Please <a href="{ONBOARDING_URL}" style="color:#2563EB">update your profile in OPS Hub</a> and fill '
+            f'in <i>Databricks Process Types</i> and/or <i>Planning IDs</i>; the next email will include them.</div>'
+            f'</td></tr></table>')
+
+
 def _eff_actual_vs_baseline(eff_raw: float | None, eff_vs_bl: float | None) -> str:
     """OSI-033: 'Actual 0.852 vs baseline 0.801 tasks/hr' — the % alone hid both numbers."""
     if not eff_raw or not eff_vs_bl:
@@ -1419,12 +1439,14 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
 
     {_build_exec_summary(jira, analytics, pm, _s)}
 
+    {no_scope_notice(_s)}
+
     {_build_action_box(jira, analytics, set(pm or []))}
 
     {_build_kpi_row(analytics, jira, pm)}
 
     {sec(f"Work Unit &amp; Process-type Breakdown — {period_label(analytics.get('week_label',''))}",
-         _build_breakdown(analytics, scope_mode))}
+         _build_breakdown(analytics, scope_mode)) if not analytics.get("no_scope") else ""}
 
     {sec(f"Planning ID Breakdown — {period_label(analytics.get('week_label',''))}",
          _build_planning(analytics))

@@ -170,7 +170,8 @@ def run_uc1(skill_file: Path | None = None) -> Path:
     slas  = len(jira_result.get("sla_breaches", []))
     fta   = analytics_result.get("fta_current", 0)
     proj_label = skill.get("project_name") or skill.get("jira_project") or "Project"
-    subject = f"[{rag}] UC1 Daily Briefing — {proj_label} | {slas} SLA breach(es) | FTA {fta:.1f}%"
+    subject = (f"[{rag}] UC1 Daily Briefing — {proj_label} | {slas} SLA breach(es)"
+               + ("" if analytics_result.get("no_scope") else f" | FTA {fta:.1f}%"))
     cc_list = skill.get("cc_recipients") or []
     delivery_results = deliver(
         briefing_text, skill, subject=subject,

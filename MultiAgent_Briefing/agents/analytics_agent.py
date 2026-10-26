@@ -750,6 +750,15 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
     """
     as_of = datetime.now(timezone.utc).isoformat()
 
+    if skill and skill.get("no_databricks_scope"):
+        # Nothing to scope the numbers to: no Databricks query, and nothing that could be shown as data.
+        r = _fallback("no process types or planning IDs in the profile")
+        r.update(no_scope=True, live=False, week_label="", data_label="",
+                 fta_rag="GREEN", efficiency_rag="GREEN", coq_rag="GREEN", yield_rag="GREEN",
+                 process_breakdown=[], workunit_breakdown=[], operator_breakdown=[], planning_breakdown=[],
+                 metrics_4w=[], fta_4w=[], scope_label="no scope in the profile")
+        return r
+
     target_week, data_label = _compute_target(report_type)
     print(f"[analytics] report_type={report_type}  target_week={target_week}  ({data_label})")
 

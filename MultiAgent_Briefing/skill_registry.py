@@ -572,6 +572,14 @@ def load_all_skills(skills_dir: Path | None = None) -> list[dict[str, Any]]:
     return [load_skill(f) for f in personal_files]
 
 
+def has_databricks_scope(skill: dict) -> bool:
+    """True when the profile names what its numbers are about: process types, planning IDs or a
+    feature keyword, or it chose "all" / a keyword family on purpose. Without that the numbers would
+    cover all of Maps Operations, so none are shown (decided 26 Oct)."""
+    return bool(skill.get("databricks_process_types") or skill.get("databricks_planning_ids")
+                or skill.get("databricks_feature") or (skill.get("scope_mode") or "defined") != "defined")
+
+
 def load_skill(skill_file: Path) -> dict[str, Any]:
     """
     Parse the personal skill file and return a structured skill dict.
@@ -609,7 +617,7 @@ def load_skill(skill_file: Path) -> dict[str, Any]:
     first_part      = user_email.split("@")[0]           # lalit.patkar
     user_first_name = first_part.split(".")[0].capitalize()  # Lalit
 
-    return {
+    skill = {
         "user":                      user_email,
         "user_first_name":           user_first_name,
         "project_name":              proj.get("project_name", ""),
@@ -635,6 +643,11 @@ def load_skill(skill_file: Path) -> dict[str, Any]:
         "cc_recipients":             _extract_cc_recipients(text),
         "skill_file":                str(skill_file),
     }
+    if not has_databricks_scope(skill):
+        # every email builder shows only the metrics in primary_metrics: "none" matches no metric
+        skill["no_databricks_scope"] = True
+        skill["primary_metrics"] = ["none"]
+    return skill
 
 
 # ── CLI test ───────────────────────────────────────────────────────────────────
