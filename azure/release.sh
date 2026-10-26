@@ -21,6 +21,12 @@ echo "==> [3/4] Update the job (secrets are read from .env and Azure; values are
 "$PY" azure/deploy_job.py --image "$TAG" --mode "$MODE"
 
 echo "==> [4/4] Sanity check (read-only)"
+# The job update returns while Azure is still provisioning; checking at once fails "Job provisioned".
+for _ in $(seq 1 24); do
+  state=$(az containerapp job show -n ops-native-ai-trigger -g ops-hub-rg --query properties.provisioningState -o tsv 2>/dev/null | tr -d '\r')
+  [ "$state" = "InProgress" ] || break
+  echo "    job still provisioning, waiting 10 s…"; sleep 10
+done
 "$PY" azure/sanity_check.py --image "$TAG" --mode "$MODE" || {
   echo "SANITY CHECK FAILED — roll back: python azure/deploy_job.py --image <previous tag> --mode $MODE"; exit 1; }
 
