@@ -28,7 +28,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from skill_registry import load_all_skills, load_skill
+from skill_registry import load_all_skills, load_skill, split_rules  # noqa: F401  (split_rules used in UC4)
 from config import SKILLS_DIR, OUTPUT_DIR
 import audit_log
 
@@ -391,8 +391,10 @@ def _run_uc4(skill: dict, user: str):
                     skill=skill,
                     label=label,
                     alert_on=direction,
-                    operator_breakdown=(analytics.get("operator_breakdown")
-                                        if skill.get("include_operator_breakdown") else None),
+                    operator_breakdown=([o for o in analytics.get("operator_breakdown") or []
+                                         if metric_key in o.get("breaches", [])
+                                         or (metric_key == "copq" and "coq" in o.get("breaches", []))]
+                                        if skill.get("operator_view") else None),
                     analytics=analytics,
                 )
                 subj    = (f"UC4 Alert {rag} — {metric_key.upper()} {current:.2f}% vs threshold {alert_val}% — {proj_name}"
@@ -441,23 +443,6 @@ def _run_uc4(skill: dict, user: str):
 
 
 _ROW_FIELD = {"fta": "fta_pct", "efficiency": "eff_vs_bl", "coq": "coq_pct", "copq": "coq_pct", "yield": "yield_pct"}
-
-
-def split_rules(skill: dict, metric_key: str) -> tuple[list[dict], list[dict]]:
-    """(overall rules, scoped rules) for one metric (OSI-030).
-
-    A row whose Scope is "All", empty or covers the whole profile scope is checked on the overall value, as
-    before. A row naming only some process types / planning IDs is checked on each of them.
-    """
-    whole = {"process":  {p.lower() for p in skill.get("databricks_process_types") or []},
-             "planning": {p.lower() for p in skill.get("databricks_planning_ids") or []}}
-    overall, scoped = [], []
-    for r in skill.get("metric_rules") or []:
-        if r["metric"] != metric_key:
-            continue
-        names = {n.lower() for n in r["scope"]}
-        (overall if not names or (whole[r["level"]] and names >= whole[r["level"]]) else scoped).append(r)
-    return overall, scoped
 
 
 def scoped_breaches(analytics: dict, rules: list[dict], metric_key: str) -> list[tuple[dict, dict, float]]:

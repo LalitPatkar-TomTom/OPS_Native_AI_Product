@@ -737,75 +737,69 @@ def _build_efficiency(analytics, pm=None):
     return _kv_table(rows)
 
 
+_LEVEL_TEXT = {"fta": "FTA", "efficiency": "Eff vs BL", "coq": "CoQ", "yield": "Yield"}
+
+
+def _pct_or_dash(v) -> str:
+    return "—" if v is None else "{:.1f}%".format(v)
+
+
+def operator_levels_text(levels: dict) -> str:
+    """'FTA below 92% · CoQ above 10%' from the profile levels the operator table used."""
+    return " · ".join(f"{_LEVEL_TEXT[m]} {'above' if lv['direction'] == 'rise' else 'below'} {lv['alert']:g}%"
+                      for m, lv in levels.items())
+
+
 def _build_operator_breakdown(analytics):
-    """Per-operator metrics table, grouped by process type."""
+    """Operators past one of the profile's alert levels, with all six KPIs (OSI-009); the rest are counted."""
     ops = analytics.get("operator_breakdown", [])
     wk  = analytics.get("week_label", "")
+    levels = analytics.get("operator_levels") or {}
     if not ops:
         return f'<p style="{_F};font-size:13px;color:{_MUTED}">No operator data available.</p>'
+    past = [o for o in ops if o.get("breaches")]
+    rule = operator_levels_text(levels) or "your profile has no alert levels"
+    foot = (f'<p style="{_F};font-size:10px;color:{_MUTED};margin:5px 0 0">{period_label(wk)} · alert levels from '
+            f'your profile: {rule}. Operators with fewer than 10 QC&apos;d tasks (FTA) or 10 production tasks '
+            f'(other metrics) are not judged. Red = past the level.</p>')
+    if not past:
+        return (f'<p style="{_F};font-size:13px;color:{_GREEN}">All {len(ops)} operators with QC data are within '
+                f'your alert levels.</p>' + foot)
+    past.sort(key=lambda o: (-len(o["breaches"]), o.get("fta_pct", 100)))
+    shown = past[:40]
 
-    # group by process type preserving order
-    from collections import OrderedDict
-    by_pt: OrderedDict = OrderedDict()
-    for o in ops:
-        pt = o["process_type"]
-        by_pt.setdefault(pt, []).append(o)
-
-    th = (f'{_F};font-size:11px;font-weight:bold;color:{_WHITE};background:{_HDR};'
-          f'padding:5px 8px;text-align:left;border-bottom:2px solid {_BORDER}')
-    td_e = (f'{_F};font-size:11px;color:{_TEXT};padding:5px 8px;'
-            f'background:{_WHITE};border-bottom:1px solid {_BORDER}')
-    td_o = (f'{_F};font-size:11px;color:{_TEXT};padding:5px 8px;'
-            f'background:{_STRIPE};border-bottom:1px solid {_BORDER}')
-    sep = (f'{_F};font-size:10px;font-weight:bold;color:{_WHITE};'
-           f'background:#374151;padding:4px 8px;letter-spacing:0.3px')
-
-    headers = ["Operator", "FTA", "Eff vs BL", "CoQ", "Sampling", "Tasks", "QC"]
+    th = (f'{_F};font-size:10px;font-weight:bold;color:{_WHITE};background:{_HDR};'
+          f'padding:5px 6px;text-align:left;border-bottom:2px solid {_BORDER}')
+    def cell(o, m, text):
+        hit = m in o["breaches"]
+        return (f'<span style="{_F};font-size:10px;color:{_RED if hit else _TEXT};'
+                f'font-weight:{"bold" if hit else "normal"}">{text}</span>')
+    headers = ["Operator", "Process type", "FTA", "Eff vs BL", "CoQ", "Yield", "Hrs", "Sampling"]
     html = (f'<table width="100%" cellpadding="0" cellspacing="0" '
-            f'style="border-collapse:collapse;border:1px solid {_BORDER};border-radius:4px;font-size:11px">'
+            f'style="border-collapse:collapse;border:1px solid {_BORDER};border-radius:4px;font-size:10px">'
             f'<tr>' + ''.join(f'<th style="{th}">{h}</th>' for h in headers) + '</tr>')
-
-    for pt, rows in by_pt.items():
-        html += f'<tr><td colspan="7" style="{sep}">&#9656;&nbsp; {pt}</td></tr>'
-        for i, o in enumerate(rows):
-            td = td_e if i % 2 == 0 else td_o
-            fta = o["fta_pct"]
-            fta_c, _, _ = _rag(o["fta_rag"])
-            fta_cell = f'<span style="{_F};font-size:11px;color:{fta_c};font-weight:600">{fta:.2f}%</span>'
-
-            ev = o.get("eff_vs_bl")
-            ev_cell = _eff_str(ev) if ev is not None else ("—" if not o.get("has_prod", True) else "N/A")
-            if ev is not None:
-                ev_rag = "GREEN" if ev >= 100 else "AMBER" if ev >= 90 else "RED"
-                ev_c, _, _ = _rag(ev_rag)
-                ev_cell = f'<span style="{_F};font-size:11px;color:{ev_c};font-weight:600">{ev_cell}</span>'
-            else:
-                ev_cell = f'<span style="{_F};font-size:11px;color:{_MUTED}">{ev_cell}</span>'
-
-            coq = o.get("coq_pct", 0)
-            coq_rag = "GREEN" if coq < 7 else "AMBER" if coq < 10 else "RED"
-            coq_c, _, _ = _rag(coq_rag)
-            coq_cell = f'<span style="{_F};font-size:11px;color:{coq_c};font-weight:600">{coq:.1f}%</span>'
-
-            sp = o.get("sampling_pct")
-            sp_str = f'{sp:.1f}%' if sp is not None else '—'
-
-            html += ('<tr>'
-                + f'<td style="{td};font-family:Consolas,monospace">{o["operator"]}</td>'
-                + f'<td style="{td}">{fta_cell}</td>'
-                + f'<td style="{td}">{ev_cell}</td>'
-                + f'<td style="{td}">{coq_cell}</td>'
-                + f'<td style="{td};text-align:right;color:{_MUTED}">{sp_str}</td>'
-                + f'<td style="{td};text-align:right">{o["prod_tasks"]:,}</td>'
-                + f'<td style="{td};text-align:right;color:{_MUTED}">{o["total_qc"]:,}</td>'
-                + '</tr>')
-
+    for i, o in enumerate(shown):
+        td = (f'{_F};font-size:10px;color:{_TEXT};padding:4px 6px;'
+              f'background:{_WHITE if i % 2 == 0 else _STRIPE};border-bottom:1px solid {_BORDER}')
+        ev, yv, sp = o.get("eff_vs_bl"), o.get("yield_pct"), o.get("sampling_pct")
+        fta_s = "{:.2f}%".format(o.get("fta_pct", 0))
+        ev_s = _eff_str(ev) if ev is not None else "—"
+        coq_s = "{:.1f}%".format(o.get("coq_pct", 0))
+        html += ('<tr>'
+                 + f'<td style="{td}">{o["operator"]}</td>'
+                 + f'<td style="{td};color:{_MUTED}">{o["process_type"]}</td>'
+                 + f'<td style="{td}">{cell(o, "fta", fta_s)}</td>'
+                 + f'<td style="{td}">{cell(o, "efficiency", ev_s)}</td>'
+                 + f'<td style="{td}">{cell(o, "coq", coq_s)}</td>'
+                 + f'<td style="{td}">{cell(o, "yield", _pct_or_dash(yv))}</td>'
+                 + f'<td style="{td};text-align:right">{o.get("total_hrs", 0):,.0f}h</td>'
+                 + f'<td style="{td};text-align:right;color:{_MUTED}">{_pct_or_dash(sp)}</td>'
+                 + '</tr>')
     html += '</table>'
-    html += (f'<p style="{_F};font-size:10px;color:{_MUTED};margin:5px 0 0">'
-             f'Operator-level metrics (Production_Editor) — {period_label(wk)} — '
-             f'Only operators with QC data shown. FTA = first-pass acceptance rate per operator.</p>')
-    return html
-
+    more = f" (first {len(shown)} shown)" if len(past) > len(shown) else ""
+    head = (f'<p style="{_F};font-size:12px;color:{_TEXT};margin:0 0 6px"><b>{len(past)} of {len(ops)}</b> operators '
+            f'are past an alert level{more}; the others are within your levels and not listed.</p>')
+    return head + html + foot
 
 def _fta_order(p):
     """Worst FTA first; rows too small to judge ("SMALL", < 10 QC'd) go last."""
@@ -1501,7 +1495,7 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
          _build_planning(analytics))
      if analytics.get("planning_breakdown") or analytics.get("planning_missing") else ""}
 
-    {sec(f"Operator Breakdown — {period_label(analytics.get('week_label',''))}",
+    {sec(f"Operators past an alert level — {period_label(analytics.get('week_label',''))}",
          _build_operator_breakdown(analytics))
      if analytics.get("operator_breakdown") else ""}
 
@@ -1672,14 +1666,16 @@ def build_alert(
              f'<span style="{_F};font-size:11px;color:{_rag(o.get("fta_rag", "GREEN"))[0]};font-weight:bold">{o.get("fta_pct", 0):.2f}%</span>',
              f'<span style="{_F};font-size:11px">{_eff_str(o.get("eff_vs_bl"))}</span>',
              f'<span style="{_F};font-size:11px">{o.get("coq_pct", 0):.1f}%</span>',
-             f'<span style="{_F};font-size:11px">{o.get("prod_tasks", 0):,}</span>']
+             f'<span style="{_F};font-size:11px">{_pct_or_dash(o.get("yield_pct"))}</span>',
+             f'<span style="{_F};font-size:11px">{o.get("total_hrs", 0):,.0f}h</span>',
+             f'<span style="{_F};font-size:11px">{_pct_or_dash(o.get("sampling_pct"))}</span>']
             for o in worst[:10]
         ]
         if op_rows:
             op_section = _section(
-                f"Contributing Operators ({sort_note}, top {len(op_rows)} of {len(worst)} "
-                f"with {_OP_MIN_TASKS}+ tasks)",
-                _data_table(["Operator", "Process Type", "FTA", "Eff vs BL", "CoQ", "Tasks"], op_rows), 3)
+                f"Operators past the alert level ({sort_note}, {len(op_rows)} of {len(worst)})",
+                _data_table(["Operator", "Process Type", "FTA", "Eff vs BL", "CoQ", "Yield", "Hrs", "Sampling"],
+                            op_rows), 3)
 
     return f"""<html>
 <body style="margin:0;padding:0;background:#DDE3EA">

@@ -229,6 +229,44 @@ def _extract_metric_rules(text: str) -> list[dict]:
     return rules
 
 
+def _extract_domain(text: str) -> str:
+    """The profile's "**Domain:**" line, e.g. "Operational Lead" or "Project Manager"."""
+    m = re.search(r"\*\*Domain:\*\*\s*([^|\n]+)", text)
+    return m.group(1).strip() if m else ""
+
+
+def split_rules(skill: dict, metric_key: str) -> tuple[list[dict], list[dict]]:
+    """(overall rules, scoped rules) for one metric (OSI-030).
+
+    A row whose Scope is "All", empty or covers the whole profile scope is checked on the overall value, as
+    before. A row naming only some process types / planning IDs is checked on each of them.
+    """
+    whole = {"process":  {p.lower() for p in skill.get("databricks_process_types") or []},
+             "planning": {p.lower() for p in skill.get("databricks_planning_ids") or []}}
+    overall, scoped = [], []
+    for r in skill.get("metric_rules") or []:
+        if r["metric"] != metric_key:
+            continue
+        names = {n.lower() for n in r["scope"]}
+        (overall if not names or (whole[r["level"]] and names >= whole[r["level"]]) else scoped).append(r)
+    return overall, scoped
+
+
+def operator_levels(skill: dict) -> dict[str, dict]:
+    """{metric: {"alert": x, "direction": "drop" | "rise"}} the operator table judges by: the profile's own
+    metrics, with the same overall level the UC4 alert uses (a whole-scope row, else the profile default)."""
+    levels = {}
+    for m in skill.get("primary_metrics") or []:
+        key = "coq" if m == "copq" else m
+        if key not in ("fta", "efficiency", "coq", "yield"):
+            continue
+        overall, _ = split_rules(skill, m)
+        thr = overall[0] if overall else (skill.get("metric_thresholds") or {}).get(m, {})
+        if thr.get("alert") is not None:
+            levels[key] = {"alert": thr["alert"], "direction": thr.get("direction", "drop")}
+    return levels
+
+
 def _extract_metric_thresholds(text: str) -> dict[str, dict]:
     """
     Parse all rows from the Metrics Profile table.
@@ -664,6 +702,10 @@ def load_skill(skill_file: Path) -> dict[str, Any]:
         "use_cases":                 _extract_use_cases(text),
         "primary_metrics":             pri_metrics,
         "include_operator_breakdown":  include_ops,
+        "domain":                      _extract_domain(text),
+        # OSI-009 (decided 26 Oct): operators past an alert level, with all six KPIs, by default for
+        # Operational Leads; anyone else opts in by selecting Level = Operator on a metric
+        "operator_view":               include_ops or _extract_domain(text).lower().startswith("operational lead"),
         "scope_mode":                  db_scope.get("scope_mode", "defined"),
         "databricks_process_types":  db_scope.get("databricks_process_types"),
         "databricks_planning_ids":   db_scope.get("databricks_planning_ids"),

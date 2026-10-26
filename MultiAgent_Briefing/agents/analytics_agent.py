@@ -374,7 +374,8 @@ SELECT
     AVG(NULLIF(Baseline, 0))                                                                    AS baseline_avg,
     SUM(Prod_Done_task_count) AS prod_tasks,
     SUM(total_qc_count)       AS total_qc,
-    SUM(QC_Accept_Count)      AS accepted
+    SUM(QC_Accept_Count)      AS accepted,
+    COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0) AS total_hrs
 FROM {table}
 WHERE week_start = '{week}'
   AND total_qc_count > 0
@@ -442,6 +443,8 @@ def _load_operator_breakdown(
             "total_qc":     qc,
             "accepted":     accepted,
             "sampling_pct": sampling,
+            "total_hrs":    round(float(r.get("total_hrs") or 0), 1),
+            "yield_pct":    None,
         })
     print(f"[analytics] Operator breakdown: {len(operators)} rows across {len({o['process_type'] for o in operators})} PTs")
     return operators
@@ -490,6 +493,44 @@ WHERE CAST(updated_at AS DATE) >= TO_DATE('{target_week}')
   {scope_filter}
 GROUP BY LOWER(planning_id)
 """
+
+_YIELD_BY_OPERATOR_SQL = """
+SELECT
+    LOWER(process_type) AS pt,
+    LOWER(TRIM(editor)) AS op,
+    SUM(CASE WHEN to_status IN ('Resolved', 'DB alternatively updated')
+             AND to_stage IN ('Resolution', 'Expert', 'Source Expert', 'OSM')
+             THEN prod_count ELSE 0 END) AS yield_num,
+    SUM(CASE WHEN COALESCE(n_rework_flag, 0) != 1
+             AND to_stage IN ('Resolution', 'Expert', 'Source Expert', 'OSM')
+             THEN prod_count ELSE 0 END) AS yield_den
+FROM {view}
+WHERE CAST(updated_at AS DATE) >= TO_DATE('{target_week}')
+  AND CAST(updated_at AS DATE) <= DATE_ADD(TO_DATE('{target_week}'), 6)
+  AND editor IS NOT NULL
+  {scope_filter}
+GROUP BY LOWER(process_type), LOWER(TRIM(editor))
+"""
+
+# Operators with fewer production tasks / QC'd tasks than this are listed but not judged: one task swings
+# FTA, CoQ or efficiency to an extreme.
+OP_MIN_TASKS = 10
+
+
+def mark_operator_breaches(operators: list[dict], levels: dict[str, dict]) -> None:
+    """Add "breaches" (metric keys past the profile's alert level) to each operator row (OSI-009)."""
+    field = {"fta": "fta_pct", "efficiency": "eff_vs_bl", "coq": "coq_pct", "yield": "yield_pct"}
+    for o in operators:
+        out = []
+        for m, lv in levels.items():
+            v = o.get(field[m])
+            judged = (o.get("total_qc") or 0) >= OP_MIN_TASKS if m == "fta" else (o.get("prod_tasks") or 0) >= OP_MIN_TASKS
+            if v is None or not judged:
+                continue
+            if (v > lv["alert"]) if lv["direction"] == "rise" else (v < lv["alert"]):
+                out.append(m)
+        o["breaches"] = out
+
 
 _YIELD_BY_PT_WU_SQL = """
 SELECT
@@ -1011,7 +1052,7 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
 
     # ── Operator breakdown (optional — only when skill has "operator_view" enabled) ──
     pri_metrics = set(skill.get("primary_metrics") or []) if skill else set()
-    include_ops = bool(skill.get("include_operator_breakdown")) if skill else False
+    include_ops = bool(skill.get("operator_view") or skill.get("include_operator_breakdown")) if skill else False
     if include_ops:
         operator_breakdown = _load_operator_breakdown(
             client, combined_table, week_label, scope_filter, baselines,
@@ -1044,6 +1085,23 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         p_entry["yield_pct"] = yield_by_pid.get(str(p_entry.get("planning_id", "")).lower())
     yield_note = YIELD_SD_ONLY_NOTE if yield_current is None else ""
 
+    operator_levels_used = {}
+    if operator_breakdown:
+        try:
+            op_sql = _YIELD_BY_OPERATOR_SQL.format(view=_YIELD_VIEW, target_week=target_week,
+                                                   scope_filter=_build_yield_scope_filter(skill, actual_pts))
+            op_yield = {}
+            for r in client.execute_sql(op_sql, max_rows=5000).get("rows", []):
+                num, den = float(r.get("yield_num") or 0), float(r.get("yield_den") or 0)
+                op_yield[((r.get("pt") or "").lower(), (r.get("op") or "").lower())] = round(num / den * 100, 2) if den > 0 else None
+            for o in operator_breakdown:
+                o["yield_pct"] = op_yield.get((o["process_type"].lower(), str(o["operator"]).strip().lower()))
+        except Exception as exc:
+            print(f"[analytics] Yield (by operator) query failed: {exc}")
+        from skill_registry import operator_levels
+        operator_levels_used = operator_levels(skill or {})
+        mark_operator_breaches(operator_breakdown, operator_levels_used)
+
     for rows in (process_breakdown, workunit_breakdown, planning_breakdown):
         _mark_small_samples(rows)
 
@@ -1066,6 +1124,7 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         "yield_current":     yield_current,
         "yield_rag":         yield_rag_val,
         "yield_note":        yield_note,
+        "operator_levels":   operator_levels_used,
         "yield_4w":          yield_4w_list,
         "copq_hrs":          computed["copq_hrs"],
         "copq_pct":          computed["copq_pct"],

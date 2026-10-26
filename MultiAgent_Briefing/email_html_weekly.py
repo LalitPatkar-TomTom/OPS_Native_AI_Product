@@ -327,7 +327,7 @@ def build(
     {sec(f"Work Unit &amp; Process-type Breakdown — {period_label(week)}",
          _build_breakdown(analytics, scope_mode)) if not analytics.get("no_scope") else ""}
 
-    {sec(f"Operator Breakdown — {period_label(week)}",
+    {sec(f"Operators past an alert level — {period_label(week)}",
          _build_operator_breakdown(analytics)) if analytics.get("operator_breakdown") else ""}
 
     {sec(f"4-Week Trend — {project_name}",
