@@ -45,6 +45,7 @@ def _hours_since(updated_str: str) -> float:
 
 
 # OSI-003: without a window the query returned every open ticket ever created (some from 2021).
+JIRA_MAX_TICKETS = 1000   # open tickets read per profile (MCP and REST both page, 100 per call)
 DEFAULT_JIRA_WINDOW_DAYS = 365
 
 
@@ -96,7 +97,7 @@ def _keyword_variants(raw: str) -> list[str]:
 
 
 def _jql_str(value: str) -> str:
-    """Escape a value for a double-quoted JQL string (a stray \ or " would break the query)."""
+    r"""Escape a value for a double-quoted JQL string (a stray \ or " would break the query)."""
     return str(value).replace("\\", "\\\\").replace('"', '\\"')
 
 
@@ -185,7 +186,7 @@ def run(skill: dict | None = None) -> dict[str, Any]:
 
     body = {
         "jql":        jql,
-        "maxResults": 100,
+        "maxResults": 100,          # page size; up to JIRA_MAX_TICKETS in total (27 Oct: one scope had exactly 100)
         "fields":     ["summary", "status", "priority", "assignee", "reporter",
                        "updated", "created", "issuetype", "labels", "components"],
     }
@@ -195,7 +196,7 @@ def run(skill: dict | None = None) -> dict[str, Any]:
     result["via"] = "REST"
     if atlassian_mcp.enabled():
         try:
-            data = atlassian_mcp.search_jira(jql, body["fields"], body["maxResults"])
+            data = atlassian_mcp.search_jira(jql, body["fields"], JIRA_MAX_TICKETS)
             result["via"] = "MCP"
         except Exception as exc:
             log.warning("Jira via MCP failed (%s) — falling back to REST", exc)
@@ -203,14 +204,17 @@ def run(skill: dict | None = None) -> dict[str, Any]:
     if data is None:
         try:
             headers = {**_auth_header(), "Content-Type": "application/json"}
-            resp = httpx.post(
-                f"{JIRA_BASE_URL}/rest/api/3/search/jql",
-                json=body,
-                headers=headers,
-                timeout=20,
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            issues, token = [], None
+            while len(issues) < JIRA_MAX_TICKETS:
+                page = {**body, **({"nextPageToken": token} if token else {})}
+                resp = httpx.post(f"{JIRA_BASE_URL}/rest/api/3/search/jql", json=page, headers=headers, timeout=20)
+                resp.raise_for_status()
+                chunk = resp.json()
+                issues += chunk.get("issues") or []
+                token = chunk.get("nextPageToken")
+                if chunk.get("isLast", True) or not token:
+                    break
+            data = {"issues": issues[:JIRA_MAX_TICKETS]}
         except Exception as exc:
             result["error"] = str(exc)
             return result

@@ -15,7 +15,9 @@ part-week with a full month in Power BI.
   (this week so far)", with the previous full week as a reference row.
 - **Metric alerts (UC4):** this week first, but only once it has at least **50 QC'd tasks and 20% of
   last week's QC'd tasks** in the profile's scope (`analytics_agent.ALERT_MIN_QC`, `ALERT_MIN_SHARE`).
-  Otherwise last week, labelled "(last week · this week too early: N QC'd so far, alerts use it from M)".
+  From 27 Oct also **20% of last week's production hours**, because CoQ and efficiency are hour-based and
+  hours arrive after QC counts (`alert_hours_too_early`). Otherwise last week, labelled
+  "(last week · this week too early: N QC'd / N production h so far, alerts use it from M)".
 - **Everywhere:** the exact date range is in every subject, header, section and data-period row
   (`email_html.period_label`).
 - **Small samples:** a process type, work unit or planning ID with fewer than 10 QC'd tasks is shown

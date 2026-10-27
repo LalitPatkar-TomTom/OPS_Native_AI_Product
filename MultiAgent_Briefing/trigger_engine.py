@@ -29,6 +29,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 sys.path.insert(0, str(Path(__file__).parent))
 
 from skill_registry import load_all_skills, load_skill, split_rules  # noqa: F401  (split_rules used in UC4)
+from email_html import project_name_of
 from config import SKILLS_DIR, OUTPUT_DIR
 import audit_log
 
@@ -89,7 +90,7 @@ def _run_uc2(skill: dict, user: str):
     from agents import jira_agent
     from delivery import deliver
 
-    proj_name    = skill.get("project_name") or "Project"
+    proj_name    = project_name_of(skill)
     jira_project = skill.get("jira_project") or ""
     proj_label   = f"{proj_name} / {jira_project}" if jira_project else proj_name
     user_first   = skill.get("user_first_name") or "you"
@@ -157,7 +158,7 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
     from agents.confluence_agent import run as run_confluence
     from delivery import deliver
 
-    proj_name    = skill.get("project_name") or "Project"
+    proj_name    = project_name_of(skill)
     jira_project = skill.get("jira_project") or ""
     cc_list      = skill.get("cc_recipients") or []
 
@@ -265,7 +266,7 @@ def _run_uc4(skill: dict, user: str):
     force        = bool(os.getenv("FORCE_UC4_ALERT"))
     pm           = set(skill.get("primary_metrics") or ["fta", "efficiency", "coq"])
     met_thr      = skill.get("metric_thresholds") or {}
-    proj_name    = skill.get("project_name") or "Project"
+    proj_name    = project_name_of(skill)
     jira_project = skill.get("jira_project") or ""
     cc_list      = skill.get("cc_recipients") or []
 

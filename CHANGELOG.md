@@ -1,5 +1,16 @@
 # Changelog: OPS Native AI
 
+## v2026-10-27-1: fixes from the 27 Oct 09:00 run check (27 Oct 2026)
+
+- **Subjects:** UC2 and UC4 subjects show the Jira key (e.g. "OM") instead of "Project".
+- **Alerts wait for production hours too:** this week is used only once it also has 20% of last week's
+  production hours; CoQ and efficiency are hour-based, and hours arrive after QC counts (a scope read CoQ
+  36% with 14% of its hours). The label says which bar is not reached yet (ADR-007).
+- **Jira past 100 tickets:** up to 1,000 open tickets per profile, MCP and REST both paging; counts are
+  complete, and ticket lists in the email stay at the oldest 100 with "+N more in Jira".
+- **Operators:** the worst 20 by how far they are past their levels (was the first 40). Yield per operator
+  above 100% (too few tasks to attribute) is left out, with a note.
+
 ## v2026-10-26-1 … -8: beta feedback (26 Oct 2026)
 
 **Jira (UC1, UC2)**

@@ -140,7 +140,12 @@ def alert_week_note(analytics: dict | None) -> str:
     """Why a UC4 alert shows last week: this week has no QC data yet, or too little to judge."""
     ew = (analytics or {}).get("early_week")
     if ew:
-        return f" · this week too early: {ew['qc']:,} QC&apos;d so far, alerts use it from {ew['needed']:,}"
+        parts = []
+        if ew.get("needed"):
+            parts.append(f"{ew['qc']:,} QC&apos;d so far, alerts use it from {ew['needed']:,}")
+        if ew.get("needed_hrs"):
+            parts.append(f"{ew.get('hrs', 0):,} production h so far, alerts use it from {ew['needed_hrs']:,} h")
+        return " · this week too early: " + "; ".join(parts)
     return " · no QC data yet this week"
 
 
@@ -542,7 +547,7 @@ def _build_priority(jira, analytics, jira_project="", project_name="",
 
     items = []
 
-    for t in br:
+    for t in shown_tickets(br):
         d = round(t["hours_stale"]/24, 1)
         b = _btn(f"SLA Breach: {t['key']} — {t['summary'][:60]}",
                  f"Ticket {t['key']} silent {t['hours_stale']}h. Owner: {t['assignee']}. "
@@ -553,7 +558,7 @@ def _build_priority(jira, analytics, jira_project="", project_name="",
             f'text-decoration:none">{t["key"]}</a> — {t["summary"][:65]}{b}',
             f'Owner: {t["assignee"]} · Silent {d} days ({t["hours_stale"]}h) · {t["status"]}'))
 
-    for t in wa:
+    for t in shown_tickets(wa):
         b = _btn(f"SLA Warning: {t['key']} — {t['summary'][:60]}",
                  f"Ticket {t['key']} no update for {t['hours_stale']}h. Owner: {t['assignee']}. "
                  f"Status: {t['status']}. Link: {t['url']}", jira_project)
@@ -768,12 +773,14 @@ def _build_operator_breakdown(analytics):
     rule = operator_levels_text(levels) or "your profile has no alert levels"
     foot = (f'<p style="{_F};font-size:10px;color:{_MUTED};margin:5px 0 0">{period_label(wk)} · alert levels from '
             f'your profile: {rule}. Operators with fewer than 10 QC&apos;d tasks (FTA) or 10 production tasks '
-            f'(other metrics) are not judged. Red = past the level.</p>')
+            f'(other metrics) are not judged. Red = past the level.'
+            + (' Yield is left out where it reads above 100% for one operator (too few tasks to attribute).'
+               if any(o.get("yield_over_100") for o in ops) else '') + '</p>')
     if not past:
         return (f'<p style="{_F};font-size:13px;color:{_GREEN}">All {len(ops)} operators with QC data are within '
                 f'your alert levels.</p>' + foot)
-    past.sort(key=lambda o: (-len(o["breaches"]), o.get("fta_pct", 100)))
-    shown = past[:40]
+    past.sort(key=lambda o: (-(o.get("severity") or 0), -len(o["breaches"])))
+    shown = past[:20]   # the worst 20 keep the email readable (27 Oct: 50 listed rows made it 175 KB)
 
     th = (f'{_F};font-size:10px;font-weight:bold;color:{_WHITE};background:{_HDR};'
           f'padding:5px 6px;text-align:left;border-bottom:2px solid {_BORDER}')
@@ -803,7 +810,7 @@ def _build_operator_breakdown(analytics):
                  + f'<td style="{td};text-align:right;color:{_MUTED}">{_pct_or_dash(sp)}</td>'
                  + '</tr>')
     html += '</table>'
-    more = f" (first {len(shown)} shown)" if len(past) > len(shown) else ""
+    more = f" (the worst {len(shown)} shown)" if len(past) > len(shown) else ""
     head = (f'<p style="{_F};font-size:12px;color:{_TEXT};margin:0 0 6px"><b>{len(past)} of {len(ops)}</b> operators '
             f'are past an alert level{more}; the others are within your levels and not listed.</p>')
     return head + html + foot
@@ -1033,6 +1040,21 @@ def _build_unsampled(analytics):
             f'<b>Produced but not QC-sampled in this period</b> (no FTA): {items}</p>')
 
 
+TICKET_LIST_MAX = 100   # rows per ticket list in an email; counts stay complete (27 Oct)
+
+
+def shown_tickets(tickets: list[dict]) -> list[dict]:
+    """The tickets listed in an email: oldest without an update first, at most TICKET_LIST_MAX."""
+    return sorted(tickets or [], key=lambda t: -float(t.get("hours_stale") or 0))[:TICKET_LIST_MAX]
+
+
+def more_in_jira(tickets: list[dict]) -> str:
+    """'… and N more in Jira' when a list was cut at TICKET_LIST_MAX, else ''."""
+    extra = len(tickets or []) - TICKET_LIST_MAX
+    return (f'<p style="{_F};font-size:12px;color:{_MUTED};margin:6px 0 0">… and <b>{extra:,} more</b> in Jira '
+            f'(oldest {TICKET_LIST_MAX} shown).</p>') if extra > 0 else ""
+
+
 def _build_tickets(jira):
     """The open Jira tickets table with stale hours and SLA status."""
     ts = jira.get("open_tickets", [])
@@ -1041,7 +1063,7 @@ def _build_tickets(jira):
 
     headers = ["Ticket", "Summary", "Status", "Owner", "Stale", "SLA"]
     rows = []
-    for t in ts:
+    for t in shown_tickets(ts):
         rows.append([
             f'<a href="{t["url"]}" style="color:#2563EB;font-weight:bold;'
             f'text-decoration:none;{_F};font-size:12px">{t["key"]}</a>',
@@ -1051,7 +1073,7 @@ def _build_tickets(jira):
             f'<span style="{_F};font-size:12px">{t["hours_stale"]}h</span>',
             _badge(t["sla_status"], _sla_word(t["sla_status"])),
         ])
-    return _data_table(headers, rows)
+    return _data_table(headers, rows) + more_in_jira(ts)
 
 
 def _build_actions(jira, analytics, jira_project="", project_name="",
@@ -1075,7 +1097,9 @@ def _build_actions(jira, analytics, jira_project="", project_name="",
     p0, p1, p2 = [], [], []
 
     # ── P0: SLA breaches + RED overall FTA ────────────────────────────────────
-    for t in br:
+    if len(br) > TICKET_LIST_MAX:
+        p0.append(f'<b>{len(br):,}</b> tickets are past the SLA; the oldest {TICKET_LIST_MAX} are listed below.')
+    for t in shown_tickets(br):
         b = _btn(f"SLA Breach: {t['key']} — {t['summary'][:60]}",
                  f"Ticket {t['key']} silent {t['hours_stale']}h. Owner: {t['assignee']}. "
                  f"Status: {t['status']}. Link: {t['url']}", jira_project, "High")
@@ -1175,7 +1199,7 @@ def _build_actions(jira, analytics, jira_project="", project_name="",
             f'intervene if trend continues downward.'
         )
 
-    for t in wa:
+    for t in shown_tickets(wa):
         b = _btn(f"SLA Warning: {t['key']}",
                  f"No update for {t['hours_stale']}h. Owner: {t['assignee']}. Link: {t['url']}",
                  jira_project)
@@ -1809,8 +1833,8 @@ def build_sla_alert(
             f'<span style="{_F};font-size:12px">{t.get("assignee", "")}</span>',
             f'<span style="{_F};font-size:12px;font-weight:bold">{t.get("hours_stale", "")}h</span>',
             _badge(t.get("sla_status", ""), _sla_word(t.get("sla_status", ""))),
-        ] for t in sorted(tickets, key=lambda t: -float(t.get("hours_stale") or 0))]
-        return _data_table(["Ticket", "Summary", "Status", "Owner", "Silent", "SLA"], rows)
+        ] for t in shown_tickets(tickets)]
+        return _data_table(["Ticket", "Summary", "Status", "Owner", "Silent", "SLA"], rows) + more_in_jira(tickets)
 
     sections, n = [], 1
     sections.append(_section("Summary", _kv_table([

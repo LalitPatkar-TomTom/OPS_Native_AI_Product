@@ -280,6 +280,17 @@ def alert_week_too_early(this_qc: float, last_qc: float) -> int | None:
     return need if (this_qc or 0) < need else None
 
 
+def alert_hours_too_early(this_hrs: float, last_hrs: float) -> int | None:
+    """Production hours needed before alerts use this week, or None when it already has enough.
+
+    CoQ and efficiency are hour-based, and production hours arrive later than QC counts: on 27 Oct a scope
+    had more QC'd tasks than the whole week before but 14% of its production hours, so CoQ read 36% (27 Oct).
+    """
+    import math
+    need = math.ceil(ALERT_MIN_SHARE * (last_hrs or 0))
+    return need if need and (this_hrs or 0) < need else None
+
+
 # A process type, work unit or planning ID with fewer QC'd tasks than this is shown but never flagged:
 # one rejected task out of one reads as FTA 0% (seen 26 Oct: orbis-update-lanesleads, 1 QC'd, P1 "Lowest FTA").
 MIN_QC_TO_FLAG = 10
@@ -530,6 +541,8 @@ def mark_operator_breaches(operators: list[dict], levels: dict[str, dict]) -> No
             if (v > lv["alert"]) if lv["direction"] == "rise" else (v < lv["alert"]):
                 out.append(m)
         o["breaches"] = out
+        # how far past their levels, so the email can list the worst first (27 Oct: the 20 worst)
+        o["severity"] = sum(abs((o.get(field[m]) or 0) - levels[m]["alert"]) / (levels[m]["alert"] or 1) for m in out)
 
 
 _YIELD_BY_PT_WU_SQL = """
@@ -891,12 +904,16 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         early_week = None
         if report_type == "alert" and len(rows) > 1 and str(rows[0].get("week_start"))[:10] == target_week:
             this_qc, last_qc = float(rows[0].get("total_qc") or 0), float(rows[1].get("total_qc") or 0)
+            this_h, last_h = float(rows[0].get("prod_hrs") or 0), float(rows[1].get("prod_hrs") or 0)
             need = alert_week_too_early(this_qc, last_qc)
-            if need is not None:
-                early_week = {"week": target_week, "qc": int(this_qc), "needed": need}
+            need_h = alert_hours_too_early(this_h, last_h)
+            if need is not None or need_h is not None:
+                early_week = {"week": target_week, "qc": int(this_qc), "needed": need,
+                              "hrs": round(this_h), "needed_hrs": need_h}
                 rows = rows[1:]
                 target_week = str(rows[0].get("week_start"))[:10]
-                print(f"[analytics] this week too early for alerts ({int(this_qc)} QC'd, needs {need}) — using {target_week}")
+                print(f"[analytics] this week too early for alerts ({int(this_qc)} QC'd / {this_h:.0f} production h; "
+                      f"needs {need or '-'} QC'd / {need_h or '-'} h) — using {target_week}")
 
         current  = rows[0]
         previous = rows[1] if len(rows) > 1 else rows[0]
@@ -1095,7 +1112,11 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
                 num, den = float(r.get("yield_num") or 0), float(r.get("yield_den") or 0)
                 op_yield[((r.get("pt") or "").lower(), (r.get("op") or "").lower())] = round(num / den * 100, 2) if den > 0 else None
             for o in operator_breakdown:
-                o["yield_pct"] = op_yield.get((o["process_type"].lower(), str(o["operator"]).strip().lower()))
+                y = op_yield.get((o["process_type"].lower(), str(o["operator"]).strip().lower()))
+                # Yield counts reworked tasks resolved later on top; for one operator's few tasks that can
+                # read above 100% (58 of 557 groups, 19-25 Oct), which is not a real yield: leave it out.
+                o["yield_pct"] = y if y is None or y <= 100 else None
+                o["yield_over_100"] = y is not None and y > 100
         except Exception as exc:
             print(f"[analytics] Yield (by operator) query failed: {exc}")
         from skill_registry import operator_levels
