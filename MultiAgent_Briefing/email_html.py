@@ -751,6 +751,9 @@ def _build_efficiency(analytics, pm=None):
 _LEVEL_TEXT = {"fta": "FTA", "efficiency": "Eff vs BL", "coq": "CoQ", "yield": "Yield"}
 
 
+OPERATOR_LIST_MAX = 50   # operators past a level listed in an email; the rest are counted
+
+
 def _pct_or_dash(v) -> str:
     """"12.3%", or "—" when there is no value."""
     return "—" if v is None else "{:.1f}%".format(v)
@@ -763,7 +766,7 @@ def operator_levels_text(levels: dict) -> str:
 
 
 def _build_operator_breakdown(analytics):
-    """Operators past one of the profile's alert levels, with all six KPIs (OSI-009); the rest are counted."""
+    """Operators past one of the profile's alert levels, with all six KPIs (OSI-009): up to 50, most hours first."""
     ops = analytics.get("operator_breakdown", [])
     wk  = analytics.get("week_label", "")
     levels = analytics.get("operator_levels") or {}
@@ -779,8 +782,9 @@ def _build_operator_breakdown(analytics):
     if not past:
         return (f'<p style="{_F};font-size:13px;color:{_GREEN}">All {len(ops)} operators with QC data are within '
                 f'your alert levels.</p>' + foot)
-    past.sort(key=lambda o: (-(o.get("severity") or 0), -len(o["breaches"])))
-    shown = past[:20]   # the worst 20 keep the email readable (27 Oct: 50 listed rows made it 175 KB)
+    # up to 50, those who spent the most time in the user's scope first, then by task volume (decided 27 Oct)
+    past.sort(key=lambda o: (-(o.get("total_hrs") or 0), -(o.get("prod_tasks") or 0)))
+    shown = past[:OPERATOR_LIST_MAX]
 
     th = (f'{_F};font-size:10px;font-weight:bold;color:{_WHITE};background:{_HDR};'
           f'padding:5px 6px;text-align:left;border-bottom:2px solid {_BORDER}')
@@ -810,7 +814,7 @@ def _build_operator_breakdown(analytics):
                  + f'<td style="{td};text-align:right;color:{_MUTED}">{_pct_or_dash(sp)}</td>'
                  + '</tr>')
     html += '</table>'
-    more = f" (the worst {len(shown)} shown)" if len(past) > len(shown) else ""
+    more = (f" (the {len(shown)} with the most hours shown)" if len(past) > len(shown) else "")
     head = (f'<p style="{_F};font-size:12px;color:{_TEXT};margin:0 0 6px"><b>{len(past)} of {len(ops)}</b> operators '
             f'are past an alert level{more}; the others are within your levels and not listed.</p>')
     return head + html + foot

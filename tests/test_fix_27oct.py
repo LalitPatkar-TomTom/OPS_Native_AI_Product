@@ -22,21 +22,29 @@ def test_alerts_also_wait_for_production_hours():
 
 def test_operator_yield_above_100_is_left_out_with_a_note():
     ops = [{"operator": "a", "process_type": "pt", "fta_pct": 80.0, "coq_pct": 5.0, "eff_vs_bl": 99.0,
-            "yield_pct": None, "yield_over_100": True, "total_hrs": 10, "sampling_pct": 20.0, "breaches": ["fta"],
-            "severity": 0.1}]
+            "yield_pct": None, "yield_over_100": True, "total_hrs": 10, "sampling_pct": 20.0, "breaches": ["fta"]}]
     h = E._build_operator_breakdown({"operator_breakdown": ops, "week_label": "2026-10-26",
                                      "operator_levels": {"fta": {"alert": 92.0, "direction": "drop"}}})
     assert "Yield is left out where it reads above 100%" in h
 
 
-def test_worst_20_operators_by_how_far_past_their_level():
+def _ops(n, hrs, tasks=50):
+    return [{"operator": f"op{i}", "process_type": "pt", "fta_pct": 85.0, "total_qc": 50, "prod_tasks": tasks(i) if callable(tasks) else tasks,
+             "coq_pct": 1.0, "total_hrs": hrs(i)} for i in range(n)]
+
+
+def test_up_to_50_operators_most_hours_first_then_volume():
     levels = {"fta": {"alert": 90.0, "direction": "drop"}}
-    ops = [{"operator": f"op{i}", "process_type": "pt", "fta_pct": 89.0 - i, "total_qc": 50, "prod_tasks": 50,
-            "coq_pct": 1.0, "total_hrs": 5} for i in range(30)]
+    ops = _ops(60, hrs=lambda i: float(i))                     # op59 has the most hours
     A.mark_operator_breaches(ops, levels)
     h = E._build_operator_breakdown({"operator_breakdown": ops, "week_label": "2026-10-26", "operator_levels": levels})
-    assert "30 of 30</b> operators" in h and "(the worst 20 shown)" in h
-    assert ">op29</td>" in h and ">op10</td>" in h and ">op9</td>" not in h      # op29 is furthest below
+    assert "60 of 60</b> operators" in h and "(the 50 with the most hours shown)" in h
+    assert ">op59</td>" in h and ">op10</td>" in h and ">op9</td>" not in h
+    tie = _ops(3, hrs=lambda i: 8.0, tasks=lambda i: 10 * (i + 1))   # same hours: higher volume first
+    A.mark_operator_breaches(tie, levels)
+    h = E._build_operator_breakdown({"operator_breakdown": tie, "week_label": "2026-10-26", "operator_levels": levels})
+    assert h.index(">op2</td>") < h.index(">op1</td>") < h.index(">op0</td>")
+    assert "3 of 3</b> operators" in h and "most hours shown" not in h       # fewer than 50: all shown
 
 
 def test_ticket_lists_stay_at_100_rows_with_the_rest_counted():

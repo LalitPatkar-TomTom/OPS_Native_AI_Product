@@ -8,7 +8,8 @@
   36% with 14% of its hours). The label says which bar is not reached yet (ADR-007).
 - **Jira past 100 tickets:** up to 1,000 open tickets per profile, MCP and REST both paging; counts are
   complete, and ticket lists in the email stay at the oldest 100 with "+N more in Jira".
-- **Operators:** the worst 20 by how far they are past their levels (was the first 40). Yield per operator
+- **Operators:** up to 50 operators past a level, those with the most hours in the scope first, then by task
+  volume (was the first 40); all of them when fewer. Yield per operator
   above 100% (too few tasks to attribute) is left out, with a note.
 
 ## v2026-10-26-1 … -8: beta feedback (26 Oct 2026)

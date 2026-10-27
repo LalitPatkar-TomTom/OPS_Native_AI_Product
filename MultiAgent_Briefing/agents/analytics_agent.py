@@ -541,8 +541,6 @@ def mark_operator_breaches(operators: list[dict], levels: dict[str, dict]) -> No
             if (v > lv["alert"]) if lv["direction"] == "rise" else (v < lv["alert"]):
                 out.append(m)
         o["breaches"] = out
-        # how far past their levels, so the email can list the worst first (27 Oct: the 20 worst)
-        o["severity"] = sum(abs((o.get(field[m]) or 0) - levels[m]["alert"]) / (levels[m]["alert"] or 1) for m in out)
 
 
 _YIELD_BY_PT_WU_SQL = """
