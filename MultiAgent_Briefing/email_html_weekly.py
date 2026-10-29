@@ -10,6 +10,7 @@ from email_html import (
     _rag, _badge, _dot, _arrow, _kv_table, _data_table, _section,
     _alert_row, _build_sprint, _build_confluence, _preview_banner,
     _build_exec_summary, _build_breakdown, _build_actions, _build_operator_breakdown, no_scope_notice,
+    _build_action_box, action_items,
     period_label, project_name_of,
     _eff_str, _escape_jira, _escape_confluence, _GREEN, _GREEN_BG, _GREEN_BD,
     _AMBER, _AMBER_BG, _AMBER_BD,
@@ -321,6 +322,8 @@ def build(
     {_build_exec_summary(jira, analytics, pm, _s)}
 
     {no_scope_notice(_s)}
+
+    {_build_action_box(jira, analytics, set(pm or [])) if not analytics.get("no_scope") else ""}
 
     {_build_kpi_summary(analytics, jira, pm)}
 

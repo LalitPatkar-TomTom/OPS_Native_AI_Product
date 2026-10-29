@@ -4,6 +4,7 @@ Clean single-column layout: proper tables, no multi-column cards.
 Outlook-safe: table-based layout, inline CSS only.
 """
 import html as _html
+from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlencode
@@ -262,8 +263,25 @@ def _sample_note(analytics: dict, metric: str) -> str:
     return ref
 
 
+def _rc(analytics: dict, metric: str, label: str, action: str, why: str) -> tuple[str, str]:
+    """(action, why) for one KPI item. With a root-cause driver tree from root_cause.analyse: "<label>: <action>",
+    then the numbered causes and the "Next" actions, then the sample note. Without one: the short
+    process-type cause given here (before 29 Oct, and whenever the root-cause rows could not be read)."""
+    note = _sample_note(analytics, metric)
+    rc = ((analytics or {}).get("root_cause") or {}).get(metric)
+    if not rc or not rc.get("action") or not rc.get("causes"):
+        return action, why + note
+    causes = "".join(f'<div style="margin:2px 0 0">{i}. {c}</div>' for i, c in enumerate(rc["causes"], 1))
+    nxt = "".join(f'<div style="margin:2px 0 0">&#8594; {m}</div>' for m in rc.get("more") or [])
+    if nxt:
+        nxt = f'<div style="margin-top:4px;color:{_MUTED};font-weight:bold">Next:</div>{nxt}'
+    return f"{label}: {rc['action']}", causes + nxt + (f'<div style="margin-top:3px">{note.strip()}</div>' if note else "")
+
+
 def action_items(jira: dict, analytics: dict, pm: set, only: str | None = None) -> list[tuple[str, str, str]]:
-    """[(rag, action, why)] for everything that needs someone to act; `only` limits it to one metric (UC4)."""
+    """[(rag, action, why)] for everything that needs someone to act; `only` limits it to one metric (UC4).
+    Where the root-cause rows were read, each KPI item is its driver tree (root_cause.py); otherwise the
+    short process-type cause."""
     items = []
     jira = jira or {}
     br = jira.get("sla_breaches") or []
@@ -276,24 +294,26 @@ def action_items(jira: dict, analytics: dict, pm: set, only: str | None = None) 
     want = (lambda m: m == only) if only else (lambda m: m in pm or not pm)
     fr = analytics.get("fta_rag", "GREEN")
     if want("fta") and fr in ("RED", "AMBER") and analytics.get("live", True):
-        items.append((fr, f"Review the rejected tasks behind FTA {analytics.get('fta_current', 0):.2f}% with the QC lead "
-                          "and brief the editors on the top error types",
-                      _cause_fta(analytics) + _sample_note(analytics, "fta")))
+        fv = analytics.get("fta_current", 0)
+        items.append((fr, *_rc(analytics, "fta", f"FTA {fv:.2f}%",
+                               f"Review the rejected tasks behind FTA {fv:.2f}% with the QC lead "
+                               "and brief the editors on the top error types", _cause_fta(analytics))))
     er, ev = analytics.get("efficiency_rag", "GREEN"), analytics.get("efficiency_vs_bl")
     if want("efficiency") and er in ("RED", "AMBER") and ev is not None:
-        items.append((er, f"Check the slowest process types for blockers (tools, data, new editors) — efficiency is "
-                          f"{ev:.1f}% of baseline",
-                      _cause_eff(analytics) + _sample_note(analytics, "efficiency")))
+        items.append((er, *_rc(analytics, "efficiency", f"Efficiency {ev:.1f}% of baseline",
+                               f"Check the slowest process types for blockers (tools, data, new editors) — "
+                               f"efficiency is {ev:.1f}% of baseline", _cause_eff(analytics))))
     cr = analytics.get("coq_rag", "GREEN")
     if (want("coq") or (only is None and "copq" in pm)) and cr not in ("GREEN", None):
+        cv = analytics.get("coq_current", 0)
         items.append(("RED" if cr == "RED" else "AMBER",
-                      f"Find where QC and rework time goes — CoQ is {analytics.get('coq_current', 0):.2f}%; "
-                      "check for over-sampling or repeated rework",
-                      _cause_coq(analytics) + _sample_note(analytics, "coq")))
+                      *_rc(analytics, "coq", f"CoQ {cv:.2f}%",
+                           f"Find where QC and rework time goes — CoQ is {cv:.2f}%; "
+                           "check for over-sampling or repeated rework", _cause_coq(analytics))))
     yr, yv = analytics.get("yield_rag", "GREEN"), analytics.get("yield_current")
     if want("yield") and yr in ("RED", "AMBER") and yv is not None:
-        items.append((yr, f"Check first-pass completion — yield is {yv:.2f}%",
-                      "Yield counts tasks finished without going back to production." + _sample_note(analytics, "yield")))
+        items.append((yr, *_rc(analytics, "yield", f"Yield {yv:.2f}%", f"Check first-pass completion — yield is {yv:.2f}%",
+                               "Yield counts tasks finished without going back to production.")))
     return items
 
 
@@ -317,7 +337,8 @@ def _build_action_box(jira: dict, analytics: dict, pm: set, only: str | None = N
             f'&#9888; Recommended actions ({len(items)})</div>'
             f'<table width="100%" cellpadding="0" cellspacing="0">{rows}</table>'
             f'<div style="{_F};font-size:11px;color:{_MUTED};margin-top:6px">Root causes are worked out from this '
-            f'week&apos;s data by process type and work unit; details are in the sections below.</div>'
+            f'week&apos;s data by work unit, editor and work package, against the previous full week; details are in '
+            f'the sections below.</div>'
             f'</td></tr></table>')
 
 
@@ -785,6 +806,12 @@ def _build_operator_breakdown(analytics):
     # up to 50, those who spent the most time in the user's scope first, then by task volume (decided 27 Oct)
     past.sort(key=lambda o: (-(o.get("total_hrs") or 0), -(o.get("prod_tasks") or 0)))
     shown = past[:OPERATOR_LIST_MAX]
+    # Grouped by work unit (29 Oct, leads): the unit with most operators past a level first, the same
+    # hours order inside each unit; a header row per unit says how many of its operators are past a level.
+    wu_of = lambda o: o.get("work_unit") or "Not assigned"
+    n_past, n_all = Counter(wu_of(o) for o in past), Counter(wu_of(o) for o in ops)
+    rank = {w: i for i, (w, _) in enumerate(n_past.most_common())}
+    shown.sort(key=lambda o: rank[wu_of(o)])
 
     th = (f'{_F};font-size:10px;font-weight:bold;color:{_WHITE};background:{_HDR};'
           f'padding:5px 6px;text-align:left;border-bottom:2px solid {_BORDER}')
@@ -792,11 +819,17 @@ def _build_operator_breakdown(analytics):
         hit = m in o["breaches"]
         return (f'<span style="{_F};font-size:10px;color:{_RED if hit else _TEXT};'
                 f'font-weight:{"bold" if hit else "normal"}">{text}</span>')
-    headers = ["Operator", "Process type", "FTA", "Eff vs BL", "CoQ", "Yield", "Hrs", "Sampling"]
+    headers = ["Operator", "Work unit", "Process type", "FTA", "Eff vs BL", "CoQ", "Yield", "Hrs", "Sampling"]
     html = (f'<table width="100%" cellpadding="0" cellspacing="0" '
             f'style="border-collapse:collapse;border:1px solid {_BORDER};border-radius:4px;font-size:10px">'
             f'<tr>' + ''.join(f'<th style="{th}">{h}</th>' for h in headers) + '</tr>')
+    last_wu = None
     for i, o in enumerate(shown):
+        if wu_of(o) != last_wu:
+            last_wu = wu_of(o)
+            html += (f'<tr><td colspan="{len(headers)}" style="{_F};font-size:11px;font-weight:bold;color:{_TEXT};'
+                     f'background:#EEF2F7;padding:5px 6px;border-bottom:1px solid {_BORDER}">{_n(last_wu)} — '
+                     f'{n_past[last_wu]} of {n_all[last_wu]} operators past a level</td></tr>')
         td = (f'{_F};font-size:10px;color:{_TEXT};padding:4px 6px;'
               f'background:{_WHITE if i % 2 == 0 else _STRIPE};border-bottom:1px solid {_BORDER}')
         ev, yv, sp = o.get("eff_vs_bl"), o.get("yield_pct"), o.get("sampling_pct")
@@ -805,6 +838,7 @@ def _build_operator_breakdown(analytics):
         coq_s = "{:.1f}%".format(o.get("coq_pct", 0))
         html += ('<tr>'
                  + f'<td style="{td}">{o["operator"]}</td>'
+                 + f'<td style="{td};color:{_MUTED}">{_n(wu_of(o))}</td>'
                  + f'<td style="{td};color:{_MUTED}">{o["process_type"]}</td>'
                  + f'<td style="{td}">{cell(o, "fta", fta_s)}</td>'
                  + f'<td style="{td}">{cell(o, "efficiency", ev_s)}</td>'
@@ -1699,6 +1733,7 @@ def build_alert(
             sort_note = "highest CoQ first"
         op_rows = [
             [f'<span style="{_F};font-size:11px;font-family:Consolas,monospace">{o["operator"]}</span>',
+             f'<span style="{_F};font-size:11px;color:{_MUTED}">{_n(o.get("work_unit") or "Not assigned")}</span>',
              f'<span style="{_F};font-size:11px;color:{_MUTED}">{o["process_type"]}</span>',
              f'<span style="{_F};font-size:11px;color:{_rag(o.get("fta_rag", "GREEN"))[0]};font-weight:bold">{o.get("fta_pct", 0):.2f}%</span>',
              f'<span style="{_F};font-size:11px">{_eff_str(o.get("eff_vs_bl"))}</span>',
@@ -1711,7 +1746,7 @@ def build_alert(
         if op_rows:
             op_section = _section(
                 f"Operators past the alert level ({sort_note}, {len(op_rows)} of {len(worst)})",
-                _data_table(["Operator", "Process Type", "FTA", "Eff vs BL", "CoQ", "Yield", "Hrs", "Sampling"],
+                _data_table(["Operator", "Work unit", "Process Type", "FTA", "Eff vs BL", "CoQ", "Yield", "Hrs", "Sampling"],
                             op_rows), 3)
 
     return f"""<html>

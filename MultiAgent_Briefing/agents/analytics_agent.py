@@ -379,6 +379,7 @@ _OPERATOR_SQL = """
 SELECT
     processType AS process_type,
     Production_Editor AS operator,
+    COALESCE(LOWER(TRIM(MAX(work_unit))), '') AS work_unit,
     ROUND(SUM(QC_Accept_Count) * 100.0 / NULLIF(SUM(total_qc_count), 0), 2)                   AS fta_pct,
     ROUND(SUM(Prod_Done_task_count) / NULLIF(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 0), 4) AS efficiency,
     ROUND(COALESCE(SUM(qc_total_time), 0) * 100.0 / NULLIF(COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0), 0), 2) AS coq_pct,
@@ -398,6 +399,106 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY processType ORDER BY prod_tasks DESC) <=
 ORDER BY processType, prod_tasks DESC
 LIMIT {limit}
 """
+
+
+# ── Root-cause rows (OSI-027/035/040/047): same QC rows as the headline, so the figures reconcile ──
+_QC_ROWS = "(total_qc_count > 0 OR (COALESCE(Prod_Done_task_count, 0) = 0 AND qc_total_time > 0))"
+
+_RC_EDITOR_SQL = """
+SELECT
+    week_start AS week,
+    LOWER(processType) AS pt,
+    COALESCE(LOWER(TRIM(work_unit)), '') AS wu,
+    Production_Editor AS editor,
+    COALESCE(SUM(total_qc_count), 0)  AS qc,
+    COALESCE(SUM(QC_Accept_Count), 0) AS acc,
+    COALESCE(SUM(qc_total_time), 0)   AS qc_h
+FROM {table}
+WHERE week_start IN ('{week}', DATE_ADD(TO_DATE('{week}'), -7))
+  AND total_qc_count > 0
+  AND Production_Editor IS NOT NULL AND Production_Editor != ''
+  {scope_filter}
+GROUP BY week_start, LOWER(processType), COALESCE(LOWER(TRIM(work_unit)), ''), Production_Editor
+"""
+
+# One row per work package: QC-row figures (s_*) like the breakdowns, and idle_h from every row:
+# production hours booked on rows with no completed task.
+_RC_WP_SQL = """
+SELECT
+    LOWER(processType) AS pt,
+    COALESCE(LOWER(TRIM(work_unit)), '') AS wu,
+    work_package AS wp,
+    COALESCE(SUM(CASE WHEN {qc_rows} THEN total_qc_count END), 0)       AS qc,
+    COALESCE(SUM(CASE WHEN {qc_rows} THEN QC_Accept_Count END), 0)      AS acc,
+    COALESCE(SUM(CASE WHEN {qc_rows} THEN Prod_Done_task_count END), 0) AS tasks,
+    COALESCE(SUM(CASE WHEN {qc_rows} THEN Prod_Total_Time END), 0)      AS prod_h,
+    COALESCE(SUM(CASE WHEN {qc_rows} THEN qc_total_time END), 0)        AS qc_h,
+    COUNT(DISTINCT CASE WHEN total_qc_count > 0 THEN Production_Editor END) AS eds,
+    COALESCE(SUM(CASE WHEN COALESCE(Prod_Done_task_count, 0) = 0 THEN Prod_Total_Time END), 0) AS idle_h
+FROM {table}
+WHERE week_start = '{week}'
+  AND processType IS NOT NULL
+  {scope_filter}
+GROUP BY LOWER(processType), COALESCE(LOWER(TRIM(work_unit)), ''), work_package
+"""
+
+
+# Share of completed production tasks closed WITH a map edit ("Resolved", which goes on to Publish /
+# Accepted) per week, for the previous and the reported week. Orbit SD only (the yield view); every
+# edited task needs a full QC, so a rising share explains longer QC time. Same stages as _YIELD_SQL.
+_EDITED_SQL = """
+SELECT
+    DATE_TRUNC('week', CAST(updated_at AS DATE)) AS week_mon,
+    SUM(CASE WHEN to_status = 'Resolved' THEN prod_count ELSE 0 END) AS edited,
+    SUM(prod_count) AS closed
+FROM {view}
+WHERE CAST(updated_at AS DATE) >= DATE_ADD(TO_DATE('{week}'), -7)
+  AND CAST(updated_at AS DATE) <= DATE_ADD(TO_DATE('{week}'), 6)
+  AND to_stage IN ('Resolution', 'Expert', 'Source Expert', 'OSM')
+  {scope_filter}
+GROUP BY DATE_TRUNC('week', CAST(updated_at AS DATE))
+"""
+
+
+def _load_edited_share(client, week: str, yield_scope: str) -> dict | None:
+    """{"prev": %, "cur": %, "cur_closed": n} of tasks closed with a map edit, or None (no SD data / failure)."""
+    try:
+        rows = client.execute_sql(_EDITED_SQL.format(view=_YIELD_VIEW, week=week, scope_filter=yield_scope),
+                                  max_rows=10).get("rows", [])
+        by = {str(r.get("week_mon"))[:10]: (float(r.get("edited") or 0), float(r.get("closed") or 0)) for r in rows}
+        prev_wk = (datetime.strptime(week[:10], "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
+        cur, prev = by.get(week[:10]), by.get(prev_wk)
+        if not cur or not prev or cur[1] < 50 or prev[1] < 50:
+            return None
+        return {"cur": 100 * cur[0] / cur[1], "prev": 100 * prev[0] / prev[1], "cur_closed": int(cur[1])}
+    except Exception as exc:
+        print(f"[analytics] Edited share query failed: {exc}")
+        return None
+
+
+def _load_root_cause(client, table: str, week: str, scope_filter: str, baselines: dict[str, float],
+                     metrics_4w: list[dict], workunits: list[dict], skill: dict | None, has_ops: bool,
+                     yield_scope: str | None = None) -> dict:
+    """Root causes and actions for the reported week (root_cause.analyse); {} when the rows cannot be read.
+    Supplementary like the breakdowns: a failure here never stops the email."""
+    try:
+        import root_cause
+        ed = client.execute_sql(_RC_EDITOR_SQL.format(table=table, week=week, scope_filter=scope_filter),
+                                max_rows=10000).get("rows", [])
+        wp = client.execute_sql(_RC_WP_SQL.format(table=table, week=week, scope_filter=scope_filter,
+                                                  qc_rows=_QC_ROWS), max_rows=10000).get("rows", [])
+        from skill_registry import operator_levels
+        lv = (operator_levels(skill or {}).get("fta") or {}).get("alert")
+        edited = _load_edited_share(client, week, yield_scope) if yield_scope is not None else None
+        out = root_cause.analyse(ed, wp, metrics_4w, baselines, workunits,
+                                 fta_level=float(lv or FTA_ALERT), yield_target=float(YIELD_TARGET),
+                                 has_operator_section=has_ops, edited=edited, coq_target=float(COQ_MONITOR))
+        print(f"[analytics] Root cause: {len(ed)} editor rows, {len(wp)} work packages -> "
+              f"{', '.join(k for k in out if k != 'partial') or 'nothing to explain'}")
+        return out
+    except Exception as exc:
+        print(f"[analytics] Root cause failed: {exc}")
+        return {}
 
 
 def _load_operator_breakdown(
@@ -444,6 +545,7 @@ def _load_operator_breakdown(
         operators.append({
             "process_type": r.get("process_type", ""),
             "operator":     operator,
+            "work_unit":    wu_name(r.get("work_unit")),
             "fta_pct":      fta,
             "fta_rag":      _fta_rag(fta) if qc > 0 else "GREEN",
             "efficiency":   eff_raw,
@@ -936,6 +1038,12 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
                 "sampling_pct":     round(float(r.get("total_qc") or 0) / float(r.get("prod_tasks") or 1) * 100, 1)
                                     if float(r.get("prod_tasks") or 0) > 0 else None,
                 "qc_tasks":         int(float(r.get("total_qc") or 0)),   # sample size, shown with the reference week
+                # totals for the CoQ split in root_cause.coq_drivers
+                "total_qc":         float(r.get("total_qc") or 0),
+                "accepted":         float(r.get("accepted") or 0),
+                "prod_tasks":       float(r.get("prod_tasks") or 0),
+                "prod_hrs":         float(r.get("prod_hrs") or 0),
+                "qc_hrs":           float(r.get("qc_hrs") or 0),
             }
             for r in rows
         ]
@@ -1124,6 +1232,10 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
     for rows in (process_breakdown, workunit_breakdown, planning_breakdown):
         _mark_small_samples(rows)
 
+    root_cause = _load_root_cause(client, combined_table, week_label, scope_filter, baselines,
+                                  metrics_4w, workunit_breakdown, skill, bool(operator_breakdown),
+                                  yield_scope=_build_yield_scope_filter(skill, actual_pts))
+
     return {
         "early_week":        early_week,
         "fta_current":       fta_current,
@@ -1155,6 +1267,7 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         "planning_breakdown":   planning_breakdown,
         "planning_missing":     planning_missing,
         "operator_breakdown":   operator_breakdown,
+        "root_cause":           root_cause,
         "scope_label":          scope_label,
         "scope_mode":        skill.get("scope_mode", "defined") if skill else "defined",
         "week_label":        week_label,

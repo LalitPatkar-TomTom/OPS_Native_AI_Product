@@ -9,6 +9,38 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+
+def _plain(html_text: str) -> str:
+    """Email HTML snippet as plain text for Word (tags dropped, entities decoded)."""
+    import html as _h
+    import re as _re
+    return _h.unescape(_re.sub(r"<[^>]+>", "", html_text or "")).strip()
+
+
+def _root_cause_section(doc, section, analytics: dict, pm, Pt, _C: dict) -> None:
+    """"Root causes and actions": for each KPI past its level, the action, the numbered causes and the next
+    actions, the same items as the emails' Recommended actions box. Nothing when no KPI needs action.
+    `Pt` and `_C` come from build(), which imports python-docx lazily."""
+    from email_html import action_items
+    rc = (analytics or {}).get("root_cause") or {}
+    items = [i for i in action_items({}, analytics or {}, set(pm or [])) if i]
+    if not items or analytics.get("no_scope"):
+        return
+    section("Root Causes & Actions")
+    for n, (rag, action, _why) in enumerate(items, 1):
+        p = doc.add_paragraph()
+        r = p.add_run(f"{n}. {_plain(action)}")
+        r.bold = True
+        r.font.size = Pt(9.5)
+        r.font.color.rgb = _C.get(rag, _C["GRAY"]) if rag in ("RED", "AMBER") else _C["GRAY"]
+        metric = next((m for m in ("fta", "efficiency", "coq", "yield") if m in rc and _plain(rc[m]["action"]) in
+                       _plain(action)), None)
+        lines = (rc[metric]["causes"] + [("→ " + m) for m in rc[metric].get("more") or []]) if metric else [_why]
+        for line in lines:
+            q = doc.add_paragraph(_plain(line), style="List Bullet")
+            q.runs[0].font.size = Pt(8.5)
+            q.paragraph_format.space_after = Pt(1)
+
 def build(
     jira: dict[str, Any],
     analytics: dict[str, Any],
@@ -367,21 +399,24 @@ def build(
     if ops:
         section(f"Operator Breakdown — Week {week}")
         note_p = doc.add_paragraph(
-            f"{len(ops)} operator(s) with QC data, grouped by process type. "
+            f"{len(ops)} operator(s) with QC data, grouped by work unit, then process type. "
             "FTA = first-pass acceptance rate per operator.")
         note_p.runs[0].font.size      = Pt(8)
         note_p.runs[0].font.color.rgb = _C["GRAY"]
         note_p.paragraph_format.space_after = Pt(3)
 
-        tbl = doc.add_table(rows=1 + len(ops), cols=8)
+        # grouped by work unit (29 Oct, leads), then process type, as the source rows come
+        ops = sorted(ops, key=lambda o: ((o.get("work_unit") or "Not assigned").lower(), o.get("process_type", "")))
+        tbl = doc.add_table(rows=1 + len(ops), cols=9)
         tbl.style = "Table Grid"
-        _hdr_row(tbl, "Process Type", "Operator", "FTA", "Eff vs BL", "CoQ", "Sampling", "Tasks", "QC")
+        _hdr_row(tbl, "Work unit", "Process Type", "Operator", "FTA", "Eff vs BL", "CoQ", "Sampling", "Tasks", "QC")
         for ri, o in enumerate(ops):
             fr = o.get("fta_rag", "GREEN")
             sp = o.get("sampling_pct")
             ev = o.get("eff_vs_bl")
             _data_row(
                 tbl, ri + 1,
+                o.get("work_unit") or "Not assigned",
                 o.get("process_type", ""),
                 o.get("operator", ""),
                 f'{o.get("fta_pct", 0):.2f}%',
@@ -392,7 +427,7 @@ def build(
                 f'{o.get("total_qc", 0):,}',
                 bg=_BG.get(fr, "FFFFFF") if fr in ("RED", "AMBER") else None,
             )
-            fta_cell = tbl.rows[ri + 1].cells[2]
+            fta_cell = tbl.rows[ri + 1].cells[3]
             fta_cell.paragraphs[0].runs[0].font.color.rgb = _C.get(fr, _C["GRAY"])
             fta_cell.paragraphs[0].runs[0].font.bold = True
 
@@ -505,6 +540,9 @@ def build(
                 ep = doc.add_paragraph(f"    {excerpt[:150]}{'...' if len(excerpt) > 150 else ''}")
                 ep.runs[0].font.size      = Pt(8)
                 ep.runs[0].font.color.rgb = _C["GRAY"]
+
+    # ── Section 6b: Root causes and actions (same driver trees as the emails, root_cause.py) ──
+    _root_cause_section(doc, section, analytics, pm, Pt, _C)
 
     # ── Section 7: Recommended Actions & Conclusion (P0 / P1 / P2) ────────────
 

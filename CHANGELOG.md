@@ -1,5 +1,22 @@
 # Changelog: OPS Native AI
 
+## Unreleased (branch root-cause-actions): root causes and actions, work units (29 Oct 2026)
+
+- **Root causes and actions** (`agents/root_cause.py`, ADR-008; OSI-027/035/040, first part of OSI-047):
+  every KPI past its level gets a rule-based driver tree against the previous full week, with no AI.
+  - FTA: the work units that moved it; coaching when a few editors make the rejections, the work package
+    when it fails across 3 or more editors; the sampling effect; more edited tasks.
+  - CoQ: rejections, sampling, QC minutes per task and production speed, with the two chains (rejection →
+    sampling → CoQ, more edits → QC time → CoQ), over-sampled high-FTA areas, and the sampling that would
+    reach 7%.
+  - Efficiency: the work packages losing the most hours against their baseline, and hours with no completed
+    task. Yield: the lowest work unit.
+  - Shown in the Recommended actions box (UC1, UC4 and now UC3) and in the Word report. It falls back to
+    the 26 Oct text when the rows cannot be read. Error types still need the ORBIT QC feedback categories.
+- **Work units:** operators carry their work unit. The operator section (UC1/UC3), the UC4 operator table and
+  the Word table are grouped by work unit, with "N of M operators past a level" per unit.
+- `metrics_4w` also carries the week's totals (QC'd, accepted, tasks, hours) for the CoQ split.
+
 ## v2026-10-27-1: fixes from the 27 Oct 09:00 run check (27 Oct 2026)
 
 - **Subjects:** UC2 and UC4 subjects show the Jira key (e.g. "OM") instead of "Project".
