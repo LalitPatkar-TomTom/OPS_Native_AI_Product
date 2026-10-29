@@ -30,3 +30,7 @@ users' inboxes.
 ## Revisit when
 Users ask for a narrative summary in the briefing. Add it as a clearly labelled, optional section,
 and keep the decision logic deterministic.
+- **Enforced (29 Oct 2026):** `tests/test_no_llm.py` fails the build if an AI-model library or a Databricks
+  Model Serving call appears in the shipped code, or if the job is given a model setting. The retired laptop
+  onboarding server, the only code here that called a model, is in `_archive/`. Using an LLM in the engine
+  later (e.g. wording on top of rule-based facts) needs a new ADR that replaces this one.

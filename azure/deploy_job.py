@@ -38,10 +38,13 @@ MAIL = {"EMAIL_TRANSPORT": "graph",
         "OPS_SKILLS_DIR": "/data/skills/Personal Skills"}
 
 # .env keys that stay on the laptop (test switches, laptop-only sync, unrelated apps)
+# DATABRICKS_LLM_MODEL is skipped on purpose: the engine makes no LLM call (ADR-001), so the job must not
+# carry a model setting that suggests it does (29 Oct). Skipping drops it; leaving it out of PLAIN alone
+# would turn it into a secret.
 SKIP = re.compile(r"^(TEST_RECIPIENT_OVERRIDE|PREVIEW_MODE|FORCE_UC4_ALERT|OPS_AUDIT_TEST|SKILLS_SYNC_.*"
-                  r"|GRAPH_.*|SLACK_.*|PORT|TEAMS_WEBHOOK_URL|EMAIL_.*|MAIL_.*|OPS_.*)$")
+                  r"|GRAPH_.*|SLACK_.*|PORT|TEAMS_WEBHOOK_URL|EMAIL_.*|MAIL_.*|OPS_.*|DATABRICKS_LLM_MODEL)$")
 # Non-secret settings passed as plain values; every other key becomes a secret
-PLAIN = {"DATABRICKS_HOST", "DATABRICKS_SQL_WAREHOUSE_ID", "DATABRICKS_LLM_MODEL", "JIRA_EMAIL",
+PLAIN = {"DATABRICKS_HOST", "DATABRICKS_SQL_WAREHOUSE_ID", "JIRA_EMAIL",
          "ATL_EMAIL", "JIRA_BASE_URL", "JIRA_PROJECT", "JIRA_PROJECT_NUMERIC_ID", "JIRA_ISSUE_TYPE_ID",
          "COMBINED_TABLE", "LOG_LEVEL", "ATLASSIAN_VIA_MCP", "MCP_REGISTRY"}
 

@@ -1,10 +1,9 @@
-"""Drop-in helper: use MCP servers from the TomTom registry inside ANY orchestrator.
+"""MCP servers from the TomTom registry, called directly by the engine's code (no LLM picks the tools).
 
   async with RegistryTools() as rt:
-      tools = rt.openai_tools()            # or rt.anthropic_tools() / rt.tools (neutral list)
-      ...                                  # give `tools` to your LLM
-      if rt.is_write(name): ...ask a human first...
-      text = await rt.call(name, args)     # run the tool the LLM asked for
+      rt.tools                             # the discovered tools (name, description, input_schema)
+      if rt.is_write(name): ...never in the engine: it only reads...
+      text = await rt.call(name, args)     # e.g. a Jira search with a JQL the code built
 
 Needs:  pip install "mcp<2" httpx
 Atlassian login (set in the environment / Azure Key Vault, never in code):
@@ -108,11 +107,3 @@ class RegistryTools:
         text = "\n".join(c.text for c in res.content if c.type == "text")
         return ("ERROR: " if res.isError else "") + text
 
-    def openai_tools(self):
-        """The discovered tools in OpenAI function-calling format."""
-        return [{"type": "function", "function": {"name": t["name"], "description": t["description"],
-                 "parameters": t["input_schema"]}} for t in self.tools]
-
-    def anthropic_tools(self):
-        """The discovered tools (name, description, input_schema) in Anthropic tool format."""
-        return list(self.tools)

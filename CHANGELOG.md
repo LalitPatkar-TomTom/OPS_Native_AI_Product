@@ -1,5 +1,17 @@
 # Changelog: OPS Native AI
 
+## v2026-10-29-2: no LLM leftovers (29 Oct 2026)
+
+- **No model setting on the job:** `DATABRICKS_LLM_MODEL` is no longer sent to the Azure job (`deploy_job.SKIP`).
+  Nothing in the engine read it; the engine makes no LLM call (ADR-001). OPS Hub keeps its own model setting.
+- **Retired laptop onboarding server archived:** `AI Architecture/Onboarding_Server` and `UserOnboarding.HTML`
+  moved to `_archive/` (see its README). It was the only code here that called an AI model (Sonnet, for the
+  profile merge), replaced by OPS Hub `/onboarding` in October; `start.bat` no longer starts it.
+- **Unused LLM helpers removed** from `registry_mcp.py` (`openai_tools`, `anthropic_tools`); `.env.example`
+  no longer lists a model or the onboarding server's port.
+- **Guard test** `tests/test_no_llm.py`: fails if an AI library or a Model Serving call is added to the
+  shipped code, or if the job gets a model setting again.
+
 ## v2026-10-29-1: root causes and actions, work units (29 Oct 2026)
 
 - **Root causes and actions** (`agents/root_cause.py`, ADR-008; OSI-027/035/040, first part of OSI-047):

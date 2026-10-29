@@ -59,5 +59,7 @@ More detail:
 - `docs/adr/`: the architecture decision records.
 - `SECURITY.md`: the security model and open items.
 - `CHANGELOG.md`: the list of changes.
-`AI Architecture/Onboarding_Server/` is the legacy laptop onboarding server. OPS Hub `/onboarding`
-replaced it; it is not in the image.
+`_archive/Onboarding_Server/` is the retired laptop onboarding server (archived 29 Oct 2026). OPS Hub
+`/onboarding` replaced it; it is not in the image and not run (see `_archive/README.md`).
+**No LLM in this repo's running code:** the engine never calls an AI model (ADR-001); a test
+(`tests/test_no_llm.py`) fails the build if one is added. The AI model is used by OPS Hub only.

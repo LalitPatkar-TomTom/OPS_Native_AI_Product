@@ -44,5 +44,5 @@ closes or escalates a ticket, and never contacts anyone other than the owner.
 | Graph Mail.Send granted on the OPS Hub Easy Auth app | OSI-021: a dedicated sender app is planned |
 | `EMAIL_CC` defaults to on (the laptop backup CCs the global list) | The Azure job sets `off`. Check this before the laptop is used as backup. |
 | Profile SLA hours are parsed, but the global 48/72 h are used | Behaviour as designed today. Using profile values is a feature change. |
-| The legacy `AI Architecture/Onboarding_Server` (CORS `*`, local OAuth tokens) | Not deployed. Archive or delete it. |
+| The legacy laptop onboarding server (CORS `*`, local OAuth tokens) | Archived 29 Oct to `_archive/Onboarding_Server`: not deployed, not run, not started by `start.bat`. |
 | Unused modules: writer agents (`jira_writer.py`, `confluence_writer.py`), `data_fetcher.py`, `demo_run.py`, `send_*_preview.py`, `value_report.py` | No code path in the job imports them. They can be removed. |
