@@ -1,6 +1,6 @@
 # Changelog: OPS Native AI
 
-## Unreleased (branch root-cause-actions): root causes and actions, work units (29 Oct 2026)
+## v2026-10-29-1: root causes and actions, work units (29 Oct 2026)
 
 - **Root causes and actions** (`agents/root_cause.py`, ADR-008; OSI-027/035/040, first part of OSI-047):
   every KPI past its level gets a rule-based driver tree against the previous full week, with no AI.
