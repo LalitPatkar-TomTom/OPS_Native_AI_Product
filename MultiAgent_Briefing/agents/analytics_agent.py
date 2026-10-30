@@ -723,6 +723,43 @@ GROUP BY LOWER(processType)
     return baselines
 
 
+# Per week and process type, the same rows as _METRICS_SQL: tasks and hours, for the weighted
+# efficiency vs baseline below.
+_EFF_PT_SQL = """
+SELECT
+    week_start,
+    LOWER(processType) AS pt,
+    COALESCE(SUM(Prod_Done_task_count), 0) AS tasks,
+    COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0) AS hrs
+FROM {table}
+WHERE week_start IN ({weeks})
+  AND (total_qc_count > 0 OR (COALESCE(Prod_Done_task_count, 0) = 0 AND qc_total_time > 0))
+  AND processType IS NOT NULL
+  {scope_filter}
+GROUP BY week_start, LOWER(processType)
+"""
+
+
+def weighted_eff_vs_bl(rows: list[dict], baselines: dict[str, float]) -> dict[str, float]:
+    """{week: efficiency vs baseline %} weighted by the work done: hours the tasks would take at their own
+    process type's baseline, divided by the hours booked, over the process types that have a baseline.
+
+    The old overall averaged the baselines of every process type in the profile equally, so one rarely used
+    type with a very different baseline could pull the overall far from every row below it (Dhammaratna,
+    30 Oct: 9.2% overall while each work unit was 142-250%; OSI-033). This one agrees with the rows."""
+    exp: dict[str, float] = {}
+    hrs: dict[str, float] = {}
+    for r in rows:
+        bl = baselines.get((r.get("pt") or "").lower())
+        h, n = float(r.get("hrs") or 0), float(r.get("tasks") or 0)
+        if not bl or bl <= 0 or h <= 0:
+            continue
+        wk = str(r.get("week_start"))[:10]
+        exp[wk] = exp.get(wk, 0.0) + n / bl
+        hrs[wk] = hrs.get(wk, 0.0) + h
+    return {wk: round(exp[wk] * 100 / hrs[wk], 1) for wk in exp if hrs[wk] > 0}
+
+
 def _eff_vs_bl_from_baselines(efficiency_raw: float, process_types: list[str], baselines: dict[str, float]) -> float | None:
     """
     Compute efficiency vs baseline % using per-process-type historical baselines.
@@ -1157,11 +1194,25 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
     actual_pts = process_types or [r["process_type"] for r in process_breakdown]
     eff_raw   = computed["efficiency_raw"] or 0
     eff_vs_bl = _eff_vs_bl_from_baselines(eff_raw, actual_pts, baselines)
-    eff_rag   = _eff_rag(eff_vs_bl) if eff_vs_bl is not None else "GREEN"
 
     # Fill metrics_4w eff_vs_bl using same actual process types
     for wk, raw_eff in zip(metrics_4w, _raw_eff_by_week):
         wk["efficiency_vs_bl"] = _eff_vs_bl_from_baselines(raw_eff, actual_pts, baselines)
+
+    # Weighted by the work done (30 Oct, OSI-033); the averaged-baseline value above stays only as fallback.
+    try:
+        weeks_sql = ", ".join(f"'{w['week'][:10]}'" for w in metrics_4w)
+        rows_pt = client.execute_sql(_EFF_PT_SQL.format(table=combined_table, weeks=weeks_sql,
+                                                         scope_filter=scope_filter), max_rows=2000).get("rows", [])
+        weighted = weighted_eff_vs_bl(rows_pt, baselines)
+        for wk in metrics_4w:
+            if wk["week"][:10] in weighted:
+                wk["efficiency_vs_bl"] = weighted[wk["week"][:10]]
+        if week_label[:10] in weighted:
+            eff_vs_bl = weighted[week_label[:10]]
+    except Exception as exc:
+        print(f"[analytics] Weighted efficiency failed, averaged baseline used: {exc}")
+    eff_rag   = _eff_rag(eff_vs_bl) if eff_vs_bl is not None else "GREEN"
 
     # 3rd-tier fallback: breakdown entries with efficiency>0 but still no eff_vs_bl
     # (specific baseline missing and baseline_avg col also absent) — use scope average

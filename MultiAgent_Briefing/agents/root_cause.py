@@ -33,6 +33,7 @@ SLOW_WP_PCT = 80.0        # a work package below 80% of its baseline is "slow"
 OVERSAMPLED_FTA = 97.0    # FTA at or above this ...
 OVERSAMPLED_RATE = 15.0   # ... while sampled at or above this % -> candidate for lower sampling
 CONCENTRATED_SHARE = 50.0  # low-FTA editors making at least half the rejections -> coaching
+MIX_RATIO = 3.0          # a CoQ factor moving more than 3x week on week = a different work mix
 SPREAD_EDITORS = 3        # a work package with low FTA across 3+ editors -> look at the package, not the people
 
 ERROR_TYPES_NOTE = ("Error types behind the rejections are not available yet: they need the QC feedback "
@@ -67,7 +68,8 @@ def _pct(a: float, b: float) -> float | None:
 def _wu(name: str) -> str:
     """Display name of a work unit (same names as the work-unit table)."""
     from analytics_agent import wu_name   # late import: analytics_agent imports this module
-    return wu_name(name)
+    # rows with no work unit in Databricks: say so, "Not assigned" read like a team (30 Oct)
+    return wu_name(name) if (name or "").strip() else "work unit not recorded"
 
 
 # ── FTA ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -245,7 +247,11 @@ def coq_drivers(cur: dict, prev: dict) -> dict | None:
     # drivers smaller than 5% of the move are noise and not listed
     pushing = sorted((k for k, v in terms.items() if abs(v) >= max(1e-9, 0.05 * abs(total)) and (v > 0) == (total > 0)),
                      key=lambda k: -abs(terms[k]))
-    return {"prev": a, "cur": b, "terms": terms, "shares": shares, "order": pushing,
+    # A factor that moved more than 3x means different work, not the same work done differently (Devika,
+    # 30 Oct: production 69 -> 8 min per task after small address-point tasks came in): the split would
+    # mislead, so the texts explain the level instead.
+    mix = any(not (1 / MIX_RATIO <= b[k] / a[k] <= MIX_RATIO) for k in ("samp", "qc_min", "prod_min"))
+    return {"prev": a, "cur": b, "terms": terms, "shares": shares, "order": pushing, "mix": mix,
             "main": pushing[0] if pushing else None, "rising": total > 0, "flat": abs(total) < 0.03,
             "fta_up_sampling_up": b["fta"] > a["fta"] + 0.2 and b["samp"] > a["samp"] * 1.03}
 
@@ -319,7 +325,14 @@ def coq_texts(d: dict | None, over: list[dict], low_qc_h: float, total_qc_h: flo
     sampling went up too, the over-sampled areas, and the QC time spent on low-FTA editors."""
     causes, more = [], []
     action = ""
-    if d and not d["flat"]:
+    if d and d.get("mix"):
+        p, c = d["prev"], d["cur"]
+        causes.append(f"Against the previous full week CoQ {'rose' if d['rising'] else 'fell'} from {p['coq']:.1f}% to "
+                      f"{c['coq']:.1f}%, but the work mix changed a lot (production {p['prod_min']:.1f} → "
+                      f"{c['prod_min']:.1f} min per task, QC {p['qc_min']:.1f} → {c['qc_min']:.1f} min, sampling "
+                      f"{p['samp']:.0f}% → {c['samp']:.0f}%), so a week-on-week split would mislead. What matters is "
+                      "the level below.")
+    elif d and not d["flat"]:
         p, c = d["prev"], d["cur"]
         word = "rose" if d["rising"] else "fell"
         causes.append(f"Against the previous full week CoQ {word} from {p['coq']:.1f}% to {c['coq']:.1f}%.")
@@ -369,7 +382,7 @@ def coq_texts(d: dict | None, over: list[dict], low_qc_h: float, total_qc_h: flo
     if low_qc_h > 0 and total_qc_h > 0:
         causes.append(f"{_b(f'{low_qc_h:,.0f} QC h')} ({low_qc_h * 100 / total_qc_h:.0f}% of QC time) went to "
                       f"editors below {level:g}% FTA; better first-time quality there also cuts QC and rework.")
-    if not action and causes:
+    if not action and causes and not (d and d.get("mix")):   # a mix change gets its action from the level
         action = "Find where QC and rework time goes: check for over-sampling or repeated rework"
     return action, causes, more
 
@@ -467,7 +480,10 @@ def analyse(editors: list[dict], wps: list[dict], metrics_4w: list[dict], baseli
     a, c, m = coq_texts(d, oversampled(wps), low_qc_h, total_qc_h, fta_level, edited)
     lv = coq_level(d["cur"] if d else None, coq_target)
     if lv:
-        c.insert(1 if d and not d["flat"] else 0, lv)
+        c.insert(1 if d and (d.get("mix") or not d["flat"]) else 0, lv)
+        if d and d.get("mix") and not a:
+            a = (f"Review the sampling: {d['cur']['samp']:.0f}% of tasks are QC'd; see below what would bring CoQ "
+                 f"to {coq_target:g}%")
     if a:
         out["coq"] = {"action": a, "causes": c, "more": m}
     slow, lost = slow_packages(wps, baselines)

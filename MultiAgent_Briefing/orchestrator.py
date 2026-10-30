@@ -167,7 +167,8 @@ def run_uc1(skill_file: Path | None = None) -> Path:
 
     # Step 5 — Deliver (email + Teams if configured)
     log.info("Step 5/5  Delivering briefing …")
-    rag   = overall_rag(jira_result, analytics_result)
+    rag   = overall_rag(jira_result, analytics_result,
+                        set(skill.get("primary_metrics") or ["fta", "efficiency", "coq"]))   # same as the body
     slas  = len(jira_result.get("sla_breaches", []))
     fta   = analytics_result.get("fta_current", 0)
     proj_label = skill.get("project_name") or skill.get("jira_project") or "Project"

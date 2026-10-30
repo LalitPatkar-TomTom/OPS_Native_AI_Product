@@ -1,5 +1,22 @@
 # Changelog: OPS Native AI
 
+## v2026-10-30-1: fixes from the 30 Oct 09:00 run check (30 Oct 2026)
+
+- **One overall status, with the reason:** UC1 (body and subject), UC3 and the Word report use the same rule:
+  SLA plus only the KPIs in the profile (a KPI with no alert level never turns an email red; Dhammaratna's
+  false RED). The headline names the reason, e.g. "3 Jira tickets past the SLA" or "CoQ 14.64% past your alert
+  level", instead of "quality metrics are below threshold" for every RED; no-scope profiles say so.
+- **Overall efficiency weighted by the work done** (OSI-033): hours at baseline / hours booked over the process
+  types, per week, so it agrees with the process-type and work-unit rows (was a plain average of baselines:
+  9.2% overall with every row at 142-250%). The old value stays as fallback.
+- **UC4 per metric:** Yield and Efficiency alerts show their own reference week, sorting (lowest yield first),
+  advice and a Yield column, no longer FTA's. The root-cause box follows the user's own alert level (Shital's FTA
+  alert at 96.3% vs her 98% had no box). Red CoQ is red, not amber.
+- **Work-mix guard:** a CoQ factor moving more than 3x week on week is reported as a change of work, with the
+  action taken from today's level (Devika: "production 69 -> 8 min per task" was read as faster production).
+- **No repeated actions:** the older "Recommended Actions & Conclusion" and UC4 "Suggested Action" leave out
+  KPIs the root-cause box explains; SLA follow-ups stay. Rows with no work unit read "work unit not recorded".
+
 ## v2026-10-29-2: no LLM leftovers (29 Oct 2026)
 
 - **No model setting on the job:** `DATABRICKS_LLM_MODEL` is no longer sent to the Azure job (`deploy_job.SKIP`).

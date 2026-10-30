@@ -278,10 +278,22 @@ def _rc(analytics: dict, metric: str, label: str, action: str, why: str) -> tupl
     return f"{label}: {rc['action']}", causes + nxt + (f'<div style="margin-top:3px">{note.strip()}</div>' if note else "")
 
 
-def action_items(jira: dict, analytics: dict, pm: set, only: str | None = None) -> list[tuple[str, str, str]]:
+def action_items(jira: dict, analytics: dict, pm: set, only: str | None = None,
+                 fired: bool = False) -> list[tuple[str, str, str]]:
     """[(rag, action, why)] for everything that needs someone to act; `only` limits it to one metric (UC4).
+    `fired`: the UC4 alert for `only` has fired against the user's own level, so its item is shown even when
+    the general RAG (fixed levels, e.g. FTA 95%) calls the value fine (Shital, FTA 96.3% vs her 98%, 30 Oct).
     Where the root-cause rows were read, each KPI item is its driver tree (root_cause.py); otherwise the
     short process-type cause."""
+    if only == "copq":
+        only = "coq"
+
+    def due(metric: str, rag) -> str | None:
+        """The item's RAG when it should be shown, else None."""
+        if fired and only == metric:
+            return rag if str(rag).startswith(("RED", "AMBER")) else "RED"
+        return rag if str(rag).startswith(("RED", "AMBER")) else None
+
     items = []
     jira = jira or {}
     br = jira.get("sla_breaches") or []
@@ -292,34 +304,42 @@ def action_items(jira: dict, analytics: dict, pm: set, only: str | None = None) 
                       f"No update for more than {esc:g} h. Oldest: <b>{_n(oldest.get('key'))}</b> "
                       f"({_n(oldest.get('assignee'))}, {float(oldest.get('hours_stale') or 0):,.0f} h without an update)."))
     want = (lambda m: m == only) if only else (lambda m: m in pm or not pm)
-    fr = analytics.get("fta_rag", "GREEN")
-    if want("fta") and fr in ("RED", "AMBER") and analytics.get("live", True):
+    fr = due("fta", analytics.get("fta_rag", "GREEN"))
+    if want("fta") and fr and analytics.get("live", True):
         fv = analytics.get("fta_current", 0)
         items.append((fr, *_rc(analytics, "fta", f"FTA {fv:.2f}%",
                                f"Review the rejected tasks behind FTA {fv:.2f}% with the QC lead "
                                "and brief the editors on the top error types", _cause_fta(analytics))))
-    er, ev = analytics.get("efficiency_rag", "GREEN"), analytics.get("efficiency_vs_bl")
-    if want("efficiency") and er in ("RED", "AMBER") and ev is not None:
+    er, ev = due("efficiency", analytics.get("efficiency_rag", "GREEN")), analytics.get("efficiency_vs_bl")
+    if want("efficiency") and er and ev is not None:
         items.append((er, *_rc(analytics, "efficiency", f"Efficiency {ev:.1f}% of baseline",
                                f"Check the slowest process types for blockers (tools, data, new editors) — "
                                f"efficiency is {ev:.1f}% of baseline", _cause_eff(analytics))))
-    cr = analytics.get("coq_rag", "GREEN")
-    if (want("coq") or (only is None and "copq" in pm)) and cr not in ("GREEN", None):
+    cr = due("coq", analytics.get("coq_rag", "GREEN"))
+    if (want("coq") or (only is None and "copq" in pm)) and cr:
         cv = analytics.get("coq_current", 0)
-        items.append(("RED" if cr == "RED" else "AMBER",
+        items.append(("RED" if str(cr).startswith("RED") else "AMBER",
                       *_rc(analytics, "coq", f"CoQ {cv:.2f}%",
                            f"Find where QC and rework time goes — CoQ is {cv:.2f}%; "
                            "check for over-sampling or repeated rework", _cause_coq(analytics))))
-    yr, yv = analytics.get("yield_rag", "GREEN"), analytics.get("yield_current")
-    if want("yield") and yr in ("RED", "AMBER") and yv is not None:
+    yr, yv = due("yield", analytics.get("yield_rag", "GREEN")), analytics.get("yield_current")
+    if want("yield") and yr and yv is not None:
         items.append((yr, *_rc(analytics, "yield", f"Yield {yv:.2f}%", f"Check first-pass completion — yield is {yv:.2f}%",
                                "Yield counts tasks finished without going back to production.")))
     return items
 
 
-def _build_action_box(jira: dict, analytics: dict, pm: set, only: str | None = None) -> str:
+def box_covered(analytics: dict, pm) -> set:
+    """The KPIs whose root cause and actions the Recommended actions box already shows; the older P0/P1/P2
+    "Recommended Actions & Conclusion" list leaves them out instead of repeating them in generic words."""
+    labels = {"fta": "FTA ", "efficiency": "Efficiency ", "coq": "CoQ ", "yield": "Yield "}
+    items = action_items({}, analytics or {}, set(pm or []))
+    return {m for m, lab in labels.items() if any(a.startswith(lab) and ":" in a for _, a, _ in items)}
+
+
+def _build_action_box(jira: dict, analytics: dict, pm: set, only: str | None = None, fired: bool = False) -> str:
     """The highlighted box; empty when nothing needs action."""
-    items = action_items(jira, analytics, pm, only)
+    items = action_items(jira, analytics, pm, only, fired)
     if not items:
         return ""
     worst = "RED" if any(r == "RED" for r, _, _ in items) else "AMBER"
@@ -1116,8 +1136,10 @@ def _build_tickets(jira):
 
 def _build_actions(jira, analytics, jira_project="", project_name="",
                    primary_metrics=None):
-    """P0 / P1 / P2 prioritised actions with numbered items and conclusion."""
+    """P0 / P1 / P2 prioritised actions with numbered items and conclusion. KPIs already explained in the
+    Recommended actions box (root causes) are not repeated here; SLA follow-ups stay."""
     pm  = set(primary_metrics or ["fta", "efficiency", "coq"])
+    pm -= box_covered(analytics, pm)
     br  = jira.get("sla_breaches", [])
     wa  = jira.get("sla_warnings", [])
     bd  = analytics.get("process_breakdown", [])
@@ -1321,18 +1343,9 @@ def _build_exec_summary(jira, analytics, pm, skill=None):
     bd  = analytics.get("process_breakdown", [])
     wk  = analytics.get("week_label",   "")
 
-    overall = "GREEN"
-    if br or frag == "RED" or erg == "RED":
-        overall = "RED"
-    elif wa or frag == "AMBER" or erg == "AMBER":
-        overall = "AMBER"
+    overall = overall_rag(jira, analytics, pm)
     oc, obg, obd = _rag(overall)
-
-    headline = {
-        "RED":   f"Immediate attention required — {project_name} quality metrics are below threshold.",
-        "AMBER": f"{project_name} is performing with caution — some metrics need monitoring this week.",
-        "GREEN": f"{project_name} is on track — all key metrics within healthy range.",
-    }[overall]
+    headline = headline_text(project_name, jira, analytics, pm)
 
     bullets = []
 
@@ -1471,13 +1484,57 @@ def project_name_of(skill: dict | None) -> str:
     return s.get("project_name") or s.get("jira_project") or "Project"
 
 
-def overall_rag(jira: dict, analytics: dict) -> str:
-    """The UC1 "Overall" status; the subject uses the same one, so the two never disagree."""
-    if jira.get("sla_breaches") or analytics.get("fta_rag") == "RED" or analytics.get("efficiency_rag") == "RED":
+def _kpi_status(analytics: dict, pm) -> list[tuple[str, str, str]]:
+    """[(level, name, value)] for the profile's own KPIs that are RED or AMBER (level "RED" / "AMBER").
+    Only KPIs in `pm` count: a KPI the user set no alert for never colours the email (OSI-008 rule;
+    Dhammaratna's false RED from efficiency, 30 Oct). CoQ P3 (5-7%) is "monitor", not amber."""
+    out = []
+    if not analytics or analytics.get("no_scope"):
+        return out
+    pm = set(pm or [])
+    fr, er, cr, yr = (analytics.get(k) for k in ("fta_rag", "efficiency_rag", "coq_rag", "yield_rag"))
+    ev, yv = analytics.get("efficiency_vs_bl"), analytics.get("yield_current")
+    checks = [("fta", fr, "FTA", f"{analytics.get('fta_current', 0):.2f}%"),
+              ("efficiency", er, "Efficiency", f"{ev:.1f}% of baseline" if ev is not None else ""),
+              ("coq", {"RED_P1": "RED", "AMBER_P2": "AMBER"}.get(cr, cr if cr in ("RED", "AMBER") else None),
+               "CoQ", f"{analytics.get('coq_current', 0):.2f}%"),
+              ("yield", yr if yv is not None else None, "Yield", f"{yv:.2f}%" if yv is not None else "")]
+    for key, lvl, name, val in checks:
+        if key in pm and lvl in ("RED", "AMBER"):
+            out.append((lvl, name, val))
+    return out
+
+
+def overall_rag(jira: dict, analytics: dict, pm=None) -> str:
+    """The one "Overall" status of UC1 (body and subject), UC3 and the Word report: SLA breaches/warnings
+    plus the profile's own KPIs (`pm`); without `pm`, the default FTA + efficiency + CoQ set."""
+    kpis = _kpi_status(analytics, pm if pm is not None else {"fta", "efficiency", "coq"})
+    if (jira or {}).get("sla_breaches") or any(l == "RED" for l, _, _ in kpis):
         return "RED"
-    if jira.get("sla_warnings") or analytics.get("fta_rag") == "AMBER" or analytics.get("efficiency_rag") == "AMBER":
+    if (jira or {}).get("sla_warnings") or kpis:
         return "AMBER"
     return "GREEN"
+
+
+def headline_text(project_name: str, jira: dict, analytics: dict, pm) -> str:
+    """The headline under the Overall status, naming why: SLA tickets and/or which KPI past which level.
+    Before 30 Oct every RED said "quality metrics are below threshold", also when only Jira was late or the
+    profile had no quality metrics at all."""
+    jira = jira or {}
+    overall = overall_rag(jira, analytics, pm)
+    br, wa = len(jira.get("sla_breaches") or []), len(jira.get("sla_warnings") or [])
+    kpis = _kpi_status(analytics, pm)
+    red = ([f"{br} Jira ticket{'s' if br != 1 else ''} past the SLA"] if br else []) + \
+          [f"{n} {v}".strip() + " past your alert level" for l, n, v in kpis if l == "RED"]
+    amber = ([f"{wa} Jira ticket{'s' if wa != 1 else ''} close to the SLA"] if wa else []) + \
+            [f"{n} {v}".strip() + " needs watching" for l, n, v in kpis if l == "AMBER"]
+    if overall == "RED":
+        return f"Action needed for {project_name}: " + "; ".join(red + amber) + "."
+    if overall == "AMBER":
+        return f"{project_name}: watch this week — " + "; ".join(amber) + "."
+    if (analytics or {}).get("no_scope"):
+        return f"{project_name}: no Jira SLA issues. Quality and efficiency are not shown (no scope in your profile)."
+    return f"{project_name} is on track — no SLA issues and your KPIs are within their alert levels."
 
 
 def build(jira: dict[str, Any], analytics: dict[str, Any],
@@ -1504,7 +1561,7 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
     time_str   = now.strftime("%H:%M UTC")
     data_label = analytics.get("data_label", "")
 
-    overall = overall_rag(jira, analytics)
+    overall = overall_rag(jira, analytics, pm)
     oc, obg, obd = _rag(overall)
     show_efficiency = bool(pm & {"efficiency", "coq", "copq", "yield"})
 
@@ -1629,6 +1686,7 @@ def build_alert(
     alert_on: str | None = None,   # "drop" | "rise" — override threshold wording
     operator_breakdown: list[dict] | None = None,   # set when the skill opts into operator level
     analytics: dict[str, Any] | None = None,        # full analytics result, for the work-unit split
+    metric_key: str | None = None,  # the profile metric that fired: fta | efficiency | coq | copq | yield
 ) -> str:
     """Compact HTML email for UC4 real-time quality alerts."""
     _s           = skill or {}
@@ -1642,6 +1700,9 @@ def build_alert(
 
     c, bg, bd = _rag(rag)
 
+    # `metric` picks the layout family (fta = "below" metrics, coq = "above"); `key` is the metric itself, so
+    # a Yield or Efficiency alert no longer shows FTA's reference row, sorting and advice (30 Oct).
+    key = metric_key or metric
     is_fta = metric == "fta"
     metric_label  = label or ("FTA — First Time Accuracy" if is_fta else "CoQ — Cost of Quality")
     value_str     = f"{current_value:.2f}%"
@@ -1653,7 +1714,16 @@ def build_alert(
         dir_note += " ⚠️"
 
     # Suggested action based on metric
-    if is_fta:
+    has_rc = bool(((analytics or {}).get("root_cause") or {}).get("coq" if key == "copq" else key))
+    if has_rc:
+        action = "The root causes and recommended actions are at the top of this email."
+    elif key == "yield":
+        action = ("Review the work units and process types with the lowest yield below: which tasks go back to "
+                  "production before completion, and why.")
+    elif key == "efficiency":
+        action = ("Review the process types furthest below their baseline below, for blockers (tools, data, "
+                  "complexity, new editors).")
+    elif is_fta:
         action = (
             f"Review process types with low FTA below. "
             f"Cross-reference {jira_project} Jira for quality-labelled tickets and rework spikes."
@@ -1667,7 +1737,13 @@ def build_alert(
         )
 
     # Flagged process types for this alert
-    if is_fta:
+    if key == "yield":
+        flagged = sorted((p for p in process_breakdown if p.get("yield_pct") is not None),
+                         key=lambda p: p["yield_pct"])[:5]
+    elif key == "efficiency":
+        flagged = sorted((p for p in process_breakdown if p.get("eff_vs_bl") is not None),
+                         key=lambda p: p["eff_vs_bl"])[:5]
+    elif is_fta:
         flagged = [p for p in process_breakdown if p.get("fta_rag") in ("AMBER", "RED")][:5]
         if not flagged and process_breakdown:
             # No AMBER/RED rows (e.g. force mode) — show worst 5 by lowest FTA
@@ -1707,9 +1783,12 @@ def build_alert(
                  f'<span style="{_F};font-size:12px;color:{_rag(p["fta_rag"])[0]};font-weight:bold">{p["fta_pct"]:.2f}%</span>',
                  f'<span style="{_F};font-size:12px{coq_style}">{p["coq_pct"]:.1f}%</span>',
                  f'<span style="{_F};font-size:12px;color:{_MUTED}">{_sp(p)}</span>',
-                 f'<span style="{_F};font-size:12px">{p["total_hrs"]:.0f}h</span>'])
-            proc_rows += _wu_rows(p)
-        proc_table = _data_table(["Process Type / Work Unit", "FTA", "CoQ", "Sampling", "Hrs"], proc_rows)
+                 f'<span style="{_F};font-size:12px">{p["total_hrs"]:.0f}h</span>']
+                + ([f'<span style="{_F};font-size:12px;font-weight:bold;color:#922B21">'
+                    f'{_pct_or_dash(p.get("yield_pct"))}</span>'] if key == "yield" else []))
+            proc_rows += [r + ([""] if key == "yield" else []) for r in _wu_rows(p)]
+        proc_table = _data_table(["Process Type / Work Unit", "FTA", "CoQ", "Sampling", "Hrs"]
+                                 + (["Yield"] if key == "yield" else []), proc_rows)
     else:
         proc_table = f'<p style="{_F};font-size:12px;color:{_MUTED}">No process-type breakdown available.</p>'
 
@@ -1721,7 +1800,10 @@ def build_alert(
         # QC-only rows (0 tasks) show 100% CoQ / 0% FTA, and 1-2 task operators
         # swing to extremes on a single rejection — rank only real contributors.
         producing = [o for o in operator_breakdown if (o.get("prod_tasks") or 0) >= _OP_MIN_TASKS]
-        if "efficien" in metric_label.lower():
+        if key == "yield":
+            worst = sorted((o for o in producing if o.get("yield_pct") is not None), key=lambda o: o["yield_pct"])
+            sort_note = "lowest yield first"
+        elif "efficien" in metric_label.lower():
             worst = sorted((o for o in producing if o.get("eff_vs_bl") is not None),
                            key=lambda o: o["eff_vs_bl"])
             sort_note = "lowest efficiency vs baseline first"
@@ -1791,7 +1873,7 @@ def build_alert(
 
     {preview_html}
 
-    {_build_action_box({}, analytics, set(), only=metric) if analytics else ""}
+    {_build_action_box({}, analytics, set(), only=key, fired=True) if analytics else ""}
 
     <!-- Key facts -->
     {_section("Alert Details", _kv_table([
@@ -1800,8 +1882,8 @@ def build_alert(
         ("Threshold",   thr_label,                                    _MUTED),
         ("Trend",       dir_note,                                     c if direction_bad else _GREEN),
         ("Data period", period_label(week_label, fallback_note=alert_week_note(analytics)), _MUTED),
-        *([_reference_row(analytics, [metric])] if analytics and metric in _REF_FIELDS
-          and _reference_row(analytics, [metric]) else []),
+        *([_reference_row(analytics, [key])] if analytics and key in _REF_FIELDS
+          and _reference_row(analytics, [key]) else []),
     ]), 1)}
 
     <!-- Flagged process types -->

@@ -328,7 +328,7 @@ def _run_uc4(skill: dict, user: str):
                     direction="declining" if rise else "stable", week_label=week, process_breakdown=rows,
                     skill=skill, label=f"{label} — {len(hits)} {what}{'s' if len(hits) > 1 else ''} past "
                                        f"the level set for {'them' if len(hits) > 1 else 'it'}",
-                    alert_on=worst[0]["direction"], analytics=analytics,
+                    alert_on=worst[0]["direction"], analytics=analytics, metric_key=metric_key,
                 )
                 subj = (f"UC4 Alert RED — {metric_key.upper()} {worst[2]:.2f}% vs threshold {worst[0]['alert']}% — "
                         f"{', '.join(names[:2])}{' …' if len(names) > 2 else ''} — {proj_name}"
@@ -397,7 +397,7 @@ def _run_uc4(skill: dict, user: str):
                                          if metric_key in o.get("breaches", [])
                                          or (metric_key == "copq" and "coq" in o.get("breaches", []))]
                                         if skill.get("operator_view") else None),
-                    analytics=analytics,
+                    analytics=analytics, metric_key=metric_key,
                 )
                 subj    = (f"UC4 Alert {rag} — {metric_key.upper()} {current:.2f}% vs threshold {alert_val}% — {proj_name}"
                            + (f" — {period_label(week, fallback_note=wk_note)}" if week else ""))

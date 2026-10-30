@@ -10,7 +10,7 @@ from email_html import (
     _rag, _badge, _dot, _arrow, _kv_table, _data_table, _section,
     _alert_row, _build_sprint, _build_confluence, _preview_banner,
     _build_exec_summary, _build_breakdown, _build_actions, _build_operator_breakdown, no_scope_notice,
-    _build_action_box, action_items,
+    _build_action_box, action_items, overall_rag, headline_text,
     period_label, project_name_of,
     _eff_str, _escape_jira, _escape_confluence, _GREEN, _GREEN_BG, _GREEN_BD,
     _AMBER, _AMBER_BG, _AMBER_BD,
@@ -269,11 +269,7 @@ def build(
     week       = analytics.get("week_label", "")
     data_label = period_label(week) if week else "no scope in your profile"
 
-    overall = "GREEN"
-    if jira.get("sla_breaches") or analytics.get("fta_rag") == "RED":
-        overall = "RED"
-    elif jira.get("sla_warnings") or analytics.get("fta_rag") == "AMBER" or analytics.get("coq_rag") in ("AMBER_P2", "RED_P1"):
-        overall = "AMBER"
+    overall = overall_rag(jira, analytics, pm)   # one rule for UC1, UC3 and Word (30 Oct)
     oc, _, _ = _rag(overall)
 
     # scope_mode: "defined" when the skill has explicit process types, else "all"

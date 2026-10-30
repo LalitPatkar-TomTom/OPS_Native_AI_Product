@@ -104,13 +104,10 @@ def build(
         "RED":   "FDE8E8",
     }
 
-    overall = "GREEN"
+    from email_html import overall_rag, headline_text
     breaches = jira.get("sla_breaches", []) or []
     warnings = jira.get("sla_warnings", []) or []
-    if breaches or fta_rag == "RED":
-        overall = "RED"
-    elif warnings or fta_rag == "AMBER" or coq_rag in ("AMBER", "RED"):
-        overall = "AMBER"
+    overall = overall_rag(jira, analytics, pm)   # one rule for UC1, UC3 and Word (30 Oct)
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -217,11 +214,7 @@ def build(
 
     section("Executive Summary")
 
-    headline = {
-        "RED":   f"Immediate attention required — {project_name} quality metrics are below threshold.",
-        "AMBER": f"{project_name} performing with caution — some metrics need monitoring this week.",
-        "GREEN": f"{project_name} is on track — all key metrics within healthy range.",
-    }[overall]
+    headline = headline_text(project_name, jira, analytics, pm)
     hl_p = doc.add_paragraph()
     hl_r = hl_p.add_run(headline)
     hl_r.font.bold      = True
@@ -548,6 +541,8 @@ def build(
 
     section("Recommended Actions & Conclusion")
 
+    from email_html import box_covered
+    pm = set(pm) - box_covered(analytics, pm)   # those KPIs are in "Root Causes & Actions" above (30 Oct)
     p0, p1, p2 = [], [], []
 
     for t in breaches:
