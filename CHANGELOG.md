@@ -1,6 +1,6 @@
 # Changelog: OPS Native AI
 
-## Unreleased (branch comms-whats-new): weekly "What's new" email, automatic every Friday (30 Oct 2026)
+## v2026-10-30-2: weekly "What's new" email, automatic every Friday (30 Oct 2026)
 
 - **Every Friday after the 17:00 IST run** the job sends "What's new in OPS Native AI & OPS Hub" from
   opsai@ to all beta users (every profile owner on the skills share) plus the stakeholders, like the Monday
