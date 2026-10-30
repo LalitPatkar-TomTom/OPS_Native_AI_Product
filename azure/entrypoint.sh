@@ -66,5 +66,10 @@ python /app/azure/run_report.py "$WORK/fire_all_now.log" "$rc" "$db_saved"
 if { [ "$START_DOW" = 1 ] && [ "$START_HOUR" = 09 ]; } && [ "$db_saved" = 1 ]; then
     python /app/azure/weekly_analytics.py
 fi
+# weekly "What's new" for all beta users + stakeholders: Fridays, after the 17:00 run (like the Monday
+# report above); the marker on the share stops a second send, and a week without notes sends nothing
+if [ "$START_DOW" = 5 ] && [ "$START_HOUR" = 17 ]; then
+    python /app/comms/whats_new/send_weekly.py || echo "What's new send failed"
+fi
 echo "run finished with exit code $rc"
 exit $rc

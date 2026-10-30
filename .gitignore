@@ -23,3 +23,10 @@ MultiAgent_Briefing/*.v1_backup_*.py
 
 # Business analytics data snapshots (per-user metrics)
 business_analytics/*.json
+
+# Weekly what's new: local previews
+comms/whats_new/out/
+# Prototype lead mail: real data and built output, never committed
+prototypes/lead_mail/*.json
+prototypes/lead_mail/*.html
+prototypes/lead_mail/*.png

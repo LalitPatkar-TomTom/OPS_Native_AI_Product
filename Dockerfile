@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements-azure.txt
 COPY MultiAgent_Briefing /app/MultiAgent_Briefing
 COPY ["AI Architecture/skills/Personal Skills", "/app/AI Architecture/skills/Personal Skills"]
 COPY azure /app/azure
+COPY comms /app/comms
 RUN sed -i 's/\r$//' /app/azure/entrypoint.sh && chmod +x /app/azure/entrypoint.sh
 
 # Default: a scheduled run. Manual runs pass other fire_all_now.py arguments, e.g. --uc UC1

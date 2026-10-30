@@ -1,0 +1,132 @@
+{
+ "_how": "One note per user-visible change, written at release time in plain words (what users now see or can do). Every Friday 17:00 IST the job sends the notes dated after the last Friday's email (comms/whats_new/send_weekly.py). 'highlight': true = the box at the top.",
+ "coming_next": [
+  "Numbers that match Power BI, checked every run (OSI-045, our top priority).",
+  "Track what happens after an alert: owner, status and follow-up (OSI-007, 046).",
+  "Shorter emails you can configure per project (OSI-043, 044).",
+  "Trend charts for the last weeks (OSI-010, 038).",
+  "Error types behind rejections, once the ORBIT QC feedback categories are available (OSI-027)."
+ ],
+ "notes": [
+  {
+   "date": "2026-10-30",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Root causes and actions in every email",
+   "text": "When one of your KPIs misses your alert level, the email now explains why and what to do: for FTA, whether a few editors or one work package cause the rejections; for CoQ, whether it comes from more rejections, more sampling, slower QC or a change in the work; for efficiency, the work packages losing the most hours; for yield, the work unit behind it. Every number comes from the data, so it can be checked.",
+   "osi": "OSI-027, 035, 040",
+   "highlight": true
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Exact dates everywhere",
+   "text": "every email and subject shows the Mon–Sun dates it covers: \"this week so far\", or \"last week\" on Mondays, with the previous full week as reference and a note when the sample is still small.",
+   "osi": "OSI-031"
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Alerts wait for enough data",
+   "text": "early in the week alerts use last week until this week has enough QC'd tasks and hours, so a Monday morning no longer shows extreme values.",
+   "osi": ""
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Six headline KPIs, your alert levels",
+   "text": "FTA, efficiency vs baseline, CoQ, yield, hours and sampling are always shown; only the KPIs you set an alert level for are coloured and alerted.",
+   "osi": "OSI-008"
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Alerts for the process types and planning IDs you chose",
+   "text": "alert levels set for part of your scope are checked on that part only.",
+   "osi": "OSI-030"
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Work units",
+   "text": "every email splits the figures by work unit, and the operator list for leads is grouped by work unit with how many operators are past a level in each.",
+   "osi": "OSI-004, 009"
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Operators past your alert levels (leads)",
+   "text": "only the operators past one of your own levels, with all six KPIs, those with the most hours first.",
+   "osi": "OSI-009"
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Yield for every profile",
+   "text": "shown for all Orbit SD scopes, also per planning ID, with alerts; a note explains when your work has no yield data yet.",
+   "osi": "OSI-004, 041"
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Efficiency explained",
+   "text": "actual vs baseline tasks per hour next to the percentage.",
+   "osi": "OSI-033"
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Clear status line",
+   "text": "the top of the email now names the reason (for example \"3 Jira tickets past the SLA\" or \"CoQ 14.6% past your alert level\"), and a KPI without an alert level never turns the email red.",
+   "osi": ""
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Jira follow-ups",
+   "title": "Only recent tickets",
+   "text": "by default tickets created in the last 12 months; your profile can set its own window.",
+   "osi": "OSI-003, 025, 037"
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Jira follow-ups",
+   "title": "Your own SLA levels",
+   "text": "in hours or days, as set in your profile; the email explains the rule.",
+   "osi": "OSI-006, 034"
+  },
+  {
+   "date": "2026-10-30",
+   "area": "Jira follow-ups",
+   "title": "All open tickets counted",
+   "text": "up to 1,000 per profile; the email lists the oldest 100.",
+   "osi": ""
+  },
+  {
+   "date": "2026-10-30",
+   "area": "OPS Hub",
+   "title": "Status Report: paste a list",
+   "text": "paste process types or planning IDs to set the scope in one step.",
+   "osi": ""
+  },
+  {
+   "date": "2026-10-30",
+   "area": "OPS Hub",
+   "title": "Status Report keeps working when the AI model is busy",
+   "text": "it switches to the backup model automatically.",
+   "osi": "OSI-022"
+  },
+  {
+   "date": "2026-10-30",
+   "area": "OPS Hub",
+   "title": "Chat answers with the right history",
+   "text": "the chat now knows its data covers about the last 90 days.",
+   "osi": "OSI-029"
+  },
+  {
+   "date": "2026-10-31",
+   "area": "OPS Hub",
+   "title": "Self Service: QC Promotion (under development, admins)",
+   "text": "a new card to promote tasks to QC from a CSV or Excel file of task IDs; the file is checked as soon as it is chosen. Staging only while it is tested; the connection to ORBIT follows.",
+   "osi": ""
+  }
+ ]
+}

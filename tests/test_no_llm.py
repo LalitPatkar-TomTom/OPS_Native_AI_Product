@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SHIPPED = [ROOT / "MultiAgent_Briefing", ROOT / "azure"]
+SHIPPED = [ROOT / "MultiAgent_Briefing", ROOT / "azure", ROOT / "comms"]
 AI_IMPORT = re.compile(r"^\s*(import|from)\s+(openai|anthropic|langchain\w*|transformers|litellm|google\.generativeai|"
                        r"mlflow\.deployments|databricks_genai)\b", re.M)
 MODEL_CALL = re.compile(r"serving-endpoints|/invocations\b|chat\.completions|messages\.create\(")

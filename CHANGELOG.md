@@ -1,5 +1,16 @@
 # Changelog: OPS Native AI
 
+## Unreleased (branch comms-whats-new): weekly "What's new" email, automatic every Friday (30 Oct 2026)
+
+- **Every Friday after the 17:00 IST run** the job sends "What's new in OPS Native AI & OPS Hub" from
+  opsai@ to all beta users (every profile owner on the skills share) plus the stakeholders, like the Monday
+  weekly analytics email (`comms/whats_new/send_weekly.py`, called from `azure/entrypoint.sh`). No review step.
+- **Content:** `comms/whats_new/notes.json`, one functional note per user-visible change, written at release
+  time; only notes dated after the last email are sent; a marker on the share prevents a second send, and a
+  week without notes sends nothing. No AI model is involved.
+- The 28 Oct prototype lead-mail scripts are kept in `prototypes/lead_mail/` (data and output git-ignored).
+- Tests: `tests/test_whats_new.py`.
+
 ## v2026-10-30-1: fixes from the 30 Oct 09:00 run check (30 Oct 2026, released 11:33 IST)
 
 - **One overall status, with the reason:** UC1 (body and subject), UC3 and the Word report use the same rule:
