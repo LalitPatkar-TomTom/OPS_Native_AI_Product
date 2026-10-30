@@ -1,6 +1,6 @@
 # Changelog: OPS Native AI
 
-## v2026-10-30-1: fixes from the 30 Oct 09:00 run check (30 Oct 2026)
+## v2026-10-30-1: fixes from the 30 Oct 09:00 run check (30 Oct 2026, released 11:33 IST)
 
 - **One overall status, with the reason:** UC1 (body and subject), UC3 and the Word report use the same rule:
   SLA plus only the KPIs in the profile (a KPI with no alert level never turns an email red; Dhammaratna's
