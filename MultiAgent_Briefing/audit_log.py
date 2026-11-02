@@ -109,7 +109,7 @@ _MIGRATIONS = {
 
 # Backups of the audit DB (consistent snapshots) — inside OneDrive, outside output/
 BACKUP_DIR = Path(os.getenv("OPS_BACKUP_DIR") or Path(__file__).resolve().parent.parent / "analytics_backups")
-_BACKUP_KEEP = 30
+_BACKUP_KEEP = 30               # newest daily snapshots kept in BACKUP_DIR; older ones move to BACKUP_DIR/archive
 
 # Current run / use case, set by fire_all_now and trigger_engine so that
 # deliver() and the log_* helpers can tag rows without extra parameters
@@ -232,7 +232,7 @@ def log_delivery(*, profile_owner: str, to_email: str, cc_emails: list[str] | No
 
 
 def backup_daily() -> Path | None:
-    """Keep one consistent snapshot per day in BACKUP_DIR (last 30 kept)."""
+    """Keep one consistent snapshot per day in BACKUP_DIR: the newest 30 there, older ones in BACKUP_DIR/archive."""
     target = BACKUP_DIR / f"trigger_audit_{datetime.now():%Y-%m-%d}.db"
     if target.exists():
         return None
@@ -245,8 +245,13 @@ def backup_daily() -> Path | None:
             src.backup(dst)          # safe while WAL writers are active
         dst.close(); src.close()
         os.replace(tmp, target)
+        # Rule book section 1 (2 Nov 2026): backups are never deleted. Older snapshots move to archive/ on the
+        # same share (a rename, so no copy and no extra time); a name already there is kept, never overwritten.
+        archive = BACKUP_DIR / "archive"
         for old in sorted(BACKUP_DIR.glob("trigger_audit_*.db"))[:-_BACKUP_KEEP]:
-            old.unlink(missing_ok=True)
+            archive.mkdir(exist_ok=True)
+            if not (archive / old.name).exists():
+                old.rename(archive / old.name)
         log.info(f"[audit_log] daily backup -> {target}")
         return target
     except Exception as exc:

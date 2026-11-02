@@ -257,6 +257,8 @@ def build(
         _bullet(f"{len(breaches)} breach(es) requiring immediate follow-up{extra}", "RED", "Jira SLA")
     elif warnings:
         _bullet(f"{len(warnings)} warning(s) approaching breach threshold", "AMBER", "Jira SLA")
+    elif (jira or {}).get("error"):        # not checked is not "all clear" (2 Nov 2026)
+        _bullet(f"Not checked — {jira['error']}", "AMBER", "Jira SLA")
     else:
         _bullet("All clear — no breaches or warnings", "GREEN", "Jira SLA")
 

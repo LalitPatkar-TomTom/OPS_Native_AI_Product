@@ -127,6 +127,13 @@
    "title": "Self Service: QC Promotion (under development, admins)",
    "text": "a new card to promote tasks to QC from a CSV or Excel file of task IDs; the file is checked as soon as it is chosen. Staging only while it is tested; the connection to ORBIT follows.",
    "osi": ""
+  },
+  {
+   "date": "2026-11-02",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "Jira SLA is never shown as \"All clear\" when it could not be checked",
+   "text": "if the Jira project in your profile cannot be found, your briefing and weekly report now say \"Jira SLA: Not checked\" with the reason, and the overall status is no longer green. Check the Jira project key in your profile in OPS Hub.",
+   "osi": ""
   }
  ]
 }

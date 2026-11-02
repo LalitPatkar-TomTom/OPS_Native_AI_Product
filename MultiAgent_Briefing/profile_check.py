@@ -4,6 +4,12 @@ Run by the Azure job after fire_all_now, before the analytics DB is saved:
     python profile_check.py                 # check new/changed profiles, email their owners (09, 13, 17 IST runs)
     python profile_check.py --to ADDRESS    # test: email every result to ADDRESS only, no CC, nothing recorded
     python profile_check.py --seed          # record all current profiles as checked, send nothing
+    python profile_check.py --reminders --to ADDRESS   # test: the daily Jira-key reminders, to ADDRESS only
+
+Daily reminder (2 Nov 2026): at the 09:00 run, every profile whose Jira project key Jira cannot find gets one
+reminder a day until it is fixed (same CC). Why: the check above only emails new or changed profiles, and the
+profiles seeded on 21 Oct were never checked, so wrong keys (Geocoding, GDN, QA, LMDF) went unnoticed while the
+briefings said "Jira SLA: All clear".
 
 A profile is new or changed when its sha256 differs from table profile_checks in trigger_audit.db.
 Each profile version gets one email: a thank-you, what works, suggested updates and what the owner
@@ -28,6 +34,8 @@ log = logging.getLogger("profile_check")
 CC = ["Ketki.Avachat@tomtom.com", "Vrushali.Kashikar@tomtom.com",
       "pratish.deshpande@tomtom.com", "lalit.patkar@tomtom.com"]
 SEND_HOURS = {9, 13, 17}                 # not the 21:00 run — outside working hours
+REMINDER_HOUR = 9                        # Jira-key reminders: once a day, at the first run (user, 2 Nov 2026)
+JIRA_UCS = {"UC1", "UC2", "UC3"}         # use cases that read Jira (briefing, SLA follow-up, weekly report)
 ONBOARDING_URL = "https://tomtom-ops-hub.bravewave-803863cf.westeurope.azurecontainerapps.io/onboarding"
 METRIC_NAME = {"fta": "FTA", "efficiency": "Efficiency", "coq": "CoQ", "copq": "CoPQ", "yield": "Yield"}
 UC_NAME = {"UC1": "Daily Briefing", "UC2": "Jira SLA follow-up", "UC3": "Weekly Report",
@@ -210,8 +218,95 @@ def compose(skill: dict, res: dict, updated: bool) -> tuple[str, str]:
                      "line-height:1.5'>" + "".join(body) + "</div>")
 
 
+# ── Daily Jira-key reminder ──────────────────────────────────────────────────
+
+REMINDER_TABLE = """CREATE TABLE IF NOT EXISTS profile_reminders (
+    email    TEXT NOT NULL,
+    sent_on  TEXT NOT NULL,             -- IST date; one reminder per profile per day
+    keys     TEXT NOT NULL,             -- the Jira keys that were not found
+    emailed  INTEGER NOT NULL,
+    PRIMARY KEY (email, sent_on)
+)"""
+
+
+def _project_status(key: str) -> str:
+    """"ok" / "missing" / "unknown" by the run's own route (MCP first, then REST): jira_agent.project_status."""
+    from agents import jira_agent
+    return jira_agent.project_status(key)
+
+
+def jira_key_problems(skill: dict) -> list[tuple[str, str]]:
+    """(key, note) for every Jira project key in the profile that the run cannot read, when a use case that reads
+    Jira is active. A key that could not be checked (Jira down) is not a problem: no reminder on an outage."""
+    active = {u["uc_id"] for u in skill.get("use_cases", []) if u.get("active")}
+    if not active & JIRA_UCS:
+        return []
+    keys = [k.strip() for k in re.split(r"[,;/]", skill.get("jira_project") or "") if k.strip()]
+    out = []
+    for k in keys:
+        if _project_status(k) == "missing":
+            good, note = jira_project_ok(k)          # for the note, e.g. "is a project name; its key is X"
+            out.append((k, note if not good and note else "was not found in Jira (or is not visible to OPS Native AI)"))
+    return out
+
+
+def compose_reminder(skill: dict, problems: list[tuple[str, str]]) -> tuple[str, str]:
+    """(subject, HTML body) of the daily reminder: which key, what it stops, how to fix it."""
+    first = html.escape(skill.get("user_first_name") or "there")
+    keys = ", ".join(html.escape(k) for k, _ in problems)
+    items = "".join(f"<li><b>{html.escape(k)}</b> {note}.</li>" for k, note in problems)
+    body = (f"<p>Hi {first},</p>"
+            "<p>The Jira project key in your OPS Native AI profile could not be found in Jira, so your "
+            "<b>Jira SLA is not being checked</b>: your briefing and weekly report show "
+            "<i>Jira SLA: Not checked</i> and no Jira SLA follow-up is sent.</p>"
+            f"<ul>{items}</ul>"
+            "<p><b>How to fix:</b> use the project key, the letters before the number in a ticket ID (e.g. "
+            "<i>OM</i> in OM-123456). Open the onboarding page on OPS Hub, correct the Jira project key and press "
+            "<i>Finish &amp; Submit</i>; it is used from the next run:<br>"
+            f"<a href='{ONBOARDING_URL}'>{ONBOARDING_URL}</a></p>"
+            "<p>If the key is right, the OPS Native AI Jira account may not have access to that project: please "
+            "reply so we can request it.</p>"
+            "<p><i>This is an automated reminder, sent once a day until the key is found in Jira.</i></p>"
+            "<p>Thanks,<br>OPS Native AI team</p>")
+    return (f"Action needed: Jira project key {keys} not found – your Jira SLA is not checked",
+            "<div style='font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5'>"
+            + body + "</div>")
+
+
+def send_reminders(con, files: list, skip: set, today: str, to: str = "") -> int:
+    """Send today's Jira-key reminders (CC: CC) to profiles with a key Jira cannot find; returns the number sent.
+    skip: profiles that already got the full check email this run. to: test address (nothing recorded)."""
+    import delivery
+    con.execute(REMINDER_TABLE)
+    done = {e for (e,) in con.execute("SELECT email FROM profile_reminders WHERE sent_on = ?", (today,))}
+    sent = 0
+    for p in files:
+        email = p.name[: -len("_skill.md")].lower()
+        if email in skip or (not to and email in done):
+            continue
+        try:
+            skill = skill_registry.load_skill(p)
+            problems = jira_key_problems(skill)
+        except Exception as exc:
+            log.warning(f"reminder check failed for {email}: {exc}")
+            continue
+        if not problems:
+            continue
+        subject, body = compose_reminder(skill, problems)
+        if to:
+            ok = delivery._send_graph(to, "[TEST → " + email + "] " + subject, body)
+        else:
+            ok = delivery._send_graph(email, subject, body, cc_emails=CC)
+            con.execute("INSERT OR REPLACE INTO profile_reminders VALUES (?,?,?,?)",
+                        (email, today, ",".join(k for k, _ in problems), int(ok)))
+        sent += ok
+        print(f"jira key reminder: {email} — {', '.join(k for k, _ in problems)} not found — "
+              f"email {'sent' if ok else 'NOT sent'}")
+    return sent
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Email owners of new or changed profiles (CC: CC) their check results; record sha256 in profile_checks.
 
     Runs only in SEND_HOURS unless --to/--seed; the first run or --seed records without emailing.
@@ -221,7 +316,8 @@ def main() -> int:
     ap.add_argument("--to", help="test: send every result to this address only, no CC, record nothing")
     ap.add_argument("--seed", action="store_true", help="record current profiles as checked, send nothing")
     ap.add_argument("--only", help="check only this profile email (with --to)")
-    a = ap.parse_args()
+    ap.add_argument("--reminders", action="store_true", help="with --to: send the daily Jira-key reminders now")
+    a = ap.parse_args(argv)
 
     if not a.to and not a.seed and datetime.now().hour not in SEND_HOURS:
         print("profile check: not a sending slot (09, 13, 17 IST) — skipped")
@@ -233,7 +329,17 @@ def main() -> int:
     seed = a.seed or (first_run and not a.to)
 
     files = sorted(p for p in Path(SKILLS_DIR).glob("*_skill.md") if "@" in p.name)
+    if a.reminders:
+        if not a.to:
+            print("profile check: --reminders needs --to (a test address)")
+            con.close()
+            return 0
+        only = [p for p in files if not a.only or p.name[: -len("_skill.md")].lower() == a.only.lower()]
+        print(f"profile check: {send_reminders(con, only, set(), '', to=a.to)} test reminder(s) sent to {a.to}")
+        con.close()
+        return 0
     sent = checked = 0
+    emailed_now: set[str] = set()
     for p in files:
         email = p.name[: -len("_skill.md")].lower()
         if a.only and email != a.only.lower():
@@ -262,8 +368,13 @@ def main() -> int:
             con.execute("INSERT OR REPLACE INTO profile_checks VALUES (?,?,?,?,?)",
                         (email, sha, now, len(res["fix"]), int(ok)))
         sent += ok
+        emailed_now.add(email)
         print(f"profile check: {email} — {len(res['fix'])} to update, {len(res['manual'])} to check — "
               f"email {'sent' if ok else 'NOT sent'}")
+    # daily Jira-key reminder: first run of the day, live only (not when seeding, not a test send)
+    if not seed and not a.to and datetime.now().hour == REMINDER_HOUR:
+        today = datetime.now().date().isoformat()
+        print(f"profile check: {send_reminders(con, files, emailed_now, today)} Jira key reminder(s) sent")
     con.commit()
     con.close()
     if seed:

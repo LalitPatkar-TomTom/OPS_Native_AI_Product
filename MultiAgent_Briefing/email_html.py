@@ -633,6 +633,9 @@ def _build_priority(jira, analytics, jira_project="", project_name="",
         items.append(_alert_row(fr, "FTA ALERT",
             f'Overall FTA <b>{fv:.2f}%</b> (prev week {fp:.2f}%){b}', ""))
 
+    if (jira or {}).get("error"):          # a missing check is an item to act on, never "all clear"
+        items.append(_alert_row("WARNING_48H", "JIRA NOT CHECKED", _html.escape(str(jira["error"])), ""))
+
     if not items:
         return _alert_row("GREEN", "ALL CLEAR", "No critical items — metrics are on track.", "")
 
@@ -1269,6 +1272,9 @@ def _build_actions(jira, analytics, jira_project="", project_name="",
             f' — {t["hours_stale"]}h without update, approaching SLA.{b}'
         )
 
+    if (jira or {}).get("error"):          # never "no actions" when Jira was not checked (2 Nov 2026)
+        p1.append(f'Jira SLA was not checked: {_html.escape(str(jira["error"]))}')
+
     if not p0 and not p1 and not p2:
         return (
             _alert_row("GREEN", "ALL CLEAR",
@@ -1405,6 +1411,12 @@ def _build_exec_summary(jira, analytics, pm, skill=None):
             f'<b>Jira SLA:</b> <span style="color:{_AMBER};font-weight:bold">'
             f'{len(wa)} warning{"s" if len(wa)>1 else ""}</span> approaching breach threshold'
         )
+    elif jira.get("error"):
+        # never "All clear" when Jira was not checked: a wrong project key looked like 0 tickets (2 Nov 2026)
+        bullets.append(
+            f'<b>Jira SLA:</b> <span style="color:{_AMBER};font-weight:bold">Not checked</span>'
+            f' — {_html.escape(str(jira["error"]))}'
+        )
     else:
         bullets.append(
             f'<b>Jira SLA:</b> <span style="color:{_GREEN};font-weight:bold">All clear</span>'
@@ -1511,9 +1523,17 @@ def overall_rag(jira: dict, analytics: dict, pm=None) -> str:
     kpis = _kpi_status(analytics, pm if pm is not None else {"fta", "efficiency", "coq"})
     if (jira or {}).get("sla_breaches") or any(l == "RED" for l, _, _ in kpis):
         return "RED"
-    if (jira or {}).get("sla_warnings") or kpis:
+    # Jira not checked (wrong project key, Jira down): never GREEN on data we did not see (2 Nov 2026)
+    if (jira or {}).get("sla_warnings") or (jira or {}).get("error") or kpis:
         return "AMBER"
     return "GREEN"
+
+
+def jira_reason(jira: dict) -> str:
+    """Short reason why Jira was not checked, for the headline."""
+    if (jira or {}).get("project_not_found"):
+        return "project key not found in Jira or not visible"
+    return "Jira not reachable"
 
 
 def headline_text(project_name: str, jira: dict, analytics: dict, pm) -> str:
@@ -1527,6 +1547,7 @@ def headline_text(project_name: str, jira: dict, analytics: dict, pm) -> str:
     red = ([f"{br} Jira ticket{'s' if br != 1 else ''} past the SLA"] if br else []) + \
           [f"{n} {v}".strip() + " past your alert level" for l, n, v in kpis if l == "RED"]
     amber = ([f"{wa} Jira ticket{'s' if wa != 1 else ''} close to the SLA"] if wa else []) + \
+            ([f"Jira SLA not checked ({jira_reason(jira)})"] if jira.get("error") else []) + \
             [f"{n} {v}".strip() + " needs watching" for l, n, v in kpis if l == "AMBER"]
     if overall == "RED":
         return f"Action needed for {project_name}: " + "; ".join(red + amber) + "."

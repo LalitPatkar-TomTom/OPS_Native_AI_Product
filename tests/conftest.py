@@ -24,3 +24,16 @@ os.environ["ATLASSIAN_VIA_MCP"] = "0"
 sys.path.insert(0, str(ROOT / "MultiAgent_Briefing"))
 sys.path.insert(0, str(ROOT / "MultiAgent_Briefing" / "agents"))
 sys.path.insert(0, str(ROOT / "azure"))
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_jira_project_lookup(request, monkeypatch):
+    """Tests never call Jira: the project-exists lookup (jira_agent.project_missing) answers "exists" unless a
+    test is marked real_project_lookup and stubs httpx itself."""
+    if request.node.get_closest_marker("real_project_lookup"):
+        return
+    from agents import jira_agent
+    monkeypatch.setattr(jira_agent, "project_missing", lambda key: False)

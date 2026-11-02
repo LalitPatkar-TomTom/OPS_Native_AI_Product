@@ -14,3 +14,4 @@ it. The decisions about the chat app (sign-in, MCP, LLM hosting) are in the OPSH
 | [006](006-time-saved-criteria.md) | Time saved as fixed minutes per item, agreed and versioned | Accepted |
 | [007](007-reported-week.md) | Which week each email reports, and when alerts trust this week | Accepted |
 | [008](008-root-cause-driver-trees.md) | Root causes and actions as rule-based driver trees | Accepted |
+| [009](009-data-never-deleted-checked-backup.md) | Data is never deleted; every release starts with a checked backup, outside run windows | Accepted |

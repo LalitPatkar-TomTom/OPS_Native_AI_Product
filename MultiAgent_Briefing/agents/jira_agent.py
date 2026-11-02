@@ -31,6 +31,36 @@ from agents import atlassian_mcp
 
 log = logging.getLogger("jira_agent")
 
+# Why the project is checked (2 Nov 2026): Jira REST search answers 200 with 0 tickets for a project key that
+# does not exist or that the engine's Jira account cannot see, so profiles with a wrong key (Geocoding, GDN, QA,
+# LMDF) got "Jira SLA: All clear" every day. The check follows the run's own route: the MCP search already fails
+# with "does not exist for the field 'project'" (no REST fallback then); before a REST search the project is
+# looked up with the same account. The MCP identity sees projects the REST account does not (e.g. DPOT), so a
+# REST-only check would wrongly flag profiles that the MCP reads fine.
+PROJECT_GONE = "does not exist for the field 'project'"
+
+# REST lookups this run: key -> True when Jira answered 404 (one lookup per key per run)
+_missing_projects: dict[str, bool] = {}
+
+
+def _not_found(key: str) -> str:
+    """The error text used everywhere for a project key that Jira cannot find."""
+    return (f"Jira project '{key}' not found or not visible to the OPS AI Jira account — "
+            f"check the Jira project key in your profile (OPS Hub → My profile)")
+
+
+def project_missing(key: str) -> bool:
+    """True only when Jira answers 404 for GET /rest/api/3/project/{key} with the REST account (read-only).
+    Any other answer (200, 401, network error) returns False, so an outage is reported by the search itself."""
+    if key not in _missing_projects:
+        try:
+            r = httpx.get(f"{JIRA_BASE_URL}/rest/api/3/project/{key}", headers=_auth_header(), timeout=15)
+            _missing_projects[key] = r.status_code == 404
+        except Exception as exc:
+            log.debug("project lookup %s failed: %s", key, exc)
+            _missing_projects[key] = False
+    return _missing_projects[key]
+
 
 def _auth_header() -> dict:
     creds = f"{JIRA_EMAIL}:{JIRA_API_TOKEN}"
@@ -153,6 +183,25 @@ def _build_jql(skill: dict | None) -> tuple[str, str]:
     return jql, label
 
 
+def project_status(key: str) -> str:
+    """"ok", "missing" or "unknown" for a Jira project key, by the same route as run(): MCP first, then REST.
+    Used by the profile check's daily reminder, so a reminder goes out only when the run itself cannot read
+    the project. "unknown" (Jira down) never triggers a reminder."""
+    if atlassian_mcp.enabled():
+        try:
+            atlassian_mcp.search_jira(f"project = {key}", ["key"], 1)
+            return "ok"
+        except Exception as exc:
+            if PROJECT_GONE in str(exc):
+                return "missing"
+            log.debug("MCP project check %s failed, trying REST: %s", key, exc)
+    try:
+        r = httpx.get(f"{JIRA_BASE_URL}/rest/api/3/project/{key}", headers=_auth_header(), timeout=15)
+    except Exception:
+        return "unknown"
+    return {200: "ok", 404: "missing"}.get(r.status_code, "unknown")
+
+
 def run(skill: dict | None = None) -> dict[str, Any]:
     """
     Fetch relevant MCPET tickets for the given user skill profile.
@@ -184,6 +233,7 @@ def run(skill: dict | None = None) -> dict[str, Any]:
         result["error"] = "JIRA_API_TOKEN not set — add to OPS_Native_AI/.env"
         return result
 
+
     body = {
         "jql":        jql,
         "maxResults": 100,          # page size; up to JIRA_MAX_TICKETS in total (27 Oct: one scope had exactly 100)
@@ -199,7 +249,18 @@ def run(skill: dict | None = None) -> dict[str, Any]:
             data = atlassian_mcp.search_jira(jql, body["fields"], JIRA_MAX_TICKETS)
             result["via"] = "MCP"
         except Exception as exc:
+            if PROJECT_GONE in str(exc):
+                # the project does not exist for Jira: REST would answer 0 tickets, so do not fall back
+                result.update(error=_not_found(jira_project), project_not_found=True)
+                log.warning("Jira project %s not found (MCP) — SLA not checked", jira_project)
+                return result
             log.warning("Jira via MCP failed (%s) — falling back to REST", exc)
+
+    if data is None and project_missing(jira_project):
+        # 404 also means "no permission": QADEV exists but the REST account cannot see it
+        result.update(error=_not_found(jira_project), project_not_found=True)
+        log.warning("Jira project %s not found (REST) — SLA not checked", jira_project)
+        return result
 
     if data is None:
         try:

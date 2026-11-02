@@ -1,5 +1,33 @@
 # Changelog: OPS Native AI
 
+## Unreleased (branch rulebook-safeguards): rule book safeguards (2 Nov 2026)
+
+- **Daily analytics DB snapshots are never deleted:** older than the newest 30 they move to
+  `backups/archive/` on the share (before: deleted, from about mid-November).
+- **Every release starts with a checked backup** of all three shares (`azure/verify_backup.py`, same as
+  OPS Hub's) and stops when it is incomplete; the storage key is in an environment variable, never on a
+  command line. `BACKUP_ONLY=1` stops after the backup check.
+- **No release in a run window** (`azure/release_window.py`): 15 minutes before to 45 minutes after
+  09/13/17/21 IST.
+- **Delete guard:** `tests/test_no_data_delete.py`. Decision: ADR-009. Tests:
+  `tests/test_release_safeguards.py`.
+- **No more false "All clear" for Jira** (found in the 2 Nov 09:00 run): Jira search answers 0 tickets for a
+  project key that does not exist (or the engine's Jira account cannot see), so the profiles with Geocoding,
+  GDN, QA and LMDF got "Jira SLA: All clear" and GREEN every day. The project is now looked up first (read-only,
+  once per key per run, `jira_agent.project_missing`); when Jira answers 404 the briefing, weekly email and Word
+  report say "Jira SLA: Not checked" with the reason, the overall status is at least AMBER, the UC1 subject says
+  "Jira not checked" and the actions list it. Tests never call Jira (autouse stub in `tests/conftest.py`).
+  Tests: `tests/test_jira_not_checked.py`. What's new note added.
+- **The project is checked by the run's own route:** the MCP search's "does not exist" error stops the run from
+  falling back to REST; before a REST search the project is looked up with the same account
+  (`jira_agent.project_status` / `project_missing`). A REST-only check would have flagged DPOT, which the MCP
+  reads fine but the REST account cannot see.
+- **Daily Jira-key reminder** (`profile_check.py`, user 2 Nov): at the 09:00 run, every profile whose Jira project
+  key the run cannot read gets one email a day until it is fixed (CC as the profile check: Ketki, Vrushali,
+  Pratish, Lalit); table `profile_reminders` keeps one per profile per day; a Jira outage sends nothing. Before,
+  only new or changed profiles were checked, and the profiles seeded on 21 Oct never were.
+  `--reminders --to ADDRESS` sends them to one test address. Tests: `tests/test_profile_reminder.py`.
+
 ## v2026-10-30-2: weekly "What's new" email, automatic every Friday (30 Oct 2026)
 
 - **Every Friday after the 17:00 IST run** the job sends "What's new in OPS Native AI & OPS Hub" from
