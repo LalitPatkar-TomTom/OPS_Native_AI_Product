@@ -1,5 +1,13 @@
 # Changelog: OPS Native AI
 
+## Unreleased (branch osi-002-jira-key-column): Jira key from the "Jira Key" column (3 Nov 2026)
+
+- **The Jira key is read from the profile's "Jira Key" column** when the Active Projects table has one (the
+  OPS Hub form writes Activity / Project · Planning ID · Jira Key · Role · Status from 3 Nov). A planning ID
+  in the next column can no longer be taken for a key. Older profiles read exactly as before: checked on all
+  48 profile files on the laptop. Release this before the OPS Hub form change. Decision: ADR-010.
+  Tests: `tests/test_project_table.py` (184 tests).
+
 ## Unreleased (branch rulebook-safeguards): rule book safeguards (2 Nov 2026)
 
 - **Daily analytics DB snapshots are never deleted:** older than the newest 30 they move to

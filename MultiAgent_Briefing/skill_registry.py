@@ -475,6 +475,34 @@ def _extract_metric_table_scope(text: str) -> dict[str, list[str]]:
     return result
 
 
+_JIRA_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,9}$")
+
+
+def _jira_key_column(text: str) -> tuple[bool, str, str]:
+    """(table has a "Jira Key" column, project name, Jira key) from the first markdown table whose header
+    names a Jira Key column. The key comes from the first Active row with a real key (OM, DSM ...); rows
+    with "—" or a non-key value are skipped. (False, "", "") when no such table exists."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if not line.lstrip().startswith("|") or "jira key" not in [c.lower() for c in cells]:
+            continue
+        hdr = [c.lower() for c in cells]
+        k_col, s_col = hdr.index("jira key"), hdr.index("status") if "status" in hdr else -1
+        for row in lines[i + 2:]:                        # i + 1 is the | --- | separator
+            if not row.lstrip().startswith("|"):
+                break
+            vals = [c.strip() for c in row.strip().strip("|").split("|")]
+            if len(vals) <= k_col:
+                continue
+            active = s_col < 0 or (len(vals) > s_col and vals[s_col].lower() == "active")
+            key = vals[k_col].upper()
+            if active and _JIRA_KEY_RE.match(key):
+                return True, vals[0] if vals[0] not in ("—", "-") else "", key
+        return True, "", ""
+    return False, "", ""
+
+
 def _extract_project_config(text: str) -> dict[str, str]:
     """
     Extract project name and Jira project key from the skill file.
@@ -487,8 +515,14 @@ def _extract_project_config(text: str) -> dict[str, str]:
     project_name = ""
     jira_project = ""
 
-    # Active Projects table: | Project Name | JIRA_KEY | Role | Active |
-    m = re.search(
+    # Since 3 Nov 2026 (OSI-001/002) the form writes | Activity / Project | Planning ID | Jira Key | Role | Status |.
+    # Read that table by its header: the old "Code" column mixed planning IDs and Jira keys, which is how
+    # "Geocoding" or "QA" ended up as a Jira key. When the table has a Jira Key column, the old pattern is
+    # not tried on it, so a planning ID can never be taken for a key again.
+    has_key_column, project_name, jira_project = _jira_key_column(text)
+
+    # Active Projects table: | Project Name | JIRA_KEY | Role | Active |  (profiles made before 3 Nov 2026)
+    m = None if has_key_column else re.search(
         r"\|\s*([^|\-][^|]+?)\s*\|\s*([A-Z][A-Z0-9]{1,15})\s*\|[^|]+\|\s*Active\s*\|",
         text,
     )

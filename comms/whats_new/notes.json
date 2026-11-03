@@ -134,6 +134,13 @@
    "title": "Jira SLA is never shown as \"All clear\" when it could not be checked",
    "text": "if the Jira project in your profile cannot be found, your briefing and weekly report now say \"Jira SLA: Not checked\" with the reason, and the overall status is no longer green. Check the Jira project key in your profile in OPS Hub.",
    "osi": ""
+  },
+  {
+   "date": "2026-11-03",
+   "area": "OPS Hub",
+   "title": "Your profile checks your Jira key and planning IDs before saving",
+   "text": "Active Projects now has separate Planning ID and Jira Key columns, and each planning ID is entered once: it fills your Key Metrics scope for you. A Jira key that does not exist is shown before you continue; planning IDs or process types without data are flagged with suggestions.",
+   "osi": "OSI-015"
   }
  ]
 }
