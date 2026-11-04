@@ -141,6 +141,12 @@
    "title": "Your profile checks your Jira key and planning IDs before saving",
    "text": "Active Projects now has separate Planning ID and Jira Key columns, and each planning ID is entered once: it fills your Key Metrics scope for you. A Jira key that does not exist is shown before you continue; planning IDs or process types without data are flagged with suggestions.",
    "osi": "OSI-015"
+  },
+  {
+   "date": "2026-11-04",
+   "area": "OPS Hub",
+   "title": "QC Promotion: move tasks to QC from a file, on Staging and Global",
+   "text": "Admins can now move ORBIT tasks into their project's QC stage in Self Service > QC Promotion: upload a CSV or Excel file of task IDs, press Check tasks to see each task's QC stage, then QC Promotion. Every moved task gets the comment \"Promotion through OPSHUB self service\", and you get the list of tasks not moved with ORBIT's reason. Each run is counted in OPS Hub analytics."
   }
  ]
 }
