@@ -53,6 +53,13 @@ def _fta_sparkline(fta_4w: list[dict]) -> str:
     return " → ".join(parts)
 
 
+def _earned(analytics: dict) -> str:
+    """Plain-text earned-hours basis of the overall efficiency (5 Nov 2026, replaces the scope-wide tasks/hr,
+    which adds up tasks of different process types): see email_html.eff_earned_text."""
+    from email_html import eff_earned_text
+    return eff_earned_text(analytics).replace("&apos;", "'")
+
+
 def _eff_label(eff_vs_bl: float | None) -> str:
     if eff_vs_bl is None:
         return "N/A (no baseline)"
@@ -187,7 +194,7 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
         if eff_rag == "RED":
             lines += [
                 f"**{_rag_emoji('RED')} EFFICIENCY ALERT — {_eff_label(eff_vs_bl)} for week {wk_label}**",
-                f"  Raw efficiency: {eff_raw:.4f} tasks/hr" if eff_raw else "",
+                f"  {_earned(analytics)}" if _earned(analytics) else "",
                 "",
             ]
 
@@ -253,7 +260,7 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
 
     lines += [
         f"- **Efficiency:** {eff_emoji} {_eff_label(eff_vs_bl)}"
-        + (f"  ·  Raw: {eff_raw:.4f} tasks/hr" if eff_raw else ""),
+        + (f"  ·  {_earned(analytics)}" if _earned(analytics) else ""),
         f"- **CoQ:** {coq_emoji} **{coq:.2f}%** ({coq_label})",
     ]
     if yield_current is not None:
@@ -349,9 +356,12 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
         if planning:
             lines += ["| Planning ID | FTA | Eff vs BL | CoQ | QC sampled | Tasks | Hrs |", "|---|---|---|---|---|---|---|"]
             for r in planning:
-                fta = f"{_rag_emoji(r['fta_rag'])} {r['fta_pct']:.2f}%" if r["fta_pct"] is not None else "no QC"
-                eff = f"{r['eff_vs_bl']:.1f}%" if r["eff_vs_bl"] is not None else "N/A"
-                lines.append(f"| {r['planning_id']} | {fta} | {eff} | {r['coq_pct']:.1f}% | {r['total_qc']:,} | {r['prod_tasks']:,} | {r['total_hrs']:.0f}h |")
+                # own names: this loop used to overwrite `fta` (the scope FTA) with text, so the actions further
+                # down crashed ("Unknown format code 'f'") for profiles with planning IDs and FTA not green
+                # (Girish, found in the 5 Nov full local run); the whole UC1 for that user failed
+                pid_fta = f"{_rag_emoji(r['fta_rag'])} {r['fta_pct']:.2f}%" if r["fta_pct"] is not None else "no QC"
+                pid_eff = f"{r['eff_vs_bl']:.1f}%" if r["eff_vs_bl"] is not None else "N/A"
+                lines.append(f"| {r['planning_id']} | {pid_fta} | {pid_eff} | {r['coq_pct']:.1f}% | {r['total_qc']:,} | {r['prod_tasks']:,} | {r['total_hrs']:.0f}h |")
         if planning_missing:
             lines += ["", "No data this week: " + ", ".join(f"`{m}`" for m in planning_missing)]
         lines.append("")

@@ -382,11 +382,20 @@ def no_scope_notice(skill: dict | None) -> str:
             f'</td></tr></table>')
 
 
-def _eff_actual_vs_baseline(eff_raw: float | None, eff_vs_bl: float | None) -> str:
-    """OSI-033: 'Actual 0.852 vs baseline 0.801 tasks/hr' — the % alone hid both numbers."""
-    if not eff_raw or not eff_vs_bl:
+def eff_earned_text(analytics: dict | None) -> str:
+    """'1,357 h of work at each process type's own baseline in 1,162 h booked' for the reported week, the basis of
+    the overall Efficiency vs Baseline %.
+
+    Replaces 'Actual x vs baseline y tasks/hr (baseline = average of the process types in scope)' (OSI-033, 26 Oct):
+    tasks of different process types cannot be added up, and that baseline was the scope % worked backwards, not
+    any process type's baseline (user, 5 Nov 2026; OSI-057). Hours can be added up; the % is unchanged."""
+    a = analytics or {}
+    wk = str(a.get("week_label") or "")[:10]
+    cur = next((w for w in a.get("overall_trend") or [] if w.get("week") == wk), None)
+    if not cur or cur.get("eff_vs_bl") is None or not cur.get("booked_hrs"):
         return ""
-    return f"Actual {eff_raw:.3f} vs baseline {eff_raw * 100 / eff_vs_bl:.3f} tasks/hr"
+    return (f"{cur['earned_hrs']:,.0f} h of work at each process type&apos;s own baseline in "
+            f"{cur['booked_hrs']:,.0f} h booked")
 
 
 def _eff_str(eff_vs_bl: float | None) -> str:
@@ -728,7 +737,7 @@ def _build_fta(analytics, jira_project=""):
 
 
 def _build_efficiency(analytics, pm=None):
-    """The Efficiency & CoQ section: Eff vs baseline (actual vs baseline tasks/hr), CoQ, CoPQ and yield as listed in the profile."""
+    """The Efficiency & CoQ section: Eff vs baseline (earned vs booked hours), CoQ, CoPQ and yield as listed in the profile."""
     ev  = analytics.get("efficiency_vs_bl")
     er  = analytics.get("efficiency_raw")
     erg = analytics.get("efficiency_rag", "GREEN")
@@ -754,8 +763,8 @@ def _build_efficiency(analytics, pm=None):
         "P2 Investigate 7–10%" if cq < 10 else
         "P1 Escalate &gt;10%"
     )
-    eff_sub = (f'<br><span style="{_F};font-size:11px;color:{_MUTED}">{_eff_actual_vs_baseline(er, ev)} '
-               f'(baseline = average of the process types in scope)</span>' if er and ev else "")
+    earned = eff_earned_text(analytics)
+    eff_sub = f'<br><span style="{_F};font-size:11px;color:{_MUTED}">{earned}</span>' if earned and ev else ""
     copq_sub = ""
     if ch is not None:
         copq_sub = f' &nbsp;·&nbsp; CopQ: {ch:.1f}h rework ({cp:.2f}% of hrs)' if cp else f' &nbsp;·&nbsp; CopQ: {ch:.1f}h rework'
@@ -1367,8 +1376,8 @@ def _build_exec_summary(jira, analytics, pm, skill=None):
         bullets.append(
             f'<b>Efficiency vs Baseline:</b> <span style="color:{ec};font-weight:bold">'
             f'{_eff_str(ev)}</span> &nbsp;{_badge(erg)}'
-            + (f' <span style="color:{_MUTED};font-size:12px">— {_eff_actual_vs_baseline(analytics.get("efficiency_raw"), ev)}</span>'
-               if analytics.get("efficiency_raw") and ev else "")
+            + (f' <span style="color:{_MUTED};font-size:12px">— {eff_earned_text(analytics)}</span>'
+               if eff_earned_text(analytics) and ev else "")
         )
 
     if "coq" in pm or "copq" in pm:

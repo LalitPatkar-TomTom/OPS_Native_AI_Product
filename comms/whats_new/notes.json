@@ -4,8 +4,8 @@
   "Numbers that match Power BI, checked every run (OSI-045, our top priority).",
   "Track what happens after an alert: owner, status and follow-up (OSI-007, 046).",
   "Shorter emails you can configure per project (OSI-043, 044).",
-  "Trend charts for the last weeks (OSI-010, 038).",
-  "Error types behind rejections, once the ORBIT QC feedback categories are available (OSI-027)."
+  "Error types behind rejections, once the ORBIT QC feedback categories are available (OSI-027).",
+  "Trend charts in the Weekly Report and alerts too, after your comments on the daily briefing (OSI-010, 038)."
  ],
  "notes": [
   {
@@ -153,6 +153,14 @@
    "area": "OPS Hub",
    "title": "Closed Superfluous QC Backlog: check which QC tasks can be closed",
    "text": "Admins can upload a CSV or Excel file of task IDs in Self Service > Closed Superfluous QC Backlog (under development) and press Check tasks: only tasks whose QC stage is in To Do are valid, and every other task is listed with the reason, with CSV downloads. Closing the valid tasks follows. QC Promotion is now under validation."
+  },
+  {
+   "date": "2026-11-05",
+   "area": "Daily Briefing",
+   "title": "A new daily briefing: each process type against its own baseline",
+   "text": "Your daily briefing now shows one table with every process type in your scope, each measured against its own baseline: tasks, hours, tasks per hour against its own baseline, FTA, CoQ and Yield. The Total row adds up only what can be added (hours, and FTA, CoQ and Yield over all tasks), so it no longer mixes the baselines of different process types. Below it, each process type that needs attention gets a card with 8-week trend charts and the reason. The recommended actions are shorter: each one says what to do and the root cause behind it. Team leads also see the operators who need support and the five in the team who did best this week, judged only on operators with at least 8 production hours. Tell us what you think: your comments decide the next changes.",
+   "osi": "OSI-057, 044, 010, 038, 009",
+   "highlight": true
   }
  ]
 }

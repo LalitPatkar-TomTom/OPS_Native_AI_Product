@@ -42,7 +42,8 @@ MAIL = {"EMAIL_TRANSPORT": "graph",
 # carry a model setting that suggests it does (29 Oct). Skipping drops it; leaving it out of PLAIN alone
 # would turn it into a secret.
 SKIP = re.compile(r"^(TEST_RECIPIENT_OVERRIDE|PREVIEW_MODE|FORCE_UC4_ALERT|OPS_AUDIT_TEST|SKILLS_SYNC_.*"
-                  r"|GRAPH_.*|SLACK_.*|PORT|TEAMS_WEBHOOK_URL|EMAIL_.*|MAIL_.*|OPS_.*|DATABRICKS_LLM_MODEL)$")
+                  r"|GRAPH_.*|SLACK_.*|PORT|TEAMS_WEBHOOK_URL|EMAIL_.*|MAIL_.*|OPS_.*|DATABRICKS_LLM_MODEL"
+                  r"|BRIEFING_LAYOUT)$")   # the layout is set by --layout only (ADR-011)
 # Non-secret settings passed as plain values; every other key becomes a secret
 PLAIN = {"DATABRICKS_HOST", "DATABRICKS_SQL_WAREHOUSE_ID", "JIRA_EMAIL",
          "ATL_EMAIL", "JIRA_BASE_URL", "JIRA_PROJECT", "JIRA_PROJECT_NUMERIC_ID", "JIRA_ISSUE_TYPE_ID",
@@ -67,6 +68,11 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--image", required=True, help="image tag in ACR, e.g. v2026-10-19")
     ap.add_argument("--mode", choices=["parallel", "live"], required=True)
+    # ADR-011: the daily briefing layout. The PUT below replaces the whole env, so a switch back to the classic
+    # layout is made here (and kept by passing it again), never by hand on the job, where the next release
+    # would undo it unseen.
+    ap.add_argument("--layout", choices=["per_pt", "classic"], default="per_pt",
+                    help="UC1 daily briefing layout (default per_pt; classic = the layout before 5 Nov 2026)")
     a = ap.parse_args()
 
     env_file = Path(__file__).resolve().parent.parent / ".env"
@@ -89,6 +95,8 @@ def main() -> None:
     env += [{"name": k, "value": v} for k, v in MAIL.items()]
     if a.mode == "parallel":
         env.append({"name": "EMAIL_PARALLEL_TO", "value": PARALLEL_TO})
+    if a.layout == "classic":
+        env.append({"name": "BRIEFING_LAYOUT", "value": "classic"})
 
     body = {
         "location": az("containerapp", "env", "show", "--ids", ENV_ID, "--query", "location"),

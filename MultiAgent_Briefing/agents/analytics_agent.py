@@ -387,7 +387,8 @@ SELECT
     SUM(Prod_Done_task_count) AS prod_tasks,
     SUM(total_qc_count)       AS total_qc,
     SUM(QC_Accept_Count)      AS accepted,
-    COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0) AS total_hrs
+    COALESCE(SUM(Prod_Total_Time), 0) + COALESCE(SUM(qc_total_time), 0) AS total_hrs,
+    COALESCE(SUM(Prod_Total_Time), 0) AS prod_hrs
 FROM {table}
 WHERE week_start = '{week}'
   AND total_qc_count > 0
@@ -557,6 +558,8 @@ def _load_operator_breakdown(
             "accepted":     accepted,
             "sampling_pct": sampling,
             "total_hrs":    round(float(r.get("total_hrs") or 0), 1),
+            # production hours only: the volume bar for judging an operator (user, 5 Nov 2026)
+            "prod_hrs":     round(float(r.get("prod_hrs") or 0), 1),
             "yield_pct":    None,
         })
     print(f"[analytics] Operator breakdown: {len(operators)} rows across {len({o['process_type'] for o in operators})} PTs")
@@ -758,6 +761,179 @@ def weighted_eff_vs_bl(rows: list[dict], baselines: dict[str, float]) -> dict[st
         exp[wk] = exp.get(wk, 0.0) + n / bl
         hrs[wk] = hrs.get(wk, 0.0) + h
     return {wk: round(exp[wk] * 100 / hrs[wk], 1) for wk in exp if hrs[wk] > 0}
+
+
+# ── Per-process-type weekly trend (5 Nov 2026) ────────────────────────────────
+# Leads: a baseline is valid only for its own process type, so a scope-wide tasks/hr against an averaged
+# baseline means nothing to them (OSI-057). Each process type is shown against its own baseline, with its
+# weekly trend; across process types only volume-weighted values are combined (FTA by QC'd tasks, CoQ and
+# efficiency by hours). The data is weekly (no day column), so the trend is per week.
+TREND_WEEKS = 8
+
+_PT_TREND_SQL = """
+SELECT
+    week_start,
+    LOWER(processType) AS pt,
+    COALESCE(SUM(QC_Accept_Count), 0)      AS accepted,
+    COALESCE(SUM(total_qc_count), 0)       AS total_qc,
+    COALESCE(SUM(Prod_Done_task_count), 0) AS tasks,
+    COALESCE(SUM(Prod_Total_Time), 0)      AS prod_hrs,
+    COALESCE(SUM(qc_total_time), 0)        AS qc_hrs,
+    AVG(NULLIF(Baseline, 0))               AS baseline_avg
+FROM {table}
+WHERE week_start IN ({weeks})
+  AND (total_qc_count > 0 OR (COALESCE(Prod_Done_task_count, 0) = 0 AND qc_total_time > 0))
+  AND processType IS NOT NULL
+  {scope_filter}
+GROUP BY week_start, LOWER(processType)
+"""
+
+# Yield per week and process type over the same weeks, same definition as _YIELD_SQL (Orbit SD view only;
+# user, 5 Nov: Yield in the process-type table and trend). Numerator and denominator are kept so the
+# table's Total can pool them like FTA.
+_YIELD_PT_TREND_SQL = """
+SELECT
+    DATE_TRUNC('week', CAST(updated_at AS DATE)) AS week_mon,
+    LOWER(process_type) AS pt,
+    SUM(CASE WHEN to_status IN ('Resolved', 'DB alternatively updated')
+             AND to_stage IN ('Resolution', 'Expert', 'Source Expert', 'OSM')
+             THEN prod_count ELSE 0 END) AS yield_num,
+    SUM(CASE WHEN COALESCE(n_rework_flag, 0) != 1
+             AND to_stage IN ('Resolution', 'Expert', 'Source Expert', 'OSM')
+             THEN prod_count ELSE 0 END) AS yield_den
+FROM {view}
+WHERE CAST(updated_at AS DATE) >= TO_DATE('{first_week}')
+  AND CAST(updated_at AS DATE) <= DATE_ADD(TO_DATE('{last_week}'), 6)
+  {scope_filter}
+GROUP BY DATE_TRUNC('week', CAST(updated_at AS DATE)), LOWER(process_type)
+"""
+
+# A trend word needs this many full weeks moving the same way, and at least this much change in total,
+# so one noisy week is never called a trend.
+TREND_RUN = 3
+TREND_MIN_MOVE = {"fta": 1.0, "coq": 1.0, "eff": 3.0, "yield": 1.0}     # points over the run
+TREND_HIGHER_IS_BETTER = {"fta": True, "coq": False, "eff": True, "yield": True}
+
+
+def add_yield_trend(by_pt: dict, rows: list[dict]) -> None:
+    """Put yield, y_num and y_den into each week of each process type's series (from _YIELD_PT_TREND_SQL rows).
+    Weeks without yield rows get yield None; process types only in the yield view are not added (the table
+    lists what the KPI table has)."""
+    got = {}
+    for r in rows or []:
+        got[((r.get("pt") or "").lower(), str(r.get("week_mon"))[:10])] = (
+            float(r.get("yield_num") or 0), float(r.get("yield_den") or 0))
+    for pt, t in by_pt.items():
+        for w in t["weeks"]:
+            num, den = got.get((pt, w["week"]), (0.0, 0.0))
+            w.update(y_num=num, y_den=den, **{"yield": _ratio(num, den)})
+
+
+def trend_mondays(week_label: str, n: int = TREND_WEEKS) -> list[str]:
+    """The n week starts (Mondays, 'YYYY-MM-DD') ending with week_label, oldest first."""
+    last = date.fromisoformat(str(week_label)[:10])
+    return [(last - timedelta(weeks=k)).isoformat() for k in range(n - 1, -1, -1)]
+
+
+def _ratio(num: float, den: float, scale: float = 100.0, nd: int = 2) -> float | None:
+    """num/den*scale rounded, or None when den is not positive."""
+    return round(num * scale / den, nd) if den > 0 else None
+
+
+def pt_trends(rows: list[dict], baselines: dict[str, float], weeks: list[str]) -> tuple[dict, list]:
+    """Per-process-type and overall weekly series from _PT_TREND_SQL rows.
+
+    Returns (by_pt, overall):
+      by_pt   {pt: {"baseline": tasks/hr or None, "weeks": [{week, fta, eff_vs_bl, coq, qc, tasks, hrs}]}}
+      overall [{week, fta, coq, eff_vs_bl, earned_hrs, booked_hrs, hrs_no_bl, hrs, qc}]
+    Weeks run oldest first; a week without rows for a process type has None values. A process type's
+    baseline is its own (baselines view, else its Baseline column); with none it gets no efficiency,
+    never one from another process type. Overall efficiency = earned hours (tasks / own baseline) over
+    the hours booked on process types that have a baseline, the same as weighted_eff_vs_bl."""
+    cell: dict[tuple[str, str], dict] = {}
+    row_bl: dict[str, list[float]] = {}
+    for r in rows or []:
+        pt, wk = (r.get("pt") or "").lower(), str(r.get("week_start"))[:10]
+        if not pt or wk not in weeks:
+            continue
+        f = lambda k: float(r.get(k) or 0)
+        cell[(pt, wk)] = {"acc": f("accepted"), "qc": f("total_qc"), "tasks": f("tasks"),
+                          "hrs": f("prod_hrs") + f("qc_hrs"), "qc_hrs": f("qc_hrs")}
+        if f("baseline_avg") > 0:
+            row_bl.setdefault(pt, []).append(f("baseline_avg"))
+    pts = sorted({pt for pt, _ in cell})
+    bl_of = {pt: baselines.get(pt) or (sum(row_bl[pt]) / len(row_bl[pt]) if row_bl.get(pt) else None) for pt in pts}
+
+    by_pt: dict[str, dict] = {}
+    for pt in pts:
+        bl, series = bl_of[pt], []
+        for wk in weeks:
+            c = cell.get((pt, wk))
+            if not c:
+                series.append({"week": wk, "fta": None, "eff_vs_bl": None, "coq": None, "qc": 0, "tasks": 0, "hrs": 0.0})
+                continue
+            eff = (c["tasks"] / c["hrs"] / bl * 100) if bl and c["hrs"] > 0 and c["tasks"] > 0 else None
+            series.append({"week": wk, "fta": _ratio(c["acc"], c["qc"]),
+                           "eff_vs_bl": round(eff, 1) if eff is not None else None,
+                           "coq": _ratio(c["qc_hrs"], c["hrs"]), "qc": int(c["qc"]),
+                           "tasks": int(c["tasks"]), "hrs": round(c["hrs"], 1)})
+        by_pt[pt] = {"baseline": round(bl, 4) if bl else None, "weeks": series}
+
+    overall = []
+    for wk in weeks:
+        cs = [(pt, cell[(pt, wk)]) for pt in pts if (pt, wk) in cell]
+        acc = sum(c["acc"] for _, c in cs); qc = sum(c["qc"] for _, c in cs)
+        hrs = sum(c["hrs"] for _, c in cs); qch = sum(c["qc_hrs"] for _, c in cs)
+        earned = sum(c["tasks"] / bl_of[pt] for pt, c in cs if bl_of[pt] and c["hrs"] > 0)
+        booked = sum(c["hrs"] for pt, c in cs if bl_of[pt] and c["hrs"] > 0)
+        overall.append({"week": wk, "fta": _ratio(acc, qc), "coq": _ratio(qch, hrs),
+                        "eff_vs_bl": _ratio(earned, booked, nd=1), "earned_hrs": round(earned, 1),
+                        "booked_hrs": round(booked, 1), "hrs_no_bl": round(hrs - booked, 1),
+                        "hrs": round(hrs, 1), "qc": int(qc)})
+    return by_pt, overall
+
+
+def trend_word(values: list[float | None], metric: str) -> str:
+    """'improving', 'worsening' or 'steady' from full weeks (oldest first), or '' with too little history.
+
+    Improving/worsening = the last TREND_RUN week-on-week moves all go the same way and add up to at least
+    TREND_MIN_MOVE[metric] points; anything else is steady."""
+    vals = [v for v in values if v is not None][-(TREND_RUN + 1):]
+    if len(vals) < TREND_RUN + 1:
+        return ""
+    moves = [b - a for a, b in zip(vals, vals[1:])]
+    total, better = vals[-1] - vals[0], TREND_HIGHER_IS_BETTER[metric]
+    if abs(total) < TREND_MIN_MOVE[metric]:
+        return "steady"
+    if all(m > 0 for m in moves):
+        return "improving" if better else "worsening"
+    if all(m < 0 for m in moves):
+        return "worsening" if better else "improving"
+    return "steady"
+
+
+def mix_split(now: dict[str, tuple[float, float]], prev: dict[str, tuple[float, float]]) -> dict | None:
+    """How much of a change in a weighted overall comes from the process types themselves (rate) and how
+    much from the work moving between them (mix). now/prev = {pt: (weight, value)}, weight = hours (efficiency)
+    or QC'd tasks (FTA). Rate = each common process type's own change at THIS week's weights, so a process
+    type that almost stopped this week barely counts (Shivaji mock-up, 5 Nov: 1,489 h last week, 13 h now,
+    at last week's weights it showed as -57.6 pts); mix = the rest. by_pt = each process type's share of
+    the rate, worst first. None when either week has no weight."""
+    def overall(d):
+        """Weighted mean of the values in d, or None without weight."""
+        w = sum(x for x, v in d.values() if v is not None)
+        return sum(x * v for x, v in d.values() if v is not None) / w if w > 0 else None
+    o_now, o_prev = overall(now), overall(prev)
+    if o_now is None or o_prev is None:
+        return None
+    common = [pt for pt in now if pt in prev and now[pt][1] is not None and prev[pt][1] is not None]
+    wn = sum(now[pt][0] for pt in common)
+    by_pt = {pt: now[pt][0] / wn * (now[pt][1] - prev[pt][1]) for pt in common} if wn > 0 else {}
+    rate = sum(by_pt.values())
+    total = o_now - o_prev
+    return {"total": round(total, 1), "rate": round(rate, 1), "mix": round(total - rate, 1),
+            "by_pt": sorted(((pt, round(v, 1), prev[pt][1], now[pt][1]) for pt, v in by_pt.items()),
+                            key=lambda x: x[1])}
 
 
 def _eff_vs_bl_from_baselines(efficiency_raw: float, process_types: list[str], baselines: dict[str, float]) -> float | None:
@@ -1223,6 +1399,31 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
     for _bd in process_breakdown:
         if _bd["eff_vs_bl"] is None and _bd["efficiency"] > 0 and _avg_bl_val:
             _bd["eff_vs_bl"] = round(_bd["efficiency"] / _avg_bl_val * 100, 1)
+            # kept for the classic layout; the per-process-type layout shows "no baseline" instead (5 Nov)
+            _bd["eff_from_scope_average"] = True
+
+    # ── Weekly trend per process type, each against its own baseline (5 Nov 2026) ──
+    trend_weeks = trend_mondays(week_label)
+    overall_trend: list[dict] = []
+    try:
+        tr_rows = client.execute_sql(_PT_TREND_SQL.format(
+            table=combined_table, weeks=", ".join(f"'{w}'" for w in trend_weeks),
+            scope_filter=scope_filter), max_rows=5000).get("rows", [])
+        by_pt, overall_trend = pt_trends(tr_rows, baselines, trend_weeks)
+        try:
+            y_rows = client.execute_sql(_YIELD_PT_TREND_SQL.format(
+                view=_YIELD_VIEW, first_week=trend_weeks[0], last_week=trend_weeks[-1],
+                scope_filter=_build_yield_scope_filter(skill, actual_pts)), max_rows=5000).get("rows", [])
+            add_yield_trend(by_pt, y_rows)
+        except Exception as exc:
+            print(f"[analytics] Yield trend failed (trend shown without Yield): {exc}")
+        for _bd in process_breakdown:
+            t = by_pt.get(_bd["process_type"].lower())
+            if t:
+                _bd["trend"] = t["weeks"]
+                _bd["own_baseline"] = t["baseline"]
+    except Exception as exc:
+        print(f"[analytics] Process-type trend failed (briefing shows this week only): {exc}")
 
     # ── Operator breakdown (optional — only when skill has "operator_view" enabled) ──
     pri_metrics = set(skill.get("primary_metrics") or []) if skill else set()
@@ -1319,6 +1520,8 @@ def run(skill: dict | None = None, report_type: str = "weekly") -> dict[str, Any
         "planning_missing":     planning_missing,
         "operator_breakdown":   operator_breakdown,
         "root_cause":           root_cause,
+        "trend_weeks":          trend_weeks,
+        "overall_trend":        overall_trend,
         "scope_label":          scope_label,
         "scope_mode":        skill.get("scope_mode", "defined") if skill else "defined",
         "week_label":        week_label,

@@ -451,6 +451,31 @@ def yield_texts(workunits: list[dict], target: float) -> tuple[str, list[str], l
             [f"Lowest yield by work unit: {names}."], [])
 
 
+# ── The one cause each action rests on (5 Nov 2026) ─────────────────────────────────────────────────
+# The per-process-type briefing shows each item as "action + root cause" in two lines (user: "crisp
+# recommended action should help but it should have meaning with root cause"); the full list of causes stays
+# in the classic layout. These pick the cause the action was chosen from, by the same rules as the action.
+
+def _fta_root(fc: dict, causes: list[str]) -> str:
+    """The FTA cause behind fta_texts' action: few editors (coach), or one package across editors (specs)."""
+    if not causes:
+        return ""
+    if fc["concentrated"] or not fc["packages"]:
+        return causes[0]                        # the "N of M editors are below ..." line (or the only one)
+    return causes[1] if fc["low"] else causes[0]   # the package line comes after the editors line
+
+
+def _coq_root(d: dict | None, causes: list[str], level_text: str) -> str:
+    """The CoQ cause behind coq_texts' action: the main driver of a rise, else the over-sampled areas, else
+    the level explanation (work-mix weeks)."""
+    if d and d.get("rising") and d.get("main") and not d.get("mix"):
+        return _cap(_COQ_FACT[d["main"]](d["prev"], d["cur"])) + "."
+    for c in causes:
+        if c.startswith("High-FTA areas still sampled heavily"):
+            return c
+    return level_text or (causes[0] if causes else "")
+
+
 # ── All together ────────────────────────────────────────────────────────────────────────────────────
 
 def analyse(editors: list[dict], wps: list[dict], metrics_4w: list[dict], baselines: dict[str, float],
@@ -470,7 +495,8 @@ def analyse(editors: list[dict], wps: list[dict], metrics_4w: list[dict], baseli
     a, c, m = fta_texts(fc, has_operator_section)
     if a:
         ch_c, ch_m = fta_change(editors, prev_eds, fta_level, edited)
-        out["fta"] = {"action": a, "causes": ch_c + c, "more": ch_m + m, "facts": fc}
+        out["fta"] = {"action": a, "causes": ch_c + c, "more": ch_m + m, "facts": fc,
+                      "root": _fta_root(fc, c)}
     cur, prev = (metrics_4w[0] if metrics_4w else {}), (metrics_4w[1] if len(metrics_4w) > 1 else {})
     low_keys = {(e.get("pt"), e.get("wu"), e.get("editor")) for e in editors
                 if _f(e, "qc") >= MIN_QC_EDITOR and _pct(_f(e, "acc"), _f(e, "qc")) < fta_level}
@@ -485,13 +511,14 @@ def analyse(editors: list[dict], wps: list[dict], metrics_4w: list[dict], baseli
             a = (f"Review the sampling: {d['cur']['samp']:.0f}% of tasks are QC'd; see below what would bring CoQ "
                  f"to {coq_target:g}%")
     if a:
-        out["coq"] = {"action": a, "causes": c, "more": m}
+        out["coq"] = {"action": a, "causes": c, "more": m, "root": _coq_root(d, c, lv)}
     slow, lost = slow_packages(wps, baselines)
     a, c, m = eff_texts(slow, lost, idle_hours(wps))
     if a:
-        out["efficiency"] = {"action": a, "causes": c, "more": m}
+        # the action is about the first cause: the slowest package, or else the idle hours
+        out["efficiency"] = {"action": a, "causes": c, "more": m, "root": c[0] if c else ""}
     a, c, m = yield_texts(workunits, yield_target)
     if a:
-        out["yield"] = {"action": a, "causes": c, "more": m}
+        out["yield"] = {"action": a, "causes": c, "more": m, "root": c[0] if c else ""}
     out["partial"] = ERROR_TYPES_NOTE
     return out

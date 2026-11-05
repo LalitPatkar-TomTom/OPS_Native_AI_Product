@@ -25,7 +25,8 @@ RG, JOB = "ops-hub-rg", "ops-native-ai-trigger"
 CRON = "30 3,7,11,15 * * *"                      # 09:00, 13:00, 17:00, 21:00 IST
 REQUIRED_ENV = ["EMAIL_TRANSPORT", "MAIL_SENDER", "MAIL_CLIENT_ID", "MAIL_TENANT_ID", "MAIL_CLIENT_SECRET",
                 "EMAIL_CC", "OPS_SKILLS_DIR", "RUN_REPORT_TO", "JIRA_API_TOKEN", "DATABRICKS_HOST"]
-SWITCHES = {"EMAIL_CC", "EMAIL_TRANSPORT", "EMAIL_PARALLEL_TO", "OPS_SKILLS_DIR"}   # values read (not secrets)
+SWITCHES = {"EMAIL_CC", "EMAIL_TRANSPORT", "EMAIL_PARALLEL_TO", "OPS_SKILLS_DIR",
+            "BRIEFING_LAYOUT"}   # values read (not secrets)
 TEST_SWITCHES = ["TEST_RECIPIENT_OVERRIDE", "FORCE_UC4_ALERT", "PREVIEW_MODE", "OPS_AUDIT_TEST"]
 
 results: list[tuple[str, str, str]] = []
@@ -80,6 +81,10 @@ def main() -> int:
     check(f"Mode is {a.mode}", parallel == (a.mode == "parallel"), "EMAIL_PARALLEL_TO " + ("set" if parallel else "not set"))
     tests_on = [n for n in TEST_SWITCHES if n in env]
     check("No test switches", not tests_on, ", ".join(tests_on) or "none")
+    # ADR-011: unset = the per-process-type daily briefing; "classic" = switched back on purpose (a WARN to see)
+    layout = (val("BRIEFING_LAYOUT") or "").strip().lower()
+    check("Daily briefing layout", layout != "classic",
+          "per process type" if layout != "classic" else "classic (BRIEFING_LAYOUT=classic)", warn_only=True)
     for n in ("MAIL_CLIENT_SECRET", "JIRA_API_TOKEN"):
         if n in env:
             check(f"{n} comes from a secret", "secretRef" in env[n])

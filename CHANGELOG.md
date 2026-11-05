@@ -1,5 +1,50 @@
 # Changelog: OPS Native AI
 
+## Unreleased (branch daily-briefing-per-pt): the daily briefing per process type, for everyone (5 Nov 2026)
+
+- **Why:** a baseline is valid only for its own process type. With several process types the briefing showed
+  scope-wide "actual vs baseline tasks/hr (baseline = average of the process types in scope)", which means
+  nothing to a lead (user, 4 Nov; OSI-057). Overall FTA and CoQ were already pooled (volume-weighted) and
+  overall efficiency weighted since 30 Oct; the gap was the presentation and the per-type fallback.
+- **The UC1 daily briefing is now the per-process-type layout for every user** (user, 5 Nov: "keep this as daily
+  briefing ... for everyone"). `orchestrator.run_uc1` builds it with `email_briefing_pt.build_daily` and passes
+  the charts to `deliver(html_body=..., inline_images=...)`. **Safeguards:** `BRIEFING_LAYOUT=classic` on the job
+  switches back without a release; if the new layout fails for a user that user gets the classic layout and a
+  WARNING in the run report, and if that fails too, plain text as before. `deliver()`'s own build stays classic,
+  so UC2/UC3/UC4 and every other email are unchanged. Decision: ADR-011. Tests: `tests/test_briefing_switch.py`.
+- **Fix (live bug): UC1 crashed for profiles with planning IDs when FTA was not green** ("Unknown format code
+  'f' for object of type 'str'"): the plain-text briefing's planning-ID loop overwrote the scope FTA with text.
+  The user got no daily briefing that run (Sheetal 4 Nov 09:00, Girish 5 Nov 09:00, both in the run reports).
+  Found in the 5 Nov full local run; `briefing_agent` uses its own names in that loop now. Test in
+  `tests/test_briefing_switch.py`.
+- **Classic layouts no longer print "Actual x vs baseline y tasks/hr (baseline = average of the process types
+  in scope)"** (UC3 weekly, Word, UC4, the fallback and the plain-text briefing): they print the earned-hours
+  basis of the same % (`email_html.eff_earned_text`, e.g. "1,357 h of work at each process type's own baseline
+  in 1,162 h booked"). The % itself is unchanged.
+- **The layout (`email_briefing_pt.py`):** status + actions, "what changed" with
+  a work-mix split (rate vs mix, this week's weights), **one table of all process types** (tasks, hours,
+  actual and own baseline tasks/hr, hours at baseline, Eff vs own BL, FTA, CoQ; 12 rows + "Other") with a
+  **Total row built from the rows** that adds only what can be added (hours, hours at baseline, FTA/CoQ
+  pooled; tasks and tasks/hr left empty) and its 8-week trend (user, 5 Nov: "instead of cumulative can we
+  have such table"), then a card per process type needing attention (why, work units, notes, 8-week trend
+  + trend word), operators first for Operational Leads / planning IDs first for PMs, only SLA tickets (15
+  oldest).
+  Never scores a type against the scope-average baseline ("no baseline" instead); Yield >100% hidden; a
+  type below 50% of its baseline for 6 full weeks asks to check the baseline. Weekly data only.
+- **Later the same day (user review of mock-ups v2-v5):** no combined "Total, last 8 weeks" trend (each process
+  type has its own); **Yield** in the table (Total pooled) and in each trend (`_YIELD_PT_TREND_SQL`,
+  `add_yield_trend`); **line charts** as the trend (`briefing_charts.py`, matplotlib, inline cid images; numbers
+  table only when images cannot be sent); `delivery._send_email/_send_graph/_send_outlook(inline_images=...)`,
+  passed only when there are images so every existing email is unchanged; **crisp recommended actions** = action
+  + the one root cause it rests on (`root_cause.analyse` adds `"root"`; classic box unchanged); **operators**:
+  judged only with at least 8 production hours (user: "only focus on prod hrs"), worst 25 (most levels missed,
+  then production hours) and best 5 in the team (relative, not in the worst list, no FTA/yield problem, with a
+  factual remark); `_OPERATOR_SQL` adds `prod_hrs`. Tests: `tests/test_briefing_pt_v4.py`.
+- **Analytics (additive, classic email unchanged):** `_PT_TREND_SQL` (read-only, 8 weeks per process type),
+  `pt_trends`, `trend_word`, `mix_split`, `trend_mondays`; `process_breakdown[i].trend / own_baseline /
+  eff_from_scope_average`, `overall_trend`, `trend_weeks`. No LLM (rules, SQL, templates; test_no_llm green).
+  Tests: `tests/test_briefing_pt.py`.
+
 ## Unreleased (branch osi-002-jira-key-column): Jira key from the "Jira Key" column (3 Nov 2026)
 
 - **The Jira key is read from the profile's "Jira Key" column** when the Active Projects table has one (the

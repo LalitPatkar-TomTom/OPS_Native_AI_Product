@@ -16,3 +16,4 @@ it. The decisions about the chat app (sign-in, MCP, LLM hosting) are in the OPSH
 | [008](008-root-cause-driver-trees.md) | Root causes and actions as rule-based driver trees | Accepted |
 | [009](009-data-never-deleted-checked-backup.md) | Data is never deleted; every release starts with a checked backup, outside run windows | Accepted |
 | [010](010-jira-key-column.md) | The Jira key is read from the profile's "Jira Key" column | Accepted |
+| [011](011-per-process-type-daily-briefing.md) | The daily briefing measures each process type against its own baseline | Accepted |

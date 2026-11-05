@@ -177,11 +177,22 @@ def run_uc1(skill_file: Path | None = None) -> Path:
                + ("" if analytics_result.get("no_scope") else f" | FTA {fta:.1f}%")
                + (f" | {period_label(analytics_result['week_label'])}" if analytics_result.get("week_label") else ""))
     cc_list = skill.get("cc_recipients") or []
+    # The daily briefing is built here, not inside deliver(): the per-process-type layout with its trend charts
+    # (5 Nov 2026), or the classic one when BRIEFING_LAYOUT=classic or the new one fails for this user.
+    # deliver()'s own build stays classic, so no other caller changes.
+    import os
+    from email_briefing_pt import build_daily
+    preview = ("This is a preview of your daily operational briefing. Once implemented, you will receive this "
+               "automatically every morning. If you have any initial feedback or comments, please reach out to the "
+               "OPS Native AI team.") if os.getenv("PREVIEW_MODE") else None
+    html_body, images, layout = build_daily(jira_result, analytics_result, confluence_result, skill, preview)
+    log.info(f"          Layout: {layout}, {len(images)} chart(s)")
     delivery_results = deliver(
         briefing_text, skill, subject=subject,
         jira=jira_result, analytics=analytics_result,
         confluence=confluence_result,
         cc_recipients=cc_list if cc_list else None,
+        html_body=html_body, inline_images=images or None,
     )
     for channel, ok in delivery_results.items():
         status = "OK" if ok else "FAILED/SKIPPED"

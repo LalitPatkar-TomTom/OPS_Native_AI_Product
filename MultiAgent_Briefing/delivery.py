@@ -47,11 +47,13 @@ def _send_outlook(
     html_body: str,
     cc_emails: list[str] | None = None,
     attachment_path: str | None = None,
+    inline_images: dict[str, bytes] | None = None,
 ) -> bool:
     """
     Send via the locally running Outlook application using HTML formatting.
     Uses win32com — works as long as Outlook is installed and your account is signed in.
     Optional attachment_path: absolute path to a file to attach (e.g. a .docx report).
+    Optional inline_images: {cid: PNG bytes} shown in the body via <img src="cid:...">.
     """
     try:
         import win32com.client
@@ -66,6 +68,15 @@ def _send_outlook(
         if attachment_path:
             mail.Attachments.Add(attachment_path)
             log.info(f"Attachment added: {attachment_path}")
+        if inline_images:
+            import tempfile
+            tmp = Path(tempfile.mkdtemp(prefix="opsai-img-"))
+            for cid, png in inline_images.items():
+                f = tmp / f"{cid}.png"
+                f.write_bytes(png)
+                att = mail.Attachments.Add(str(f))
+                # PR_ATTACH_CONTENT_ID: the body's cid: reference finds the image (inline, not a download)
+                att.PropertyAccessor.SetProperty("http://schemas.microsoft.com/mapi/proptag/0x3712001F", cid)
         mail.Send()
         cc_note = f" (CC: {', '.join(cc_emails)})" if cc_emails else ""
         log.info(f"Email sent via Outlook -> {to_email}{cc_note}")
@@ -110,8 +121,10 @@ def _send_graph(
     html_body: str,
     cc_emails: list[str] | None = None,
     attachment_path: str | None = None,
+    inline_images: dict[str, bytes] | None = None,
 ) -> bool:
-    """Send from MAIL_SENDER via Graph /users/{sender}/sendMail (copy kept in its Sent Items)."""
+    """Send from MAIL_SENDER via Graph /users/{sender}/sendMail (copy kept in its Sent Items).
+    inline_images: {cid: PNG bytes}, sent as inline file attachments the body refers to with cid:."""
     sender = os.getenv("MAIL_SENDER", "").strip()
     if not (sender and os.getenv("MAIL_CLIENT_SECRET", "").strip()):
         log.warning("Graph mail not configured (MAIL_SENDER / MAIL_CLIENT_SECRET) — skipped")
@@ -137,6 +150,12 @@ def _send_graph(
                 "contentBytes": base64.b64encode(data).decode("ascii"),
             }]
             log.info(f"Attachment added: {attachment_path}")
+        message.setdefault("attachments", []).extend(
+            {"@odata.type": "#microsoft.graph.fileAttachment", "name": f"{cid}.png", "contentType": "image/png",
+             "contentBytes": base64.b64encode(png).decode("ascii"), "isInline": True, "contentId": cid}
+            for cid, png in (inline_images or {}).items())
+        if not message["attachments"]:
+            del message["attachments"]
         for attempt in (1, 2):
             r = httpx.post(f"https://graph.microsoft.com/v1.0/users/{sender}/sendMail",
                            headers={"Authorization": f"Bearer {_graph_access_token()}"},
@@ -157,15 +176,18 @@ def _send_graph(
     return False
 
 
-def _send_email(to_email, subject, html_body, cc_emails=None, attachment_path=None) -> tuple[bool, str]:
-    """Send by EMAIL_TRANSPORT; returns (sent_ok, transport used)."""
+def _send_email(to_email, subject, html_body, cc_emails=None, attachment_path=None,
+                inline_images=None) -> tuple[bool, str]:
+    """Send by EMAIL_TRANSPORT; returns (sent_ok, transport used). inline_images: {cid: PNG bytes}."""
+    # images only when there are any, so every existing call (and its stubs in tests) stays exactly as it was
+    extra = {"inline_images": inline_images} if inline_images else {}
     if os.getenv("EMAIL_TRANSPORT", "outlook").strip().lower() == "graph":
-        if _send_graph(to_email, subject, html_body, cc_emails, attachment_path):
+        if _send_graph(to_email, subject, html_body, cc_emails, attachment_path, **extra):
             return True, "graph"
         if os.name != "nt":
             return False, "graph"
         log.warning("Falling back to Outlook for this email")
-    return _send_outlook(to_email, subject, html_body, cc_emails, attachment_path), "outlook"
+    return _send_outlook(to_email, subject, html_body, cc_emails, attachment_path, **extra), "outlook"
 
 
 # ── 2. Teams webhook (secondary — set TEAMS_WEBHOOK_URL in .env) ──────────────
@@ -224,6 +246,7 @@ def deliver(
     cc_recipients: list[str] | None = None,
     html_body: str | None = None,
     attachment_path: str | None = None,
+    inline_images: dict[str, bytes] | None = None,
 ) -> dict:
     """
     Deliver the briefing. File is always saved; email/Teams fire on top.
@@ -234,6 +257,7 @@ def deliver(
         subject   : email/Teams message subject line
         jira      : raw Jira agent output — used to build HTML email
         analytics : raw Analytics agent output — used to build HTML email
+        inline_images: {cid: PNG bytes} the HTML body shows with cid: (UC1 trend charts, 5 Nov 2026)
 
     Returns dict of {channel: bool} for logging.
     """
@@ -292,6 +316,9 @@ def deliver(
             recipient, subject, body_to_send,
             cc_emails=merged_cc,
             attachment_path=attachment_path,
+            # only with an HTML body (plain text has no cid: references), and only when there are images, so
+            # every other email's call stays exactly as it was
+            **({"inline_images": inline_images} if inline_images and html_body else {}),
         )
         # Who received what — the basis of trigger analytics / business value
         import audit_log
