@@ -190,6 +190,13 @@
    "title": "Tickets nobody owns are listed",
    "text": "The Jira SLA alert now also lists open tickets that nobody is assigned to, oldest first, so an owner can be given. They are not counted as SLA breaches.",
    "osi": "OSI-056"
+  },
+  {
+   "date": "2026-11-07",
+   "area": "Alerts",
+   "title": "One alert email instead of several",
+   "text": "When several of your metrics pass their alert level at the same time, you now get one alert email listing all of them, worst first, instead of one email per metric. Each metric still alerts at most once a day.",
+   "osi": "OSI-043"
   }
  ]
 }

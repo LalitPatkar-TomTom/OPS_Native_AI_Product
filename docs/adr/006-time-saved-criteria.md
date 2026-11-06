@@ -27,3 +27,8 @@ measure must be simple, transparent and stable, so that reports can be compared 
 ## Revisit when
 Real time-and-motion figures from users are available. Update the minutes, record the date and the
 source here, and keep the old version for past reports.
+
+## Amendment, 6 Nov 2026 (OSI-023, with ADR-013)
+Metric alerts (UC4) are valued **per distinct breach alerted** (user × metric × day, from `uc4_alert_state`), not
+per email, because one email can now carry several metrics (ADR-013). Days before the state table's first row
+(9 Oct 2026) still count UC4 emails. The minutes per item are unchanged (UC4 = 25). `azure/weekly_analytics.uc4_items`.

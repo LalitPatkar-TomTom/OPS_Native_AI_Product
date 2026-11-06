@@ -131,6 +131,19 @@ def tickets(e: dict) -> set:
     return out
 
 
+def uc4_items(d: dict, sent: list, hist: list, alerts: list) -> int:
+    """Metric alerts valued for time saved (OSI-023, 6 Nov 2026): each distinct breach alerted (user x metric x
+    day, from uc4_alert_state) counts once, whether it came alone or in one combined email with others (OSI-043).
+
+    Why: emails undercount once several metrics share one email, and the old count mixed the two. The state table
+    starts on 9 Oct, so days before its first row still count UC4 emails, as before."""
+    first = min((a["alert_date"] for a in d.get("alerts") or []), default=None)
+    before = lambda day: first is None or day < first
+    old = sum(1 for e in sent if e["uc_id"] == "UC4" and before(ist_day(e["ts"]).isoformat()))
+    old += sum(h["count"] for h in hist if h["uc_id"] == "UC4" and before(h["day_ist"]))
+    return len(alerts) + old
+
+
 def period_stats(d: dict, start: date, end: date) -> dict:
     """Numbers for start..end (inclusive, IST days)."""
     inside = lambda ts: start <= ist_day(ts) <= end
@@ -156,12 +169,14 @@ def period_stats(d: dict, start: date, end: date) -> dict:
     flagged = set().union(*[tickets(e) for e in uc2]) if uc2 else set()
     days = (end - start).days + 1
     slots = {(r["slot_date_ist"], r["slot_ist"]) for r in runs}
-    hours = {uc: by_uc.get(uc, 0) * MINUTES[uc] / 60 for uc in ("UC1", "UC2", "UC3", "UC4")}
+    items = Counter(by_uc)
+    items["UC4"] = uc4_items(d, sent, hist, alerts)    # OSI-023: one per breach, not per email
+    hours = {uc: items.get(uc, 0) * MINUTES[uc] / 60 for uc in ("UC1", "UC2", "UC3", "UC4")}
     hours["chat"] = cv["minutes"] / 60               # per question, from the work each answer did
     hours["reports"] = rv["minutes"] / 60            # per Status Report, by type, period and scope
     return {
         "emails": len(sent) + sum(hist_emails.values()), "emails_tried": len(em) + sum(hist_emails.values()),
-        "by_uc": by_uc,
+        "by_uc": by_uc, "items": items,
         "people": len({e["to_email"].lower() for e in sent if e["to_email"]}),
         "profiles": len({e["user_email"].lower() for e in ev if e["user_email"]}),
         "triggers": len(ev), "triggers_by_uc": Counter(e["uc_id"] for e in ev),
@@ -230,9 +245,10 @@ def consolidated_value(doc, S: dict, when: str, unit: str = " h") -> None:
     """Email use cases (fixed minutes per email) + OPS Hub questions (valued per question) = total saving."""
     doc.add_heading(f"Consolidated time saved ({when})", 3)
     emails_h = sum(S["hours"][uc] for uc in ("UC1", "UC2", "UC3", "UC4"))
-    rows = [(f"{UC_NAME[uc]} ({uc})", S["by_uc"].get(uc, 0), MINUTES[uc], f"{S['hours'][uc]:.1f}{unit}")
-            for uc in ("UC1", "UC4", "UC2", "UC3")]
-    rows.append(("Subtotal: OPS Native AI emails", sum(S["by_uc"].get(uc, 0) for uc in MINUTES), "",
+    # Items = what the minutes are applied to: emails, and for UC4 the breaches alerted (OSI-023)
+    rows = [(f"{UC_NAME[uc]} ({uc})" + (", breaches" if uc == "UC4" else ""), S["items"].get(uc, 0), MINUTES[uc],
+             f"{S['hours'][uc]:.1f}{unit}") for uc in ("UC1", "UC4", "UC2", "UC3")]
+    rows.append(("Subtotal: OPS Native AI emails", sum(S["items"].get(uc, 0) for uc in MINUTES), "",
                  f"{emails_h:.1f}{unit}"))
     cv = S["chat_value"]
     rows.append(("OPS Hub questions answered", S["chats"], "by question (above)", f"{S['hours']['chat']:.1f}{unit}"))

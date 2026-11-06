@@ -1753,6 +1753,7 @@ def build_alert(
     images: dict[str, bytes] | None = None,   # given: 8-week charts are added here as {cid: png} (OSI-010)
     trend_rows: list[dict] | None = None,     # the alerting process types to chart
     trend_level: float | None = None,         # the alert level drawn as the reference line
+    body_only: bool = False,                  # True: only the banner and body, for a combined alert (OSI-043)
 ) -> str:
     """Compact HTML email for UC4 real-time quality alerts. With `images` and `trend_rows`, each alerting
     process type also gets a small 8-week chart of the alerting metric (OSI-010, 6 Nov 2026); without them the
@@ -1900,29 +1901,7 @@ def build_alert(
                 _data_table(["Operator", "Work unit", "Process Type", "FTA", "Eff vs BL", "CoQ", "Yield", "Hrs", "Sampling"],
                             op_rows), 3)
 
-    return f"""<html>
-<body style="margin:0;padding:0;background:#DDE3EA">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#DDE3EA">
-<tr><td align="center" style="padding:20px 10px">
-<table width="600" cellpadding="0" cellspacing="0"
-       style="background:{_WHITE};border-radius:6px;border:1px solid {_BORDER}">
-<tr><td>
-
-  <!-- Header -->
-  <table width="100%" cellpadding="0" cellspacing="0">
-  <tr>
-    <td style="background:{_HDR};padding:16px 22px 12px">
-      <span style="{_F};font-size:15px;font-weight:bold;color:#fff">&#9888; UC4 — Quality Alert</span><br>
-      <span style="{_F};font-size:11px;color:#8FA3C0;margin-top:3px;display:block">
-        {proj_label} &nbsp;·&nbsp; {date_str}
-      </span>
-    </td>
-    <td style="background:{_HDR};padding:16px 22px;text-align:right;vertical-align:middle">
-      <span style="{_F};font-size:20px;font-weight:bold;color:{c}">&#9679; {rag.replace('_',' ')}</span>
-    </td>
-  </tr>
-  </table>
-
+    inner = f"""
   <!-- Alert banner -->
   <table width="100%" cellpadding="0" cellspacing="0">
   <tr><td style="background:{bg};border-bottom:3px solid {c};padding:18px 22px">
@@ -1973,7 +1952,37 @@ def build_alert(
 
   </td></tr>
   </table>
+"""
+    if body_only:          # one section of a combined alert (OSI-043): banner and body, no shell
+        return inner
+    return _alert_shell(proj_label, date_str, c, rag, inner)
 
+
+def _alert_shell(proj_label: str, date_str: str, c: str, rag: str, inner: str) -> str:
+    """The UC4 alert's outer frame: header with project and time, the given banner and body, footer."""
+    return f"""<html>
+<body style="margin:0;padding:0;background:#DDE3EA">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#DDE3EA">
+<tr><td align="center" style="padding:20px 10px">
+<table width="600" cellpadding="0" cellspacing="0"
+       style="background:{_WHITE};border-radius:6px;border:1px solid {_BORDER}">
+<tr><td>
+
+  <!-- Header -->
+  <table width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    <td style="background:{_HDR};padding:16px 22px 12px">
+      <span style="{_F};font-size:15px;font-weight:bold;color:#fff">&#9888; UC4 — Quality Alert</span><br>
+      <span style="{_F};font-size:11px;color:#8FA3C0;margin-top:3px;display:block">
+        {proj_label} &nbsp;·&nbsp; {date_str}
+      </span>
+    </td>
+    <td style="background:{_HDR};padding:16px 22px;text-align:right;vertical-align:middle">
+      <span style="{_F};font-size:20px;font-weight:bold;color:{c}">&#9679; {rag.replace('_',' ')}</span>
+    </td>
+  </tr>
+  </table>
+{inner}
   <!-- Footer -->
   <table width="100%" cellpadding="0" cellspacing="0">
   <tr><td style="background:{_SEC};border-top:1px solid {_BORDER};
@@ -1989,6 +1998,42 @@ def build_alert(
 </td></tr>
 </table>
 </body></html>"""
+
+
+def build_combined_alert(parts: list[dict], bodies: list[str], skill: dict[str, Any] | None = None) -> str:
+    """One UC4 email for every metric past its level in a run (OSI-043, 6 Nov 2026).
+
+    `parts` are the alerts in the order to show (worst first), each with label, value, level and direction
+    ("drop" | "rise"); `bodies` the matching build_alert(..., body_only=True) sections. A short summary table
+    comes first so the reader sees everything that fired on one screen, then each metric's usual section."""
+    _s = skill or {}
+    from skill_registry import jira_label
+    project_name, jira_project = project_name_of(_s), jira_label(_s)
+    proj_label = f"{project_name} ({jira_project})" if jira_project else project_name
+    date_str = datetime.now(timezone.utc).strftime("%A, %d %B %Y · %H:%M UTC")
+    c, bg, _ = _rag("RED")
+    rows = []
+    for p in parts:
+        below = p["direction"] != "rise"
+        rows.append([f'<span style="{_F};font-size:12px">{_n(p["label"])}</span>',
+                     f'<span style="{_F};font-size:12px;font-weight:bold;color:{c}">{p["value"]:.2f}%</span>',
+                     f'<span style="{_F};font-size:12px;color:{_MUTED}">{"Below" if below else "Above"} '
+                     f'{p["level"]:g}%</span>',
+                     f'<span style="{_F};font-size:12px">{abs(p["value"] - p["level"]):.2f} pts</span>'])
+    summary = f"""
+  <table width="100%" cellpadding="0" cellspacing="0">
+  <tr><td style="background:{bg};border-bottom:3px solid {c};padding:18px 22px">
+    <div style="{_F};font-size:13px;font-weight:bold;color:{_MUTED};text-transform:uppercase;
+                letter-spacing:0.5px;margin-bottom:6px">{len(parts)} metrics past their alert level</div>
+    <div style="{_F};font-size:13px;color:{_TEXT};margin-bottom:8px">
+      One email for this run instead of one per metric, worst first. Each metric has its own section below.
+    </div>
+    {_data_table(["Metric", "Now", "Alert level", "Gap"], rows)}
+  </td></tr>
+  </table>
+"""
+    sep = f'<div style="border-top:4px solid {_BORDER};margin:0"></div>'
+    return _alert_shell(proj_label, date_str, c, "RED", summary + sep + sep.join(bodies))
 
 
 def _alert_trend(rows: list[dict] | None, metric_key: str, level: float, images: dict | None) -> str:

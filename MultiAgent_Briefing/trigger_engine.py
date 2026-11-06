@@ -275,13 +275,14 @@ def _run_uc4(skill: dict, user: str):
       direction='rise'  → alert when current > alert_value  (CoQ, CopQ)
 
     One alert per metric per user per day (suppressed on repeat polls).
+    Every metric that fires in one run goes out in ONE email, worst first (OSI-043, 6 Nov 2026);
+    UC4_COMBINED_ALERT=0 goes back to one email per metric.
     Set FORCE_UC4_ALERT=1 to bypass suppression and thresholds (testing only).
     """
     import os
     from agents import analytics_agent
-    from agents.uc4_state import already_alerted_today, mark_alerted
-    from delivery import deliver
-    from email_html import alert_week_note, build_alert, period_label
+    from agents.uc4_state import already_alerted_today
+    from email_html import alert_week_note, period_label
 
     force        = bool(os.getenv("FORCE_UC4_ALERT"))
     pm           = set(skill.get("primary_metrics") or ["fta", "efficiency", "coq"])
@@ -324,7 +325,7 @@ def _run_uc4(skill: dict, user: str):
         "yield":      (analytics.get("yield_current"),       "fta", "Yield"),
     }
 
-    alerts_sent = 0
+    pending: list[dict] = []   # alerts of this run, sent together after the loop (OSI-043)
 
     for metric_key in sorted(pm):          # deterministic order
         if metric_key not in _METRIC_VALUES:
@@ -343,31 +344,27 @@ def _run_uc4(skill: dict, user: str):
             names = [str(h[1].get("planning_id") or h[1].get("process_type")) for h in hits]
             if force or not already_alerted_today(user, skey):
                 rows = [{**h[1], "process_type": n} for h, n in zip(hits, names)]
-                images: dict[str, bytes] = {}   # OSI-010: 8-week chart per alerting process type
-                html = build_alert(
+                alert_kw = dict(
                     metric=email_type, rag="RED", current_value=worst[2], threshold=worst[0]["alert"],
                     direction="declining" if rise else "stable", week_label=week, process_breakdown=rows,
                     skill=skill, label=f"{label} — {len(hits)} {what}{'s' if len(hits) > 1 else ''} past "
                                        f"the level set for {'them' if len(hits) > 1 else 'it'}",
                     alert_on=worst[0]["direction"], analytics=analytics, metric_key=metric_key,
-                    images=images, trend_rows=rows,
+                    trend_rows=rows,
                 )
                 subj = (f"UC4 Alert RED — {metric_key.upper()} {worst[2]:.2f}% vs threshold {worst[0]['alert']}% — "
                         f"{', '.join(names[:2])}{' …' if len(names) > 2 else ''} — {proj_name}"
                         + (f" — {period_label(week, fallback_note=wk_note)}" if week else ""))
                 content = f"UC4 {metric_key.upper()} scoped alert: " + "; ".join(
                     f"{n} {h[2]:.2f}% (level {h[0]['alert']}%)" for h, n in zip(hits, names))
-                out = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_scoped_Alert.md"
-                out.write_text(content, encoding="utf-8")
-                res = deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None,
-                              **({"inline_images": images} if images else {}))
-                if not force and res.get("email"):
-                    mark_alerted(user, skey)
-                audit_log.log_uc4(user, skill, analytics, metric_key=metric_key, alert_value=worst[2],
-                                  threshold_value=worst[0]["alert"], direction=worst[0]["direction"],
-                                  status="sent" if res.get("email") else "send_failed")
-                alerts_sent += 1
-                log.warning(f"UC4  {metric_key.upper()} scoped — {len(hits)} {what}(s) past their level — alert sent  [{user}]")
+                pending.append({
+                    "state_key": skey, "metric_key": metric_key, "label": alert_kw["label"],
+                    "short": f"{metric_key.upper()} {worst[2]:.2f}% ({', '.join(names[:2])}{' …' if len(names) > 2 else ''})",
+                    "value": worst[2], "level": worst[0]["alert"], "direction": worst[0]["direction"],
+                    "alert_kw": alert_kw, "subject": subj, "content": content,
+                    "file": f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_scoped_Alert.md",
+                    "log": f"UC4  {metric_key.upper()} scoped — {len(hits)} {what}(s) past their level — alert sent  [{user}]",
+                })
             else:
                 log.info(f"  UC4  {metric_key.upper()} scoped — suppressed (already alerted today)")
         if scoped_rules and not overall_rules:
@@ -404,8 +401,7 @@ def _run_uc4(skill: dict, user: str):
         if force or breached:
             rag = "RED"
             if force or not already_alerted_today(user, metric_key):
-                images = {}                      # OSI-010: 8-week chart per process type past the level
-                html = build_alert(
+                alert_kw = dict(
                     metric=email_type, rag=rag,
                     current_value=current,
                     threshold=alert_val,
@@ -422,25 +418,19 @@ def _run_uc4(skill: dict, user: str):
                                          or (metric_key == "copq" and "coq" in o.get("breaches", []))]
                                         if skill.get("operator_view") else None),
                     analytics=analytics, metric_key=metric_key,
-                    images=images, trend_rows=alerting_rows(analytics, metric_key, alert_val, direction),
+                    trend_rows=alerting_rows(analytics, metric_key, alert_val, direction),
                 )
                 subj    = (f"UC4 Alert {rag} — {metric_key.upper()} {current:.2f}% vs threshold {alert_val}% — {proj_name}"
                            + (f" — {period_label(week, fallback_note=wk_note)}" if week else ""))
                 content = f"UC4 {metric_key.upper()} Alert {rag}: {current:.2f}% (threshold {alert_val}%)"
-                out     = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_Alert.md"
-                out.write_text(content, encoding="utf-8")
-                res = deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None,
-                              **({"inline_images": images} if images else {}))
-                if not force and res.get("email"):     # failed send: retry at the next slot
-                    mark_alerted(user, metric_key)
-                audit_log.log_uc4(
-                    user, skill, analytics,
-                    metric_key=metric_key, alert_value=current,
-                    threshold_value=alert_val, direction=direction,
-                    status="sent" if res.get("email") else "send_failed",
-                )
-                alerts_sent += 1
-                log.warning(f"UC4  {metric_key.upper()} {current:.2f}% {rag} — alert sent  [{user}]")
+                pending.append({
+                    "state_key": metric_key, "metric_key": metric_key, "label": label,
+                    "short": f"{metric_key.upper()} {current:.2f}%",
+                    "value": current, "level": alert_val, "direction": direction,
+                    "alert_kw": alert_kw, "subject": subj, "content": content,
+                    "file": f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_Alert.md",
+                    "log": f"UC4  {metric_key.upper()} {current:.2f}% {rag} — alert sent  [{user}]",
+                })
             else:
                 audit_log.log_uc4(
                     user, skill, analytics,
@@ -466,8 +456,58 @@ def _run_uc4(skill: dict, user: str):
             )
             log.info(f"  UC4  {metric_key.upper()} {current:.2f}% — healthy")
 
+    tail = f" — {proj_name}" + (f" — {period_label(week, fallback_note=wk_note)}" if week else "")
+    alerts_sent = _send_uc4_alerts(pending, skill, user, analytics, force, tail, cc_list)
     if alerts_sent == 0 and not force:
         log.info(f"UC4  All metrics healthy — no alerts  [{user}]")
+
+
+def _alert_gap(p: dict) -> float:
+    """How far an alert is past its level, relative to the level, so FTA 85 vs 92 and CoQ 12 vs 7 compare."""
+    return abs(p["value"] - p["level"]) / max(abs(p["level"]), 1.0)
+
+
+def _send_uc4_alerts(pending: list[dict], skill: dict, user: str, analytics: dict, force: bool,
+                     tail: str, cc_list: list) -> int:
+    """Send this run's UC4 alerts and record them; returns how many metric alerts went out.
+
+    One alert: exactly the email of before. Several: one combined email, worst first (OSI-043), because users
+    asked for one consolidated alert instead of several emails in the same minute. Each metric keeps its own
+    once-a-day state and audit row, so suppression and the analytics count work as before; a failed send marks
+    nothing, so every metric is retried at the next slot. UC4_COMBINED_ALERT=0 sends one email per metric."""
+    import os
+    from agents.uc4_state import mark_alerted
+    from delivery import deliver
+    from email_html import build_alert, build_combined_alert
+
+    if not pending:
+        return 0
+    combined = len(pending) > 1 and os.getenv("UC4_COMBINED_ALERT", "1").strip().lower() not in ("0", "false", "off")
+    groups = [sorted(pending, key=_alert_gap, reverse=True)] if combined else [[p] for p in pending]
+    for group in groups:
+        images: dict[str, bytes] = {}   # OSI-010 charts of every section; cids stay unique across sections
+        if len(group) == 1:
+            p = group[0]
+            html = build_alert(**p["alert_kw"], images=images)
+            subj, content, name = p["subject"], p["content"], p["file"]
+        else:
+            bodies = [build_alert(**p["alert_kw"], images=images, body_only=True) for p in group]
+            html = build_combined_alert(group, bodies, skill)
+            subj = (f"UC4 Alert RED — {len(group)} metrics past their level: "
+                    + ", ".join(p["short"] for p in group) + tail)
+            content = "UC4 combined alert:\n" + "\n".join(p["content"] for p in group)
+            name = group[0]["file"].rsplit("_UC4_", 1)[0] + f"_UC4_{user}_Combined_Alert.md"
+        (OUTPUT_DIR / name).write_text(content, encoding="utf-8")
+        res = deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None,
+                      **({"inline_images": images} if images else {}))
+        for p in group:
+            if not force and res.get("email"):     # failed send: retry at the next slot
+                mark_alerted(user, p["state_key"])
+            audit_log.log_uc4(user, skill, analytics, metric_key=p["metric_key"], alert_value=p["value"],
+                              threshold_value=p["level"], direction=p["direction"],
+                              status="sent" if res.get("email") else "send_failed")
+            log.warning(p["log"] + (f" (one email with {len(group) - 1} more)" if len(group) > 1 else ""))
+    return len(pending)
 
 
 _ROW_FIELD = {"fta": "fta_pct", "efficiency": "eff_vs_bl", "coq": "coq_pct", "copq": "coq_pct", "yield": "yield_pct"}

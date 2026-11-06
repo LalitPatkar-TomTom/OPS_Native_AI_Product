@@ -18,3 +18,4 @@ it. The decisions about the chat app (sign-in, MCP, LLM hosting) are in the OPSH
 | [010](010-jira-key-column.md) | The Jira key is read from the profile's "Jira Key" column | Accepted |
 | [011](011-per-process-type-daily-briefing.md) | The daily briefing measures each process type against its own baseline | Accepted |
 | [012](012-every-jira-key.md) | Every Jira key in a profile is checked, each missing key named | Accepted |
+| [013](013-one-combined-uc4-alert.md) | One combined UC4 alert per run, worst first; each metric keeps its own state | Accepted |

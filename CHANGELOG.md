@@ -1,5 +1,23 @@
 # Changelog: OPS Native AI
 
+## v2026-11-06-2: one combined metric alert per run, time saved per breach (6 Nov 2026)
+
+- **OSI-043 (part 2, Pranav): every UC4 metric past its level in a run goes out in one email.** `_run_uc4`
+  collects the alerts and `_send_uc4_alerts` sends them: one alert alone is exactly the email of before (same
+  subject, byte-for-byte the same HTML); two or more are one email "UC4 Alert RED — N metrics past their level:
+  COQ 14.75%, YIELD 82.82%, …" with a summary table (now, level, gap) worst first by the gap relative to the level,
+  then each metric's usual section (`email_html.build_alert(..., body_only=True)`, `build_combined_alert`; the
+  shell moved to `_alert_shell`). Each metric keeps its own once-a-day state and audit row; a metric already
+  alerted today is left out; a failed send marks none. `UC4_COMBINED_ALERT=0` = one email per metric. On the
+  6 Nov profiles: 13 UC4 emails → 7, same charts; every other email identical. Decision: ADR-013.
+- **OSI-023 (rest): time saved counts UC4 per breach, not per email** (`azure/weekly_analytics.uc4_items`): each
+  breach alerted (user × metric × day, `uc4_alert_state`) counts 25 min, alone or in a combined email; days before
+  the state table (9 Oct) still count emails. The consolidated table's UC4 row reads "Metric Alert (UC4),
+  breaches". ADR-006 amended.
+- Tests: `tests/test_osi043_023.py` (functional, technical).
+- What's new note for OSI-043 dated 7 Nov: this release goes out after today's 17:00 What's new email, and
+  a note dated 6 Nov would fall before next Friday's window (`week_notes`: after the last email's Friday).
+
 ## v2026-11-06-1: every Jira key, trend charts in UC3/UC4, not-assigned tickets, weekly report fix (6 Nov 2026)
 
 - **OSI-061 (Girish): every Jira key of the Active projects is checked, not only the first.** `load_skill` adds
