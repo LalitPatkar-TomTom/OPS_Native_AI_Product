@@ -131,18 +131,33 @@ def _jql_str(value: str) -> str:
     return str(value).replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _build_jql(skill: dict | None) -> tuple[str, str]:
+def _profile_keys(skill: dict | None) -> list[str]:
+    """The profile's Jira keys in order (OSI-061: every key of the Active projects); config JIRA_PROJECT is a
+    last-resort fallback when the profile names none."""
+    from skill_registry import jira_keys
+    return jira_keys(skill) or ([JIRA_PROJECT] if JIRA_PROJECT else [])
+
+
+def _project_clause(keys: list[str]) -> str:
+    """`project = OM` for one key (the JQL every single-key profile has always run, unchanged), `project in
+    (OM, MCPET)` for several: one search, so the SLA lists and counts cover all of the user's projects."""
+    return f"project = {keys[0]}" if len(keys) == 1 else f"project in ({', '.join(keys)})"
+
+
+def _build_jql(skill: dict | None, keys: list[str] | None = None) -> tuple[str, str]:
     """
     Build a JQL string scoped to tickets relevant to the user.
 
+    keys: the Jira projects to search (default: every key in the profile); run() passes only the keys Jira
+    can find, so one wrong key does not stop the others from being checked.
     Returns (jql_string, human_label).
     """
     _skill        = skill or {}
     user_email    = _skill.get("user", JIRA_EMAIL)
     feature       = _skill.get("databricks_feature", "")
     process_types = _skill.get("databricks_process_types") or []
-    # jira_project from skill takes priority; config JIRA_PROJECT is a last-resort fallback
-    project_key   = _skill.get("jira_project") or JIRA_PROJECT
+    keys          = keys or _profile_keys(_skill)
+    project_key   = ", ".join(keys)
 
     if not project_key:
         raise ValueError(
@@ -174,7 +189,7 @@ def _build_jql(skill: dict | None) -> tuple[str, str]:
 
     window_clause, _ = created_window(_skill)
     jql = (
-        f"project = {project_key} "
+        f"{_project_clause(keys)} "
         f"AND statusCategory != Done "
         f"{window_clause}"
         f"AND ({scope_expr}) "
@@ -211,9 +226,20 @@ def run(skill: dict | None = None) -> dict[str, Any]:
                Drives keyword and identity filtering in JQL.
                Pass None to return all open MCPET tickets (no scope).
     """
-    jql, jql_label = _build_jql(skill)
+    keys = _profile_keys(skill)
+    missing: list[str] = []
+    if len(keys) > 1 and JIRA_API_TOKEN:
+        # OSI-061: with several keys, a wrong one must not stop the others (one search over all of them would
+        # fail on the wrong key, MCP, or quietly return 0 tickets for it, REST). Each key is looked up first by
+        # the run's own route; "unknown" (Jira down) is kept, so an outage is reported by the search itself.
+        missing = [k for k in keys if project_status(k) == "missing"]
+        if missing:
+            log.warning("Jira project(s) %s not found — checked without them: %s",
+                        ", ".join(missing), ", ".join(k for k in keys if k not in missing) or "none")
+    found = [k for k in keys if k not in missing] or keys
+    jql, jql_label = _build_jql(skill, found)
 
-    jira_project = (skill or {}).get("jira_project") or JIRA_PROJECT
+    jira_project = ", ".join(found)
     warn_h, esc_h = sla_levels(skill)
     result: dict[str, Any] = {
         "sla_warning_hours":    warn_h,
@@ -222,12 +248,25 @@ def run(skill: dict | None = None) -> dict[str, Any]:
         "open_tickets": [],
         "sla_breaches": [],
         "sla_warnings": [],
+        "unassigned":   [],          # OSI-056: open tickets with no assignee, listed apart from the SLA
         "total_open":   0,
         "jql":          jql,
         "source":       f"Jira {jira_project}",
         "as_of":        datetime.now(timezone.utc).isoformat(),
         "error":        None,
     }
+    if missing:
+        result["missing_keys"] = missing
+        if len(missing) == len(keys):
+            # every key is wrong: the same "not found — SLA not checked" as a single wrong key
+            result["source"] = f"Jira {', '.join(keys)}"
+            result.update(error=_not_found(", ".join(keys)), project_not_found=True)
+            log.warning("Jira projects %s not found — SLA not checked", ", ".join(keys))
+            return result
+        result["key_warning"] = (f"Jira project {', '.join(missing)} not found or not visible to the OPS AI Jira "
+                                 f"account, so it is not checked; {jira_project} "
+                                 f"{'is' if len(found) == 1 else 'are'} checked. Check the Jira key in your "
+                                 f"profile (OPS Hub → My profile).")
 
     if not JIRA_API_TOKEN:
         result["error"] = "JIRA_API_TOKEN not set — add to OPS_Native_AI/.env"
@@ -256,7 +295,8 @@ def run(skill: dict | None = None) -> dict[str, Any]:
                 return result
             log.warning("Jira via MCP failed (%s) — falling back to REST", exc)
 
-    if data is None and project_missing(jira_project):
+    # several keys were each looked up above; the REST lookup takes one key
+    if data is None and len(found) == 1 and project_missing(jira_project):
         # 404 also means "no permission": QADEV exists but the REST account cannot see it
         result.update(error=_not_found(jira_project), project_not_found=True)
         log.warning("Jira project %s not found (REST) — SLA not checked", jira_project)
@@ -308,7 +348,14 @@ def run(skill: dict | None = None) -> dict[str, Any]:
             result["sla_breaches"].append(ticket)
         elif sla == "WARNING_48H":
             result["sla_warnings"].append(ticket)
+        if not f.get("assignee"):
+            created = f.get("created") or ""
+            result["unassigned"].append({**ticket, "created": created,
+                                         "age_days": round(_hours_since(created) / 24) if created else None})
 
+    # OSI-056 (part, 6 Nov 2026): tickets nobody owns, oldest first. Listed apart, never counted as SLA
+    # breaches. "Not linked" (the other half of OSI-056) waits for the reporter to say what "linked" means.
+    result["unassigned"].sort(key=lambda t: t["created"] or "9999")
     return result
 
 

@@ -376,6 +376,83 @@ def _card(p: dict, pm: set, images: dict | None = None) -> str:
             f'{trend}</td></tr></table>')
 
 
+# ── 8-week trend charts in the UC3 Weekly Report and UC4 alerts (OSI-010, 6 Nov 2026) ──────────────
+# The trend series come from the same analytics run (analytics_agent adds "trend" to each process type for every
+# report type), so these charts cost no extra query. A chart that cannot be drawn is left out with a WARNING;
+# the email itself is never stopped by a chart (rule book 7.6).
+ALERT_CHARTS_MAX = 4   # process types with a chart in one UC4 alert (most hours first)
+
+
+def _chart_log():
+    """The logger chart failures go to (WARNING, listed in the run report)."""
+    import logging
+    return logging.getLogger("email_briefing_pt")
+
+
+def weekly_trend_html(analytics: dict, pm: set, images: dict | None) -> str:
+    """UC3 Weekly Report: one 8-week chart row per process type (the daily briefing's card charts), the
+    MAX_CARDS process types with the most hours, each named with its trend words. '' when the sender cannot
+    embed images (images is None) or no process type has a trend."""
+    if images is None:
+        return ""
+    bd = sorted((p for p in analytics.get("process_breakdown") or [] if p.get("trend")),
+                key=lambda p: -(p.get("total_hrs") or 0))
+    judged = {"fta": "fta" in pm, "eff": "efficiency" in pm, "coq": "coq" in pm, "yield": "yield" in pm}
+    parts = []
+    for p in bd[:MAX_CARDS]:
+        try:
+            chart = _trend_html(p, judged, _words(p), images)
+        except Exception as exc:
+            _chart_log().warning(f"UC3 trend chart for {p.get('process_type')} left out: {type(exc).__name__}: {exc}")
+            continue
+        parts.append(f'<div style="{_F};font-size:12px;color:{_TEXT};margin-top:10px"><b style="font-family:'
+                     f'Consolas,monospace">{p["process_type"]}</b> &nbsp;<span style="color:{_MUTED}">'
+                     f'{p.get("total_hrs") or 0:,.0f} h this week</span></div>{chart}')
+    if not parts:
+        return ""
+    more = len(bd) - MAX_CARDS
+    note = (f'<p style="{_F};font-size:10px;color:{_MUTED};margin:6px 0 0">Each process type against its own '
+            f'target or baseline; the current week is marked "so far". '
+            + (f'{more} smaller process types are not drawn.' if more > 0 else '') + '</p>')
+    return "".join(parts) + note
+
+
+def alert_trend_html(rows: list[dict], metric_key: str, level: float, images: dict | None) -> str:
+    """UC4 alert: a small 8-week chart of the alerting metric for each alerting process type (at most
+    ALERT_CHARTS_MAX, most hours first), with the profile's alert level as the reference line, two per row.
+    '' when images is None, no row has a trend, or the metric has no weekly series (CoPQ)."""
+    if images is None or not rows:
+        return ""
+    try:
+        import briefing_charts   # matplotlib loads only when charts are drawn
+    except Exception as exc:
+        _chart_log().warning(f"UC4 trend charts left out: {type(exc).__name__}: {exc}")
+        return ""
+    cells = []
+    for p in sorted((r for r in rows if r.get("trend")), key=lambda r: -(r.get("total_hrs") or 0))[:ALERT_CHARTS_MAX]:
+        try:
+            png = briefing_charts.alert_png(p["trend"], metric_key, level, _in_progress(p["trend"][-1]["week"]))
+        except Exception as exc:
+            _chart_log().warning(f"UC4 trend chart for {p.get('process_type')} left out: {type(exc).__name__}: {exc}")
+            continue
+        if not png:
+            continue
+        cid = f"alert{len(images) + 1}"
+        images[cid] = png
+        cells.append(f'<td width="50%" style="padding:4px 4px 4px 0;vertical-align:top">'
+                     f'<div style="{_F};font-size:11px;color:{_TEXT};font-family:Consolas,monospace">'
+                     f'{p.get("process_type", "")}</div>'
+                     f'<img src="cid:{cid}" width="270" alt="8-week trend of {_n(p.get("process_type", ""))}" '
+                     f'style="display:block;width:100%;max-width:270px;height:auto;border:0"></td>')
+    if not cells:
+        return ""
+    rows_html = "".join("<tr>" + "".join(cells[i:i + 2]) + ("<td></td>" if len(cells[i:i + 2]) == 1 else "")
+                        + "</tr>" for i in range(0, len(cells), 2))
+    return (f'<p style="{_F};font-size:12px;font-weight:bold;color:{_TEXT};margin:12px 0 4px">Last 8 weeks '
+            f'(dashed line = your alert level; current week "so far")</p>'
+            f'<table width="100%" cellpadding="0" cellspacing="0">{rows_html}</table>')
+
+
 def _row_numbers(p: dict) -> dict:
     """One process type's table numbers. Baseline = the one its efficiency was scored against (its own only);
     hours at baseline = the hours its tasks would take at that baseline = hours x efficiency %."""
@@ -625,11 +702,12 @@ def _operators_section(analytics: dict) -> str:
 
 def _sla_tickets(jira: dict) -> str:
     """Only the tickets past or close to the SLA; the full list stays in Jira."""
+    from email_html import key_warning_note
     ts = (jira.get("sla_breaches") or []) + (jira.get("sla_warnings") or [])
     total = jira.get("total_open") or len(jira.get("open_tickets") or [])
     if not ts:
-        return (f'<p style="{_F};font-size:12px;color:{_GREEN};margin:0">No ticket past or close to the SLA '
-                f'({total:,} open in Jira).</p>') if not jira.get("error") else ""
+        return ((f'<p style="{_F};font-size:12px;color:{_GREEN};margin:0">No ticket past or close to the SLA '
+                 f'({total:,} open in Jira).</p>') + key_warning_note(jira)) if not jira.get("error") else ""
     th = f'{_F};font-size:10px;font-weight:bold;color:{_WHITE};background:{_HDR};padding:4px 6px;text-align:left'
     html = (f'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid {_BORDER}">'
             f'<tr>' + "".join(f'<th style="{th}">{h}</th>' for h in ("Ticket", "Summary", "Owner", "No update", "SLA")) + '</tr>')
@@ -646,7 +724,7 @@ def _sla_tickets(jira: dict) -> str:
             if extra > 0 else "")
     return html + '</table>' + more + (
         f'<p style="{_F};font-size:10px;color:{_MUTED};margin:4px 0 0">{total:,} open tickets in scope; only those '
-        f'past or close to the SLA are listed.</p>')
+        f'past or close to the SLA are listed.</p>') + key_warning_note(jira)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -695,12 +773,13 @@ def build(jira: dict[str, Any], analytics: dict[str, Any], confluence: dict[str,
           skill: dict[str, Any] | None = None, preview_note: str | None = None,
           images: dict[str, bytes] | None = None) -> str:
     """Render the UC1 Daily Briefing in the per-process-type layout as an HTML email string."""
+    from skill_registry import jira_label
     analytics = own_baselines_only(analytics)
+    s = skill or {}
+    jp = jira_label(s, jira)          # every key checked, e.g. "OM, MCPET" (OSI-061); one key: as before
     jira = _escape_jira(jira) or {}
     confluence = _escape_confluence(confluence)
-    s = skill or {}
     project_name = project_name_of(s)
-    jp = s.get("jira_project") or ""
     label = f"{project_name} ({jp})" if jp and jp != project_name else project_name
     pm = set(s.get("primary_metrics") or ["fta", "efficiency", "coq"])
     lead = "operational lead" in (s.get("domain") or "").lower()

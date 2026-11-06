@@ -478,10 +478,10 @@ def _extract_metric_table_scope(text: str) -> dict[str, list[str]]:
 _JIRA_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,9}$")
 
 
-def _jira_key_column(text: str) -> tuple[bool, str, str]:
-    """(table has a "Jira Key" column, project name, Jira key) from the first markdown table whose header
-    names a Jira Key column. The key comes from the first Active row with a real key (OM, DSM ...); rows
-    with "—" or a non-key value are skipped. (False, "", "") when no such table exists."""
+def _jira_key_rows(text: str) -> list[tuple[str, str]] | None:
+    """[(project name, Jira key)] for every Active row with a real key (OM, DSM ...), in table order, from the
+    first markdown table whose header names a Jira Key column; rows with "—" or a non-key value are skipped.
+    None when no such table exists (profiles made before 3 Nov 2026)."""
     lines = text.splitlines()
     for i, line in enumerate(lines):
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -489,6 +489,7 @@ def _jira_key_column(text: str) -> tuple[bool, str, str]:
             continue
         hdr = [c.lower() for c in cells]
         k_col, s_col = hdr.index("jira key"), hdr.index("status") if "status" in hdr else -1
+        out = []
         for row in lines[i + 2:]:                        # i + 1 is the | --- | separator
             if not row.lstrip().startswith("|"):
                 break
@@ -498,9 +499,54 @@ def _jira_key_column(text: str) -> tuple[bool, str, str]:
             active = s_col < 0 or (len(vals) > s_col and vals[s_col].lower() == "active")
             key = vals[k_col].upper()
             if active and _JIRA_KEY_RE.match(key):
-                return True, vals[0] if vals[0] not in ("—", "-") else "", key
-        return True, "", ""
-    return False, "", ""
+                out.append((vals[0] if vals[0] not in ("—", "-") else "", key))
+        return out
+    return None
+
+
+def _jira_key_column(text: str) -> tuple[bool, str, str]:
+    """(table has a "Jira Key" column, project name, Jira key) from the first markdown table whose header
+    names a Jira Key column. The key comes from the first Active row with a real key (OM, DSM ...); rows
+    with "—" or a non-key value are skipped. (False, "", "") when no such table exists."""
+    rows = _jira_key_rows(text)
+    if rows is None:
+        return False, "", ""
+    return (True, *rows[0]) if rows else (True, "", "")
+
+
+def _extract_jira_projects(text: str, first_key: str) -> list[str]:
+    """Every Jira key the runs check (OSI-061, 6 Nov 2026): the distinct keys of the Active rows of the "Jira
+    Key" column, in table order, so OM and MCPET are both checked. Profiles without that column (made before
+    3 Nov 2026) keep the single key found today: their old "Code" column mixes planning IDs and project codes
+    (GDN, TMC, PCD ...), so taking every code would turn each one into a "Jira project not found" warning."""
+    rows = _jira_key_rows(text)
+    if not rows:
+        return [first_key] if first_key else []
+    keys: list[str] = []
+    for _, k in rows:
+        if k not in keys:
+            keys.append(k)
+    return keys
+
+
+def jira_keys(skill: dict | None) -> list[str]:
+    """The Jira project keys of a loaded profile, for code that also takes hand-made skill dicts (tests,
+    previews): `jira_projects` when set, else the single `jira_project` (a "OM, DSM" text is split)."""
+    s = skill or {}
+    keys = [k for k in (s.get("jira_projects") or []) if k]
+    if keys:
+        return keys
+    return [k.strip() for k in re.split(r"[,;/]", s.get("jira_project") or "") if k.strip()]
+
+
+def jira_label(skill: dict | None, jira: dict | None = None) -> str:
+    """The keys to name in emails and subjects: "OM" for one key, "OM, MCPET" for several. Keys this run's
+    Jira could not find (jira["missing_keys"]) are left out, unless none was found (then all are named, as
+    before, next to the "not checked" message)."""
+    keys = jira_keys(skill)
+    missing = set((jira or {}).get("missing_keys") or [])
+    found = [k for k in keys if k not in missing]
+    return ", ".join(found or keys)
 
 
 def _extract_project_config(text: str) -> dict[str, str]:
@@ -721,8 +767,9 @@ def load_skill(skill_file: Path) -> dict[str, Any]:
         "user":                      user_email,
         "user_first_name":           user_first_name,
         "project_name":              proj.get("project_name", ""),
-        "jira_project":              proj.get("jira_project", ""),
-        "timezone":                  _extract_timezone(text),
+        "jira_project":              proj.get("jira_project", ""),          # first key: links, back-compat
+        "jira_projects":             _extract_jira_projects(text, proj.get("jira_project", "")),  # OSI-061
+        "timezone":                 _extract_timezone(text),
         "quiet_hours":               _extract_quiet_hours(text),
         "briefing_time":             _extract_briefing_time(text),
         "alert_channel":             _extract_alert_channel(text),

@@ -5,7 +5,7 @@
   "Track what happens after an alert: owner, status and follow-up (OSI-007, 046).",
   "Shorter emails you can configure per project (OSI-043, 044).",
   "Error types behind rejections, once the ORBIT QC feedback categories are available (OSI-027).",
-  "Trend charts in the Weekly Report and alerts too, after your comments on the daily briefing (OSI-010, 038)."
+  "A monthly summary per process type, once weeks and months line up in the data (OSI-038)."
  ],
  "notes": [
   {
@@ -161,6 +161,35 @@
    "text": "Your daily briefing now shows one table with every process type in your scope, each measured against its own baseline: tasks, hours, tasks per hour against its own baseline, FTA, CoQ and Yield. The Total row adds up only what can be added (hours, and FTA, CoQ and Yield over all tasks), so it no longer mixes the baselines of different process types. Below it, each process type that needs attention gets a card with 8-week trend charts and the reason. The recommended actions are shorter: each one says what to do and the root cause behind it. Team leads also see the operators who need support and the five in the team who did best this week, judged only on operators with at least 8 production hours. Tell us what you think: your comments decide the next changes.",
    "osi": "OSI-057, 044, 010, 038, 009",
    "highlight": true
+  },
+  {
+   "date": "2026-11-06",
+   "area": "OPS Hub",
+   "title": "Updating your profile: the form now fills in with your current answers",
+   "text": "When you open your profile form in OPS Hub, it now fills itself in with your current profile, on any PC or browser, and says \"Filled from your current profile\". Change only what is new and submit. Every save keeps your answers and a copy of your previous profile. An old project code in the Jira Key column gets a clear hint instead of stopping the save.",
+   "osi": "OSI-060",
+   "highlight": true
+  },
+  {
+   "date": "2026-11-06",
+   "area": "Jira follow-ups",
+   "title": "Every Jira project in your profile is checked",
+   "text": "If your profile lists several Jira projects, every one is now checked, not only the first. If one of them cannot be found, the email names it and still checks the others.",
+   "osi": "OSI-061"
+  },
+  {
+   "date": "2026-11-06",
+   "area": "Daily Briefing, Weekly Report and Alerts",
+   "title": "8-week trend charts in the weekly report and in alerts",
+   "text": "The weekly report now shows an 8-week trend chart for each of your main process types, like the daily briefing. A metric alert shows the same 8-week line for each process type past your alert level, with the alert level as a dashed line.",
+   "osi": "OSI-010"
+  },
+  {
+   "date": "2026-11-06",
+   "area": "Jira follow-ups",
+   "title": "Tickets nobody owns are listed",
+   "text": "The Jira SLA alert now also lists open tickets that nobody is assigned to, oldest first, so an owner can be given. They are not counted as SLA breaches.",
+   "osi": "OSI-056"
   }
  ]
 }

@@ -90,9 +90,9 @@ def _run_uc2(skill: dict, user: str):
     from agents import jira_agent
     from delivery import deliver
 
+    from skill_registry import jira_label
+
     proj_name    = project_name_of(skill)
-    jira_project = skill.get("jira_project") or ""
-    proj_label   = f"{proj_name} / {jira_project}" if jira_project else proj_name
     user_first   = skill.get("user_first_name") or "you"
     cc_list      = skill.get("cc_recipients") or []
 
@@ -108,10 +108,18 @@ def _run_uc2(skill: dict, user: str):
         audit_log.log_error("UC2", user, skill, f"Jira query failed: {jira['error']}"[:500])
         log.error(f"UC2  Jira query failed — SLA not checked  [{user}]: {str(jira['error'])[:200]}")
         return
+    if jira.get("key_warning"):
+        # OSI-061: one of several keys is wrong; the others were checked, so the run goes on
+        log.warning(f"UC2  {jira['key_warning']}  [{user}]")
 
+    jira_project = jira_label(skill, jira)          # every key checked, e.g. "OM, MCPET" (OSI-061)
+    proj_label   = f"{proj_name} / {jira_project}" if jira_project else proj_name
     breaches = jira.get("sla_breaches", [])
     warnings = jira.get("sla_warnings", [])
+    unassigned = jira.get("unassigned", [])
 
+    # The "Not assigned" list (OSI-056) rides along with an SLA alert; on its own it sends no email, so a
+    # healthy profile gets no new daily mail.
     if not breaches and not warnings:
         audit_log.log_uc2(user, skill, jira, status="healthy")
         log.info(f"✓ UC2  No SLA issues detected  [{user}]")
@@ -137,6 +145,14 @@ def _run_uc2(skill: dict, user: str):
                 f"- [{t['key']}]({t['url']}) — {t['summary']}  "
                 f"| Owner: **{t['assignee']}** | Silent: **{t['hours_stale']}h**"
             )
+    if unassigned:
+        from email_html import UNASSIGNED_MAX
+        sla_lines.append(f"\n## Not assigned — {len(unassigned)} open ticket(s) with no owner\n")
+        for t in unassigned[:UNASSIGNED_MAX]:
+            sla_lines.append(f"- [{t['key']}]({t['url']}) — {t['summary']}  | Status: {t['status']}"
+                             + (f" | Open: **{t['age_days']} days**" if t.get("age_days") is not None else ""))
+    if jira.get("key_warning"):
+        sla_lines.append(f"\n> {jira['key_warning']}")
 
     content    = "\n".join(sla_lines)
     date_stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
@@ -192,7 +208,9 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
                 "you will receive this every Friday at 16:00. If you have feedback, "
                 "please reach out to the OPS Native AI team."
             )
-        html = build_weekly(jira, ana, conf, skill=skill, preview_note=_preview_note)
+        images: dict[str, bytes] = {}      # 8-week charts per process type (OSI-010), inline in the email
+        html = build_weekly(jira, ana, conf, skill=skill, preview_note=_preview_note, images=images)
+        log.info(f"  UC3 {len(images)} trend chart(s)  [{user}]")
 
         week = ana.get("week_label") or datetime.now().strftime("%Y-%m-%d")
         content = (
@@ -225,8 +243,10 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
         from email_html import period_label
         subject = (f"UC3 — Weekly Report: {proj_name} — "
                    + (period_label(ana["week_label"]) if ana.get("week_label") else f"week {week}"))
+        # inline_images only when there are charts: a run without charts calls deliver() exactly as before
         res = deliver(content, skill, subject=subject, html_body=html,
-                      cc_recipients=cc_list or None, attachment_path=attachment_path)
+                      cc_recipients=cc_list or None, attachment_path=attachment_path,
+                      **({"inline_images": images} if images else {}))
 
         audit_log.log_uc3(user, skill, ana, jira,
                           status="sent" if res.get("email") else "send_failed")
@@ -323,12 +343,14 @@ def _run_uc4(skill: dict, user: str):
             names = [str(h[1].get("planning_id") or h[1].get("process_type")) for h in hits]
             if force or not already_alerted_today(user, skey):
                 rows = [{**h[1], "process_type": n} for h, n in zip(hits, names)]
+                images: dict[str, bytes] = {}   # OSI-010: 8-week chart per alerting process type
                 html = build_alert(
                     metric=email_type, rag="RED", current_value=worst[2], threshold=worst[0]["alert"],
                     direction="declining" if rise else "stable", week_label=week, process_breakdown=rows,
                     skill=skill, label=f"{label} — {len(hits)} {what}{'s' if len(hits) > 1 else ''} past "
                                        f"the level set for {'them' if len(hits) > 1 else 'it'}",
                     alert_on=worst[0]["direction"], analytics=analytics, metric_key=metric_key,
+                    images=images, trend_rows=rows,
                 )
                 subj = (f"UC4 Alert RED — {metric_key.upper()} {worst[2]:.2f}% vs threshold {worst[0]['alert']}% — "
                         f"{', '.join(names[:2])}{' …' if len(names) > 2 else ''} — {proj_name}"
@@ -337,7 +359,8 @@ def _run_uc4(skill: dict, user: str):
                     f"{n} {h[2]:.2f}% (level {h[0]['alert']}%)" for h, n in zip(hits, names))
                 out = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_scoped_Alert.md"
                 out.write_text(content, encoding="utf-8")
-                res = deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None)
+                res = deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None,
+                              **({"inline_images": images} if images else {}))
                 if not force and res.get("email"):
                     mark_alerted(user, skey)
                 audit_log.log_uc4(user, skill, analytics, metric_key=metric_key, alert_value=worst[2],
@@ -381,6 +404,7 @@ def _run_uc4(skill: dict, user: str):
         if force or breached:
             rag = "RED"
             if force or not already_alerted_today(user, metric_key):
+                images = {}                      # OSI-010: 8-week chart per process type past the level
                 html = build_alert(
                     metric=email_type, rag=rag,
                     current_value=current,
@@ -398,13 +422,15 @@ def _run_uc4(skill: dict, user: str):
                                          or (metric_key == "copq" and "coq" in o.get("breaches", []))]
                                         if skill.get("operator_view") else None),
                     analytics=analytics, metric_key=metric_key,
+                    images=images, trend_rows=alerting_rows(analytics, metric_key, alert_val, direction),
                 )
                 subj    = (f"UC4 Alert {rag} — {metric_key.upper()} {current:.2f}% vs threshold {alert_val}% — {proj_name}"
                            + (f" — {period_label(week, fallback_note=wk_note)}" if week else ""))
                 content = f"UC4 {metric_key.upper()} Alert {rag}: {current:.2f}% (threshold {alert_val}%)"
                 out     = OUTPUT_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H%M')}_UC4_{user}_{metric_key.upper()}_Alert.md"
                 out.write_text(content, encoding="utf-8")
-                res = deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None)
+                res = deliver(content, skill, subject=subj, html_body=html, cc_recipients=cc_list or None,
+                              **({"inline_images": images} if images else {}))
                 if not force and res.get("email"):     # failed send: retry at the next slot
                     mark_alerted(user, metric_key)
                 audit_log.log_uc4(
@@ -470,6 +496,17 @@ def scoped_breaches(analytics: dict, rules: list[dict], metric_key: str) -> list
             if (v > r["alert"]) if r["direction"] == "rise" else (v < r["alert"]):
                 found.append((r, row, float(v)))
     return found
+
+
+def alerting_rows(analytics: dict, metric_key: str, alert: float, direction: str) -> list[dict]:
+    """The process types that are themselves past the overall alert level for this metric (same rules as
+    scoped_breaches: names exact, too-small rows skipped). Their 8-week chart goes into the UC4 alert (OSI-010);
+    an overall breach that no single process type causes has no chart."""
+    names = [str(p.get("process_type", "")) for p in analytics.get("process_breakdown") or []]
+    if metric_key not in _ROW_FIELD or not names:
+        return []
+    rule = {"level": "process", "scope": names, "alert": alert, "direction": direction}
+    return [row for _, row, _ in scoped_breaches(analytics, [rule], metric_key)]
 
 
 def _run_uc5(user: str):

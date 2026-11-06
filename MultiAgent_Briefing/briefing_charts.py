@@ -1,5 +1,6 @@
 """
-Small 8-week trend line charts for the per-process-type daily briefing (5 Nov 2026).
+Small 8-week trend line charts for the per-process-type daily briefing (5 Nov 2026), and since 6 Nov 2026
+(OSI-010) for the UC3 Weekly Report and the UC4 metric alerts.
 
 User, 5 Nov: "lets add line chart as trend line". One PNG per process-type card: a row of small line charts,
 one per metric (FTA, Efficiency vs its own baseline, CoQ, Yield when the process type has it), each with its
@@ -50,13 +51,34 @@ def panels_for(series: list[dict]) -> list[tuple]:
     return [p for p in PANELS if any(w.get(p[0]) is not None for w in series)]
 
 
-def trend_png(series: list[dict], in_progress: bool) -> bytes:
+# UC4 alert chart per metric key of the profile: (series key, title, higher is better). CoPQ has no weekly
+# series per process type, so a CoPQ alert has no chart (OSI-010, 6 Nov 2026).
+ALERT_PANEL = {"fta": ("fta", "FTA", True), "efficiency": ("eff_vs_bl", "Eff vs own baseline", True),
+               "coq": ("coq", "CoQ", False), "yield": ("yield", "Yield", True)}
+ALERT_WIDTH_PX = 300    # two alert charts side by side fit the 600 px alert email
+
+
+def alert_png(series: list[dict], metric_key: str, level: float, in_progress: bool) -> bytes | None:
+    """One small line chart of one metric for one process type, with the alert level the profile set as the
+    reference line (OSI-010: the UC4 alert shows how the alerting process type got there). None when the
+    metric has no weekly series (CoPQ) or the series holds no value for it."""
+    spec = ALERT_PANEL.get(metric_key)
+    if not spec or not any(w.get(spec[0]) is not None for w in series):
+        return None
+    key, title, higher = spec
+    return trend_png(series, in_progress, panels=[(key, title, float(level), f"alert {level:g}%", higher)],
+                     width_px=ALERT_WIDTH_PX)
+
+
+def trend_png(series: list[dict], in_progress: bool, panels: list[tuple] | None = None,
+              width_px: int = WIDTH_PX) -> bytes:
     """One row of small line charts for one process type's weekly series (oldest first); `in_progress` =
-    the last week is the current, unfinished one. Returns PNG bytes."""
-    panels = panels_for(series)
+    the last week is the current, unfinished one. `panels` (default: every metric the series has) and
+    `width_px` let the UC4 alert draw one metric at half width. Returns PNG bytes."""
+    panels = panels if panels is not None else panels_for(series)
     n = max(1, len(panels))
     # drawn at twice the shown size so text stays sharp on high-DPI screens
-    fig, axes = plt.subplots(1, n, figsize=(WIDTH_PX * 2 / DPI, HEIGHT_PX * 2 / DPI), dpi=DPI, squeeze=False)
+    fig, axes = plt.subplots(1, n, figsize=(width_px * 2 / DPI, HEIGHT_PX * 2 / DPI), dpi=DPI, squeeze=False)
     xs = list(range(len(series)))
     labels = [_short(w["week"]) for w in series]
     for ax, (key, title, ref, ref_label, higher) in zip(axes[0], panels):

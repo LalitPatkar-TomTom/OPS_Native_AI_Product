@@ -129,6 +129,21 @@ def _build_kpi_summary(analytics: dict, jira: dict, pm: set) -> str:
     )
 
 
+def _trend_arrow(cur: float, prev: float | None, step: float, up_is_good: bool) -> str:
+    """Week-on-week arrow for one cell; empty when the previous week has no value.
+
+    Why: a week can carry the metric key with None (e.g. no Yield data that week). Subtracting it raised
+    TypeError and stopped the whole weekly report for that user (found 6 Nov 2026), so no arrow is shown instead.
+    """
+    if prev is None:
+        return ""
+    d = cur - prev
+    arr = "&#8593;" if d > step else "&#8595;" if d < -step else "&#8594;"
+    good, bad = (_GREEN, _RED) if up_is_good else (_RED, _GREEN)
+    col = good if d > 0 else bad if d < 0 else _MUTED
+    return f'<span style="color:{col}"> {arr}</span>'
+
+
 def _build_trend_table(analytics: dict, pm: set) -> str:
     """4-week trend table — FTA, CoQ, Efficiency per week (oldest → newest)."""
     m4w = list(reversed(analytics.get("metrics_4w", [])))  # oldest first
@@ -158,36 +173,26 @@ def _build_trend_table(analytics: dict, pm: set) -> str:
         )
         row = [week_cell]
 
-        if "fta" in pm:
-            fta = w.get("fta", 0.0)
+        if "fta" in pm and w.get("fta") is None:
+            row.append(f'<span style="{_F};font-size:12px;color:{_MUTED}">N/A</span>')
+        elif "fta" in pm:
+            fta = w["fta"]
             fta_rag = "GREEN" if fta >= 95 else "AMBER" if fta >= 92 else "RED"
             c, bg, bd = _rag(fta_rag)
-            if i > 0:
-                prev_fta = m4w[i - 1].get("fta", fta)
-                d = fta - prev_fta
-                arr = ("&#8593;" if d > 0.5 else "&#8595;" if d < -0.5 else "&#8594;")
-                col = _GREEN if d > 0 else _RED if d < 0 else _MUTED
-                arrow_html = f'<span style="color:{col}"> {arr}</span>'
-            else:
-                arrow_html = ""
+            arrow_html = _trend_arrow(fta, m4w[i - 1].get("fta", fta), 0.5, True) if i > 0 else ""
             row.append(
                 f'<span style="background:{bg};color:{c};border:1px solid {bd};'
                 f'padding:2px 6px;border-radius:3px;font-weight:bold;font-size:12px;{_F}">'
                 f'{fta:.2f}%</span>{arrow_html}'
             )
 
-        if "coq" in pm or "copq" in pm:
-            coq = w.get("coq", 0.0)
+        if ("coq" in pm or "copq" in pm) and w.get("coq") is None:
+            row.append(f'<span style="{_F};font-size:12px;color:{_MUTED}">N/A</span>')
+        elif "coq" in pm or "copq" in pm:
+            coq = w["coq"]
             coq_rag = "GREEN" if coq < 7 else "AMBER" if coq < 10 else "RED"
             c, bg, bd = _rag(coq_rag)
-            if i > 0:
-                prev_coq = m4w[i - 1].get("coq", coq)
-                d = coq - prev_coq
-                arr = ("&#8593;" if d > 0.2 else "&#8595;" if d < -0.2 else "&#8594;")
-                col = _RED if d > 0 else _GREEN if d < 0 else _MUTED
-                arrow_html = f'<span style="color:{col}"> {arr}</span>'
-            else:
-                arrow_html = ""
+            arrow_html = _trend_arrow(coq, m4w[i - 1].get("coq", coq), 0.2, False) if i > 0 else ""
             row.append(
                 f'<span style="background:{bg};color:{c};border:1px solid {bd};'
                 f'padding:2px 6px;border-radius:3px;font-weight:bold;font-size:12px;{_F}">'
@@ -210,14 +215,7 @@ def _build_trend_table(analytics: dict, pm: set) -> str:
             else:
                 yield_rag = "GREEN" if yv >= 95 else "AMBER" if yv >= 94 else "RED"
                 c, bg, bd = _rag(yield_rag)
-                if i > 0:
-                    prev_yv = m4w[i - 1].get("yield", yv)
-                    d = yv - prev_yv
-                    arr = ("&#8593;" if d > 0.2 else "&#8595;" if d < -0.2 else "&#8594;")
-                    col = _GREEN if d > 0 else _RED if d < 0 else _MUTED
-                    arrow_html = f'<span style="color:{col}"> {arr}</span>'
-                else:
-                    arrow_html = ""
+                arrow_html = _trend_arrow(yv, m4w[i - 1].get("yield", yv), 0.2, True) if i > 0 else ""
                 row.append(
                     f'<span style="background:{bg};color:{c};border:1px solid {bd};'
                     f'padding:2px 6px;border-radius:3px;font-weight:bold;font-size:12px;{_F}">'
@@ -240,6 +238,20 @@ def _build_trend_table(analytics: dict, pm: set) -> str:
     )
 
 
+def _trend_charts(analytics: dict, pm: set, images: dict | None) -> str:
+    """The 8-week chart per process type (email_briefing_pt.weekly_trend_html); '' when no images are asked
+    for or the charts fail, so the weekly report always goes out (a WARNING is logged)."""
+    if images is None:
+        return ""
+    try:
+        from email_briefing_pt import weekly_trend_html
+        return weekly_trend_html(analytics, pm, images)
+    except Exception as exc:
+        import logging
+        logging.getLogger("email_html_weekly").warning(f"UC3 trend charts left out: {type(exc).__name__}: {exc}")
+        return ""
+
+
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 def build(
@@ -248,16 +260,20 @@ def build(
     confluence: dict[str, Any] | None = None,
     skill: dict[str, Any] | None = None,
     preview_note: str | None = None,
+    images: dict[str, bytes] | None = None,
 ) -> str:
     """Render the UC3 Weekly Operational Report as an HTML email string.
 
     Jira/Confluence text is HTML-escaped first; sections are numbered and empty ones are left out.
+    images: given by the sender that can embed pictures; the 8-week chart per process type is added to it as
+    {cid: png} (OSI-010, 6 Nov 2026). Without it (Word report, previews) the report is as before.
     """
+    from skill_registry import jira_label
     jira         = _escape_jira(jira)              # untrusted Jira / Confluence text
     confluence   = _escape_confluence(confluence)
     _s           = skill or {}
     project_name = project_name_of(_s)
-    jira_project = _s.get("jira_project") or ""
+    jira_project = jira_label(_s, jira)            # every key checked, e.g. "OM, MCPET" (OSI-061)
     user_name    = _s.get("user_first_name") or "you"
     proj_label   = f"{project_name} ({jira_project})" if jira_project else project_name
     pm           = set(_s.get("primary_metrics") or ["fta", "efficiency", "coq"])
@@ -331,6 +347,9 @@ def build(
 
     {sec(f"4-Week Trend — {project_name}",
          _build_trend_table(analytics, pm)) if not analytics.get("no_scope") else ""}
+
+    {sec(f"8-Week Trend per Process Type — {project_name}", _trend_charts(analytics, pm, images))
+     if not analytics.get("no_scope") else ""}
 
     {sec(f"{jira_project} Sprint Health" if jira_project else "Sprint Health",
          _build_sprint(jira, jira_project))}

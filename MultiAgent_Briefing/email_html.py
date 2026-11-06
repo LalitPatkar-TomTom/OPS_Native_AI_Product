@@ -27,7 +27,7 @@ def _escape_jira(jira: dict | None) -> dict:
     if not jira:
         return jira or {}
     out = dict(jira)
-    for k in ("open_tickets", "sla_breaches", "sla_warnings"):
+    for k in ("open_tickets", "sla_breaches", "sla_warnings", "unassigned"):
         if isinstance(jira.get(k), list):
             out[k] = [{**t, **{f: _html.escape(str(t[f])) for f in _TICKET_TEXT if t.get(f) is not None}}
                       if isinstance(t, dict) else t for t in jira[k]]
@@ -492,7 +492,8 @@ def _btn(summary: str, description: str, jira_project: str = "", priority: str =
         from config import JIRA_BASE_URL, JIRA_PROJECT_NUMERIC_ID, JIRA_PROJECT as _p
     except ImportError:
         JIRA_BASE_URL, JIRA_PROJECT_NUMERIC_ID, _p = "https://tomtom.atlassian.net", "", ""
-    pk  = jira_project or _p
+    # a create link takes one project: the first key when the email names several (OSI-061, "OM, MCPET")
+    pk  = (jira_project or _p).split(",")[0].strip()
     iid = os.getenv("JIRA_ISSUE_TYPE_ID", "10016")
     pid = {"Highest":"1","High":"2","Medium":"3","Low":"4","Lowest":"5"}.get(priority, "3")
     summary, description = _html.unescape(summary), _html.unescape(description)   # see _escape_jira
@@ -688,7 +689,16 @@ def _build_sprint(jira, jira_project=""):
         + f'</tr></table>'
         + f'<p style="{_F};font-size:11px;color:{_MUTED};margin:8px 0 0">'
           f'Source: Jira {jira_project} · as of {as_of} UTC</p>'
+        + key_warning_note(jira)
     )
+
+
+def key_warning_note(jira: dict | None) -> str:
+    """OSI-061: one line when one of the profile's Jira keys was not found and the others were checked;
+    '' otherwise, so single-key emails are unchanged."""
+    w = (jira or {}).get("key_warning")
+    return (f'<p style="{_F};font-size:12px;color:{_AMBER};margin:6px 0 0">&#9888; {_html.escape(w)}</p>'
+            if w else "")
 
 
 def _build_fta(analytics, jira_project=""):
@@ -1116,6 +1126,28 @@ TICKET_LIST_MAX = 100   # rows per ticket list in an email; counts stay complete
 def shown_tickets(tickets: list[dict]) -> list[dict]:
     """The tickets listed in an email: oldest without an update first, at most TICKET_LIST_MAX."""
     return sorted(tickets or [], key=lambda t: -float(t.get("hours_stale") or 0))[:TICKET_LIST_MAX]
+
+
+UNASSIGNED_MAX = 15   # OSI-056: not-assigned tickets listed in UC2, oldest first
+
+
+def unassigned_table(tickets: list[dict]) -> str:
+    """OSI-056 (part, 6 Nov 2026): open tickets in scope that nobody owns, oldest first, at most UNASSIGNED_MAX,
+    with link, status and days open. Not SLA breaches: a ticket can be recent and still have no owner.
+    Text must already be HTML-escaped (_escape_jira)."""
+    rows = [[f'<a href="{t.get("url", "")}" style="color:#2563EB;font-weight:bold;text-decoration:none;{_F};'
+             f'font-size:12px">{t.get("key", "")}</a>',
+             f'<span style="{_F};font-size:12px">{str(t.get("summary", ""))[:60]}</span>',
+             f'<span style="{_F};font-size:12px">{t.get("status", "")}</span>',
+             f'<span style="{_F};font-size:12px;font-weight:bold">'
+             f'{"—" if t.get("age_days") is None else str(t["age_days"]) + " days"}</span>']
+            for t in tickets[:UNASSIGNED_MAX]]
+    extra = len(tickets) - UNASSIGNED_MAX
+    more = (f'<p style="{_F};font-size:12px;color:{_MUTED};margin:6px 0 0">… and <b>{extra:,} more</b> in Jira '
+            f'(oldest {UNASSIGNED_MAX} shown).</p>') if extra > 0 else ""
+    return (_data_table(["Ticket", "Summary", "Status", "Open for"], rows) + more
+            + f'<p style="{_F};font-size:11px;color:{_MUTED};margin:6px 0 0">Listed so an owner can be given; '
+              f'not counted as SLA breaches.</p>')
 
 
 def more_in_jira(tickets: list[dict]) -> str:
@@ -1580,7 +1612,8 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
     confluence      = _escape_confluence(confluence)
     _s              = skill or {}
     project_name    = project_name_of(_s)
-    jira_project    = _s.get("jira_project") or ""
+    from skill_registry import jira_label
+    jira_project    = jira_label(_s, jira)   # every key checked (OSI-061); one key: as before
     user_first_name = _s.get("user_first_name") or "you"
     project_label   = (f"{project_name} ({jira_project})"
                        if jira_project and jira_project != project_name else project_name)
@@ -1717,11 +1750,17 @@ def build_alert(
     operator_breakdown: list[dict] | None = None,   # set when the skill opts into operator level
     analytics: dict[str, Any] | None = None,        # full analytics result, for the work-unit split
     metric_key: str | None = None,  # the profile metric that fired: fta | efficiency | coq | copq | yield
+    images: dict[str, bytes] | None = None,   # given: 8-week charts are added here as {cid: png} (OSI-010)
+    trend_rows: list[dict] | None = None,     # the alerting process types to chart
+    trend_level: float | None = None,         # the alert level drawn as the reference line
 ) -> str:
-    """Compact HTML email for UC4 real-time quality alerts."""
+    """Compact HTML email for UC4 real-time quality alerts. With `images` and `trend_rows`, each alerting
+    process type also gets a small 8-week chart of the alerting metric (OSI-010, 6 Nov 2026); without them the
+    email is exactly as before."""
     _s           = skill or {}
     project_name = project_name_of(_s)
-    jira_project = _s.get("jira_project") or ""
+    from skill_registry import jira_label
+    jira_project = jira_label(_s)                # every key in the profile (OSI-061); one key: as before
     user_name    = _s.get("user_first_name") or "you"
     proj_label   = f"{project_name} ({jira_project})" if jira_project else project_name
 
@@ -1917,7 +1956,8 @@ def build_alert(
     ]), 1)}
 
     <!-- Flagged process types -->
-    {_section("Contributing Process Types", (_build_workunits(analytics) if analytics else "") + proc_table, 2)}
+    {_section("Contributing Process Types", (_build_workunits(analytics) if analytics else "") + proc_table
+              + _alert_trend(trend_rows, key, threshold if trend_level is None else trend_level, images), 2)}
 
     {op_section}
 
@@ -1951,6 +1991,20 @@ def build_alert(
 </body></html>"""
 
 
+def _alert_trend(rows: list[dict] | None, metric_key: str, level: float, images: dict | None) -> str:
+    """The UC4 alert's 8-week charts (email_briefing_pt.alert_trend_html); '' when not asked for or when the
+    charts cannot be drawn, so the alert always goes out."""
+    if images is None or not rows:
+        return ""
+    try:
+        from email_briefing_pt import alert_trend_html   # lazy: that module imports this one
+        return alert_trend_html(rows, metric_key, level, images)
+    except Exception as exc:
+        import logging
+        logging.getLogger("email_html").warning(f"UC4 trend charts left out: {type(exc).__name__}: {exc}")
+        return ""
+
+
 def build_sla_alert(
     jira: dict[str, Any],
     skill: dict[str, Any] | None = None,
@@ -1962,16 +2016,18 @@ def build_sla_alert(
     esc_h  = f"{(jira or {}).get('sla_escalation_hours', SLA_ESCALATION_HOURS):g}"
     window = (jira or {}).get("created_window") or "created in the last 12 months"
 
-    jira         = _escape_jira(jira)
+    from skill_registry import jira_label
     _s           = skill or {}
+    jira_project = jira_label(_s, jira)        # every key checked, e.g. "OM, MCPET" (OSI-061)
+    jira         = _escape_jira(jira)
     project_name = project_name_of(_s)
-    jira_project = _s.get("jira_project") or ""
     user_name    = _s.get("user_first_name") or "you"
     proj_label   = f"{project_name} ({jira_project})" if jira_project else project_name
     date_str     = datetime.now(timezone.utc).strftime("%A, %d %B %Y · %H:%M UTC")
 
     breaches = jira.get("sla_breaches", [])
     warnings = jira.get("sla_warnings", [])
+    unassigned = jira.get("unassigned") or []
     rag      = "RED" if breaches else "AMBER"
     c, bg, _ = _rag(rag)
 
@@ -2004,6 +2060,12 @@ def build_sla_alert(
     if warnings:
         sections.append(_section(f"SLA Warnings — over {warn_h}h without update",
                                  _ticket_table(warnings), n)); n += 1
+    if unassigned:
+        sections.append(_section(f"Not assigned — {len(unassigned)} open ticket(s) with no owner",
+                                 unassigned_table(unassigned), n)); n += 1
+    if jira.get("key_warning"):
+        sections.append(f'<p style="{_F};font-size:12px;color:{_AMBER};margin:0 0 12px">'
+                        f'&#9888; {_html.escape(jira["key_warning"])}</p>')
     sections.append(_section("Suggested Action", f'''
       <div style="{_F};font-size:13px;color:{_TEXT};line-height:1.6">
         Follow up with the owners of the breached tickets first, oldest first.

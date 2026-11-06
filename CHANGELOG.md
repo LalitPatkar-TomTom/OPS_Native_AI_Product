@@ -1,6 +1,33 @@
 # Changelog: OPS Native AI
 
-## Unreleased (branch daily-briefing-per-pt): the daily briefing per process type, for everyone (5 Nov 2026)
+## v2026-11-06-1: every Jira key, trend charts in UC3/UC4, not-assigned tickets, weekly report fix (6 Nov 2026)
+
+- **OSI-061 (Girish): every Jira key of the Active projects is checked, not only the first.** `load_skill` adds
+  `jira_projects` (the distinct keys of the "Jira Key" column, in table order; `jira_project` stays the first key
+  for links and old callers). The SLA search is `project in (OM, MCPET)` for several keys and still exactly
+  `project = OM` for one. With several keys each one is looked up first (`jira_agent.project_status`, MCP then
+  REST): a key Jira cannot find is named in a warning in the briefing, the UC2 alert and the weekly report while
+  the others are checked (`missing_keys`, `key_warning`); only when every key is missing is Jira "not checked",
+  as before. Emails and subjects name every checked key (`skill_registry.jira_label`, "OM, MCPET"); a create-
+  ticket link uses the first. The profile check and the daily Jira-key reminder check every key. Profiles
+  without a "Jira Key" column keep their single key: their old "Code" column mixes project codes (GDN, TMC ...)
+  that are not Jira projects. Decision: ADR-012.
+- **OSI-010 (rest, Pranav): the 8-week trend charts are also in the UC3 Weekly Report and the UC4 alerts.**
+  UC3: a new section "8-Week Trend per Process Type" with the daily briefing's chart row for the 8 process types
+  with the most hours. UC4: under "Contributing Process Types", a small chart of the alerting metric for each
+  process type past the level (at most 4, alert level as the dashed line). Same trend data as the daily briefing
+  (no extra query); images inline (cid). A chart that cannot be drawn is left out with a WARNING; the email
+  always goes. The Word report and previews are unchanged (no images asked for).
+- **OSI-056 (part): UC2 lists "Not assigned" tickets**: open tickets in the same scope with no assignee, oldest
+  first, at most 15, with status and days open; not counted as SLA breaches and sent only with an SLA alert (no
+  new daily email). "Not linked" waits for the reporter.
+- **Fix: the weekly report failed for a user whose previous week had no Yield value** (`float - None` in the
+  4-week trend table, found 6 Nov 2026 in the old-vs-new run; it failed on main too, so that user's weekly
+  report was not sent). A week without a value now shows N/A or no arrow (`email_html_weekly._trend_arrow`);
+  arrows for normal data are unchanged. Every other user's emails were identical before and after the fix.
+- Tests: `tests/test_osi061_010_056.py` (functional, technical, performance).
+
+## v2026-11-05-1: the daily briefing per process type, for everyone (5 Nov 2026)
 
 - **Why:** a baseline is valid only for its own process type. With several process types the briefing showed
   scope-wide "actual vs baseline tasks/hr (baseline = average of the process types in scope)", which means

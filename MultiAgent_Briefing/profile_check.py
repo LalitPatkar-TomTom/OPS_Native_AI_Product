@@ -19,7 +19,6 @@ import argparse
 import hashlib
 import html
 import logging
-import re
 import sqlite3
 import sys
 from datetime import datetime
@@ -110,7 +109,7 @@ def check(skill: dict) -> dict:
         fix.append("<b>No use case is marked Active</b>, so you receive no emails. Mark the ones you want as Active.")
 
     # Jira (UC2)
-    keys = [k.strip() for k in re.split(r"[,;/]", skill.get("jira_project") or "") if k.strip()]
+    keys = skill_registry.jira_keys(skill)     # every key of the Active projects (OSI-061), each checked
     if "UC2" in active:
         if not keys:
             fix.append("<b>Jira project key missing</b>: your Jira SLA follow-up (UC2) cannot run. Add the key(s) "
@@ -241,7 +240,7 @@ def jira_key_problems(skill: dict) -> list[tuple[str, str]]:
     active = {u["uc_id"] for u in skill.get("use_cases", []) if u.get("active")}
     if not active & JIRA_UCS:
         return []
-    keys = [k.strip() for k in re.split(r"[,;/]", skill.get("jira_project") or "") if k.strip()]
+    keys = skill_registry.jira_keys(skill)     # every key of the Active projects (OSI-061), each checked
     out = []
     for k in keys:
         if _project_status(k) == "missing":

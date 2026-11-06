@@ -37,3 +37,5 @@ def _no_jira_project_lookup(request, monkeypatch):
         return
     from agents import jira_agent
     monkeypatch.setattr(jira_agent, "project_missing", lambda key: False)
+    # the per-key lookup for profiles with several keys (OSI-061) also never reaches Jira in tests
+    monkeypatch.setattr(jira_agent, "project_status", lambda key: "ok")

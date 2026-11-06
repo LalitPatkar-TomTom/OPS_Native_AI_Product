@@ -63,7 +63,8 @@ def build(
 
     _s           = skill or {}
     project_name = _s.get("project_name") or "Project"
-    jira_project = _s.get("jira_project") or ""
+    from skill_registry import jira_label
+    jira_project = jira_label(_s, jira)            # every key checked (OSI-061); one key: as before
     user_name    = _s.get("user_first_name") or "you"
     pm           = set(_s.get("primary_metrics") or ["fta", "efficiency", "coq"])
     proj_label   = f"{project_name} ({jira_project})" if jira_project else project_name

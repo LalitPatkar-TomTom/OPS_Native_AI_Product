@@ -78,7 +78,8 @@ def run(jira: dict[str, Any], analytics: dict[str, Any],
     """
     _skill          = skill or {}
     project_name    = _skill.get("project_name") or "Project"
-    jira_project    = _skill.get("jira_project") or ""
+    from skill_registry import jira_label
+    jira_project    = jira_label(_skill, jira)   # every key checked (OSI-061); one key: as before
     user_first_name = _skill.get("user_first_name") or "you"
     project_label   = f"{project_name} ({jira_project})" if jira_project else project_name
 
