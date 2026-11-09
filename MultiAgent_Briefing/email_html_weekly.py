@@ -6,6 +6,7 @@ Outlook-safe: table-based layout, inline CSS only.
 from datetime import datetime, timezone
 from typing import Any
 
+from ask_why import links_row
 from email_html import (
     _rag, _badge, _dot, _arrow, _kv_table, _data_table, _section,
     _alert_row, _build_sprint, _build_confluence, _preview_banner,
@@ -337,7 +338,7 @@ def build(
 
     {_build_action_box(jira, analytics, set(pm or [])) if not analytics.get("no_scope") else ""}
 
-    {_build_kpi_summary(analytics, jira, pm)}
+    {_build_kpi_summary(analytics, jira, pm)}{links_row(analytics)}
 
     {sec(f"Work Unit &amp; Process-type Breakdown — {period_label(week)}",
          _build_breakdown(analytics, scope_mode)) if not analytics.get("no_scope") else ""}

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlencode
 
+from ask_why import alert_link, links_row
 
 # ── Untrusted text ─────────────────────────────────────────────────────────────
 # Jira summaries, names and statuses, and Confluence titles are written by other people. They are
@@ -1677,7 +1678,7 @@ def build(jira: dict[str, Any], analytics: dict[str, Any],
 
     {_build_action_box(jira, analytics, set(pm or []))}
 
-    {_build_kpi_row(analytics, jira, pm)}
+    {_build_kpi_row(analytics, jira, pm)}{links_row(analytics)}
 
     {sec(f"Work Unit &amp; Process-type Breakdown — {period_label(analytics.get('week_label',''))}",
          _build_breakdown(analytics, scope_mode)) if not analytics.get("no_scope") else ""}
@@ -1910,7 +1911,7 @@ def build_alert(
     <div style="{_F};font-size:36px;font-weight:bold;color:{c};line-height:1">{value_str}</div>
     <div style="{_F};font-size:13px;color:{_TEXT};margin-top:6px">
       Threshold: <b>{thr_label}</b> &nbsp;·&nbsp; Trend: <b>{dir_note}</b>
-      &nbsp;·&nbsp; Data: <b>{period_label(week_label, fallback_note=alert_week_note(analytics))}</b>
+      &nbsp;·&nbsp; Data: <b>{period_label(week_label, fallback_note=alert_week_note(analytics))}</b>{alert_link(analytics, key)}
     </div>
   </td></tr>
   </table>

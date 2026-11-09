@@ -26,6 +26,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from agents.analytics_agent import MIN_QC_TO_FLAG, TREND_RUN, mix_split, trend_word
+from ask_why import links_row
 from config import COQ_INVESTIGATE, COQ_MONITOR, FTA_ALERT, FTA_TARGET, YIELD_ALERT, YIELD_TARGET
 from email_html import (
     _AMBER, _BORDER, _F, _GREEN, _HDR, _MUTED, _RED, _SEC, _STRIPE, _TEXT, _WHITE,
@@ -827,7 +828,7 @@ def build(jira: dict[str, Any], analytics: dict[str, Any], confluence: dict[str,
     </td></tr></table>
   <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:18px 20px">
     {_preview_banner(preview_note) if preview_note else ""}
-    {_status_box(jira, analytics, pm, project_name, cards, rows)}
+    {_status_box(jira, analytics, pm, project_name, cards, rows)}{links_row(analytics)}
     {no_scope_notice(s)}
     {_crisp_actions(jira, analytics, pm)}
     {sec("What changed since last week", _changes(analytics, pm)) if not no_scope else ""}

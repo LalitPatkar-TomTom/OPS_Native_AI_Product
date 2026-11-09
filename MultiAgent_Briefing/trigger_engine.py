@@ -200,6 +200,8 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
             ana    = f_ana.result()
             conf   = f_conf.result()
 
+        import ask_why
+        ask_why.snapshot(ana, skill, "UC3")            # "Ask why" links (ADR-015)
         from email_html_weekly import build as build_weekly
         _preview_note = None
         if os.getenv("PREVIEW_MODE"):
@@ -457,6 +459,9 @@ def _run_uc4(skill: dict, user: str):
             log.info(f"  UC4  {metric_key.upper()} {current:.2f}% — healthy")
 
     tail = f" — {proj_name}" + (f" — {period_label(week, fallback_note=wk_note)}" if week else "")
+    if pending:
+        import ask_why
+        ask_why.snapshot(analytics, skill, "UC4")   # "See why" link per metric (ADR-015)
     alerts_sent = _send_uc4_alerts(pending, skill, user, analytics, force, tail, cc_list)
     if alerts_sent == 0 and not force:
         log.info(f"UC4  All metrics healthy — no alerts  [{user}]")

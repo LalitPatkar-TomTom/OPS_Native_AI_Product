@@ -1,5 +1,16 @@
 # Changelog: OPS Native AI
 
+## Unreleased (branch ask-why): "Ask why" links from every email number (9 Nov 2026)
+
+- **New `MultiAgent_Briefing/ask_why.py`**: before UC1, UC3 and UC4 emails are built, the numbers they are made
+  from are saved as one snapshot per email on the opshub-config share (`/data/config/drill/<id>.json`, random id,
+  never overwritten), with the email's period wording and judging rules. The emails link to OPS Hub, which opens
+  its chat with the email's numbers as the first answer (OPS Hub ADR-012): UC1/UC3 one row "Ask why: FTA · Efficiency · CoQ · Yield" under the KPI boxes, UC4 "See why →" per metric.
+- **Off by default** (`ASK_WHY=1` turns it on, after the OPS Hub page is live). Off, all emails are byte-identical
+  to v2026-11-06-2 (UC1 per process type, UC1 classic, UC3, UC4 compared on 9 Nov). A save problem sends the
+  email without links. No LLM. Decision: ADR-015.
+- Tests: `tests/test_ask_why.py` (functional, technical, performance; one full UC4 run through the trigger engine).
+
 ## v2026-11-06-2: one combined metric alert per run, time saved per breach (6 Nov 2026)
 
 - **OSI-043 (part 2, Pranav): every UC4 metric past its level in a run goes out in one email.** `_run_uc4`

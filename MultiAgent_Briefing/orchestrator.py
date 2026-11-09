@@ -185,6 +185,8 @@ def run_uc1(skill_file: Path | None = None) -> Path:
     preview = ("This is a preview of your daily operational briefing. Once implemented, you will receive this "
                "automatically every morning. If you have any initial feedback or comments, please reach out to the "
                "OPS Native AI team.") if os.getenv("PREVIEW_MODE") else None
+    import ask_why
+    ask_why.snapshot(analytics_result, skill, "UC1")   # "Ask why" links (ADR-015); off unless ASK_WHY=1
     html_body, images, layout = build_daily(jira_result, analytics_result, confluence_result, skill, preview)
     log.info(f"          Layout: {layout}, {len(images)} chart(s)")
     delivery_results = deliver(
