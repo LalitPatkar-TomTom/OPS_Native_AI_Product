@@ -4,6 +4,7 @@ Different structure from daily (UC1): trend-first, week-over-week comparison.
 Outlook-safe: table-based layout, inline CSS only.
 """
 from datetime import datetime, timezone
+from html import escape
 from typing import Any
 
 from email_html import (
@@ -254,6 +255,95 @@ def _trend_charts(analytics: dict, pm: set, images: dict | None) -> str:
 
 # ── Entry point ────────────────────────────────────────────────────────────────
 
+
+# ── Delivery forecast ("Ops Weather", 9 Nov 2026) ─────────────────────────────────
+
+FORECAST_ROWS = 10     # work packages with a forecast
+WAITING_ROWS  = 5      # largest work packages nobody worked on
+OM_ROWS       = 8
+
+
+def _fc_num(v: float | int | None, nd: int = 0) -> str:
+    """Thousands-separated number, "–" for missing."""
+    return "–" if v is None else f"{v:,.{nd}f}"
+
+
+def _forecast_howto(fc: dict, work_days: int, cap_days: int, trickle: int) -> str:
+    """"How to read this" box: the rule in plain words plus one real row worked through, an OM-pace row when there
+    is one (the case PMs found hardest to read, 9 Nov 2026), so nobody takes a forecast for a commitment."""
+    items = [it for it in fc["items"] if it["days"] is not None]
+    ex = next((it for it in items if it["basis"] == "om"), items[0] if items else None)
+    rule = (f"<b>How to read this.</b> Work days left = pending tasks &divide; tasks done per work day in the last "
+            f"4 full weeks ({work_days} work days). Editors and tasks/h show the team and pace behind it. A work "
+            f"package with fewer than {trickle} tasks of its own in 4 weeks is forecast to finish <i>with its OM "
+            f"ticket</i>: all of the OM&#39;s pending tasks at the OM&#39;s pace. Beyond {cap_days} work days the "
+            f"email shows &ldquo;&gt; 1 year&rdquo;. It is today&#39;s pace, not a plan: more editors make it "
+            f"shorter.")
+    if ex and ex["basis"] == "om":
+        per_day = ex["om_tasks_4w"] / work_days
+        example = (f"<br><b>Example:</b> {escape(ex['wp'])} had no work of its own in 4 weeks. Its OM "
+                   f"{escape(ex['om'])} did {ex['om_tasks_4w']:,} tasks ({per_day:,.1f} a day, {ex['editors']:,} "
+                   f"editors) and has {ex['om_pending']:,} pending tasks in {ex['om_wps']:,} work packages: "
+                   f"{ex['om_pending']:,} &divide; {per_day:,.1f} = {ex['days']:,.0f} work days"
+                   + (" (shown as &ldquo;&gt; 1 year&rdquo;)." if ex["days"] > cap_days else "."))
+    elif ex:
+        per_day = ex["tasks_4w"] / work_days
+        example = (f"<br><b>Example:</b> {escape(ex['wp'])} did {ex['tasks_4w']:,} tasks in 4 weeks "
+                   f"({per_day:,.1f} a day, {ex['editors']:,} editors): {ex['pending']:,} pending &divide; "
+                   f"{per_day:,.1f} = {ex['days']:,.0f} work days.")
+    else:
+        example = ""
+    return (f'<div style="{_F};font-size:11px;color:{_TEXT};background:{_STRIPE};border:1px solid {_BORDER};'
+            f'padding:8px 10px;margin-bottom:10px">{rule}{example}</div>')
+
+
+def _build_forecast(fc: dict | None) -> str:
+    """Delivery forecast section: band totals, the WPs being worked on with their work days left, the largest
+    waiting WPs and the OM roll-up. Empty (section left out) when there is no forecast or nothing pending.
+
+    Work package names come from Databricks and are escaped. Rows are ordered by pending tasks, largest first,
+    because size is what a manager plans around; the band shows the timing.
+    """
+    from delivery_forecast import BANDS, WORK_DAYS, CAP_DAYS, TRICKLE_TASKS, days_text, basis_text
+    if not fc or fc.get("error") or fc.get("off") or not fc.get("items"):
+        return ""
+    sym = lambda b: BANDS[b][0]
+    tot = fc["totals"]
+    summary = " &nbsp;·&nbsp; ".join(
+        f'{sym(b)} {BANDS[b][1]}: <b>{tot[b]["wps"]:,}</b> WPs, {tot[b]["pending"]:,} tasks'
+        for b in BANDS if tot[b]["wps"])
+    intro = (f'<div style="{_F};font-size:12px;color:{_TEXT};margin-bottom:10px">'
+             f'<b>{fc["pending_total"]:,}</b> pending tasks in {len(fc["items"]):,} work packages. '
+             f'Work days left = pending tasks &divide; tasks done per work day, at the pace of '
+             f'{fc["pace_from"]} to {fc["pace_to"]} (tasks/h &times; editors&#39; hours).<br>{summary}</div>')
+
+    worked = [it for it in fc["items"] if it["days"] is not None][:FORECAST_ROWS]
+    rows = [[sym(it["band"]), escape(it["wp"]), escape(it["om"]) or "–", _fc_num(it["pending"]),
+             _fc_num(it["editors"]), _fc_num(it["tph"], 1), days_text(it["days"]), basis_text(it)]
+            for it in worked]
+    out = intro + _forecast_howto(fc, WORK_DAYS, CAP_DAYS, TRICKLE_TASKS)
+    if rows:
+        out += _data_table(["", "Work package", "OM", "Pending", "Editors", "Tasks/h", "Work days", "Basis"], rows)
+    waiting = [it for it in fc["items"] if it["days"] is None][:WAITING_ROWS]
+    if waiting:
+        out += (f'<div style="{_F};font-size:12px;font-weight:bold;color:{_TEXT};margin:12px 0 6px">'
+                f'Largest work packages waiting — no forecast possible</div>')
+        out += _data_table(["", "Work package", "OM", "Pending", "Why"],
+                           [[sym(it["band"]), escape(it["wp"]), escape(it["om"]) or "–", _fc_num(it["pending"]),
+                             BANDS[it["band"]][1]] for it in waiting])
+    oms = fc.get("oms", [])[:OM_ROWS]
+    if oms:
+        out += (f'<div style="{_F};font-size:12px;font-weight:bold;color:{_TEXT};margin:12px 0 6px">'
+                f'By OM ticket (whole OM at its own pace)</div>')
+        out += _data_table(["", "OM", "Work packages", "Pending", "Work days"],
+                           [[sym(g["band"]), escape(g["om"]), _fc_num(g["wps"]), _fc_num(g["pending"]),
+                             days_text(g["days"]) if g["days"] is not None else BANDS[g["band"]][1]]
+                            for g in oms])
+    out += (f'<div style="{_F};font-size:11px;color:{_MUTED};margin-top:8px">Source: project_pending_task_tbl '
+            f'(snapshot) and the weekly KPI table. {fc["excluded"]} are left out.</div>')
+    return out
+
+
 def build(
     jira: dict[str, Any],
     analytics: dict[str, Any],
@@ -261,12 +351,14 @@ def build(
     skill: dict[str, Any] | None = None,
     preview_note: str | None = None,
     images: dict[str, bytes] | None = None,
+    forecast: dict[str, Any] | None = None,
 ) -> str:
     """Render the UC3 Weekly Operational Report as an HTML email string.
 
     Jira/Confluence text is HTML-escaped first; sections are numbered and empty ones are left out.
     images: given by the sender that can embed pictures; the 8-week chart per process type is added to it as
     {cid: png} (OSI-010, 6 Nov 2026). Without it (Word report, previews) the report is as before.
+    forecast: delivery_forecast.run() output; the "Delivery Forecast" section is left out without it.
     """
     from skill_registry import jira_label
     jira         = _escape_jira(jira)              # untrusted Jira / Confluence text
@@ -350,6 +442,8 @@ def build(
 
     {sec(f"8-Week Trend per Process Type — {project_name}", _trend_charts(analytics, pm, images))
      if not analytics.get("no_scope") else ""}
+
+    {sec("Delivery Forecast — pending work packages and OM tickets", _build_forecast(forecast))}
 
     {sec(f"{jira_project} Sprint Health" if jira_project else "Sprint Health",
          _build_sprint(jira, jira_project))}

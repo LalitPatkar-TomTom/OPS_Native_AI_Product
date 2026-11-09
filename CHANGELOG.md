@@ -1,5 +1,23 @@
 # Changelog: OPS Native AI
 
+## Unreleased (branch delivery-weather, work in progress: prediction to be improved): delivery forecast per work package and OM ticket
+
+- **New UC3 section "Delivery Forecast" ("Ops Weather").** `agents/delivery_forecast.py` reads the pending tasks
+  (`project_pending_task_tbl`) and the last 4 full weeks of the KPI table in one read-only SELECT and gives, per
+  work package, the work days left = pending / tasks done per work day, with editors and tasks/h. A WP with
+  under 50 tasks in 4 weeks uses its OM ticket's pace (finishes with its OM); otherwise "trickle" or "no editor in
+  4 weeks", without a number. Bands: sunny up to 20 work days, cloudy 21-60, rainy over 60. The email shows the 10
+  largest WPs with a forecast, the 5 largest waiting WPs and the 8 largest OM tickets. ADP, training and pilot
+  process types are left out. A failure leaves the section out; `DELIVERY_FORECAST=0` switches it off.
+- **The PM can check every number** (user, 9 Nov): a "How to read this" box gives the rule and works one real row
+  through (an OM-pace row when there is one); the Basis column shows the evidence ("own pace: 2,000 tasks in 4 wks"
+  / "no own work in 4 wks; done with OM-337351: 96 tasks in 4 wks, 24,641 pending in 134 WPs"); more than 250
+  work days reads "> 1 year" instead of a falsely exact figure (5,134).
+  Decision: ADR-014.
+- Live read-only run, 9 Nov 2026, full table: 3,031 WPs / 4,977,722 pending tasks — 120 sunny, 26 cloudy,
+  168 rainy, 228 trickle, 2,489 with no editor in 4 weeks.
+- Tests: `tests/test_delivery_forecast.py` (functional, technical, performance).
+
 ## v2026-11-06-2: one combined metric alert per run, time saved per breach (6 Nov 2026)
 
 - **OSI-043 (part 2, Pranav): every UC4 metric past its level in a run goes out in one email.** `_run_uc4`

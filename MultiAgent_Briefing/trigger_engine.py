@@ -192,13 +192,16 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
         skill = {**skill, "primary_metrics": pm + ["yield"]}
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+        from agents import delivery_forecast
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             f_jira = pool.submit(jira_agent.run,                         skill)
             f_ana  = pool.submit(analytics_agent.run, skill, "weekly")
             f_conf = pool.submit(run_confluence,                         skill)
+            f_fc   = pool.submit(delivery_forecast.run,                  skill)   # never raises
             jira   = f_jira.result()
             ana    = f_ana.result()
             conf   = f_conf.result()
+            fc     = f_fc.result()
 
         from email_html_weekly import build as build_weekly
         _preview_note = None
@@ -209,7 +212,8 @@ def _run_uc3(skill: dict, skill_file: Path, user: str):
                 "please reach out to the OPS Native AI team."
             )
         images: dict[str, bytes] = {}      # 8-week charts per process type (OSI-010), inline in the email
-        html = build_weekly(jira, ana, conf, skill=skill, preview_note=_preview_note, images=images)
+        html = build_weekly(jira, ana, conf, skill=skill, preview_note=_preview_note, images=images,
+                            forecast=fc)
         log.info(f"  UC3 {len(images)} trend chart(s)  [{user}]")
 
         week = ana.get("week_label") or datetime.now().strftime("%Y-%m-%d")
